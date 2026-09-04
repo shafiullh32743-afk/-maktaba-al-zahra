@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { LayoutDashboard, BookOpen, PenLine, FolderTree } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function AuthorsPage() {
@@ -28,17 +29,21 @@ export default function AuthorsPage() {
     <main className="min-h-screen flex bg-gray-50">
       <aside className="w-64 min-h-screen bg-white border-r border-gray-200 p-6 shadow-sm">
         <h1 className="text-2xl font-bold text-emerald-800">مكتبہ الزھراء</h1>
-        <nav className="mt-10 space-y-2">
-          <Link href="/" className="block p-3 rounded-xl text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 transition">
+               <nav className="mt-10 space-y-2">
+          <Link href="/" className="flex items-center gap-3 p-3 rounded-xl bg-emerald-700 text-white font-bold shadow-sm">
+            <LayoutDashboard size={20} />
             ڈیش بورڈ
           </Link>
-          <Link href="/books" className="block p-3 rounded-xl text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 transition">
+          <Link href="/books" className="flex items-center gap-3 p-3 rounded-xl text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 transition">
+            <BookOpen size={20} />
             کتب
           </Link>
-          <Link href="/authors" className="block p-3 rounded-xl bg-emerald-700 text-white font-bold shadow-sm">
+          <Link href="/authors" className="flex items-center gap-3 p-3 rounded-xl text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 transition">
+            <PenLine size={20} />
             مصنفین
           </Link>
-          <Link href="/categories" className="block p-3 rounded-xl text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 transition">
+          <Link href="/categories" className="flex items-center gap-3 p-3 rounded-xl text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 transition">
+            <FolderTree size={20} />
             زمرے
           </Link>
         </nav>
