@@ -135,7 +135,7 @@ export default function BooksPage() {
       )}
 
       <aside
-        className={`w-64 min-h-screen bg-blue-400 p-6 flex flex-col fixed md:static inset-y-0 right-0 z-50 transform transition-transform duration-300 ${
+        className={`w-64 min-h-screen bg-blue-400 p-6 flex flex-col fixed md:static inset-y-0 right-0 z-50 flex-shrink-0 transform transition-transform duration-300 ${
           mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
         }`}
       >
@@ -194,7 +194,7 @@ export default function BooksPage() {
         </div>
       </aside>
 
-      <section className="flex-1 p-5 md:p-10 w-full">
+      <section className="flex-1 min-w-0 p-5 md:p-10">
         <div className="flex items-center justify-between md:hidden mb-4">
           <button
             onClick={() => setMobileMenuOpen(true)}
