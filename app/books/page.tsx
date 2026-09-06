@@ -1,18 +1,22 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut } from "lucide-react";
+import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function BooksPage() {
   const [search, setSearch] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterAuthor, setFilterAuthor] = useState("");
   const [books, setBooks] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newAuthor, setNewAuthor] = useState("");
   const [newCategory, setNewCategory] = useState("");
+  const [customCategory, setCustomCategory] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const fetchBooks = async () => {
@@ -31,14 +35,21 @@ export default function BooksPage() {
     fetchBooks();
   }, []);
 
-  const filteredBooks = books.filter((book) =>
-    book.title.includes(search)
-  );
+  const filteredBooks = books.filter((book) => {
+    const matchesSearch = book.title.includes(search);
+    const matchesCategory = filterCategory ? book.category === filterCategory : true;
+    const matchesAuthor = filterAuthor ? book.author === filterAuthor : true;
+    return matchesSearch && matchesCategory && matchesAuthor;
+  });
 
   const existingCategories = Array.from(new Set(books.map((b) => b.category)));
+  const existingAuthors = Array.from(new Set(books.map((b) => b.author)));
 
   const handleAddBook = async () => {
     if (newTitle.trim() === "") return;
+
+    const finalCategory =
+      newCategory === "__new__" ? customCategory.trim() : newCategory;
 
     if (editingId) {
       await supabase
@@ -46,20 +57,21 @@ export default function BooksPage() {
         .update({
           title: newTitle,
           author: newAuthor || "مكتبہ الزھراء",
-          category: newCategory || "عمومی",
+          category: finalCategory || "عمومی",
         })
         .eq("id", editingId);
     } else {
       await supabase.from("books").insert({
         title: newTitle,
         author: newAuthor || "مكتبہ الزھراء",
-        category: newCategory || "عمومی",
+        category: finalCategory || "عمومی",
       });
     }
 
     setNewTitle("");
     setNewAuthor("");
     setNewCategory("");
+    setCustomCategory("");
     setEditingId(null);
     setShowModal(false);
     fetchBooks();
@@ -78,15 +90,37 @@ export default function BooksPage() {
     fetchBooks();
   };
 
+  const hasActiveFilters = search || filterCategory || filterAuthor;
+
   return (
     <main className="min-h-screen flex bg-gray-50">
+      {/* Mobile overlay */}
+      {mobileMenuOpen && (
+        <div
+          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 min-h-screen bg-blue-400 p-6 flex flex-col">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-md">
-            <BookOpen className="text-white" size={20} />
+      <aside
+        className={`w-64 min-h-screen bg-blue-400 p-6 flex flex-col fixed md:static inset-y-0 right-0 z-50 transform transition-transform duration-300 ${
+          mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-md">
+              <BookOpen className="text-white" size={20} />
+            </div>
+            <h1 className="text-lg font-bold text-white">مكتبہ الزھراء</h1>
           </div>
-          <h1 className="text-lg font-bold text-white">مكتبہ الزھراء</h1>
+          <button
+            onClick={() => setMobileMenuOpen(false)}
+            className="md:hidden text-white/80 hover:text-white"
+          >
+            <X size={22} />
+          </button>
         </div>
 
         <nav className="mt-10 space-y-1.5 flex-1">
@@ -126,10 +160,21 @@ export default function BooksPage() {
       </aside>
 
       {/* Main Content */}
-      <section className="flex-1 p-10">
-        <div className="flex items-center justify-between">
+      <section className="flex-1 p-5 md:p-10 w-full">
+        {/* Mobile top bar */}
+        <div className="flex items-center justify-between md:hidden mb-4">
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm"
+          >
+            <Menu size={22} />
+          </button>
+          <h1 className="text-lg font-bold text-emerald-800">مكتبہ الزھراء</h1>
+        </div>
+
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-bold text-gray-900">ہماری کتب</h2>
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">ہماری کتب</h2>
             <p className="mt-2 text-gray-500">مكتبہ الزھراء کی کتب</p>
           </div>
 
@@ -141,22 +186,70 @@ export default function BooksPage() {
               setNewCategory("");
               setShowModal(true);
             }}
-            className="rounded-xl px-5 py-3 bg-emerald-700 text-white hover:bg-emerald-800 transition shadow-sm"
+            className="rounded-xl px-5 py-3 bg-emerald-700 text-white hover:bg-emerald-800 transition shadow-sm w-full md:w-auto"
           >
             + کتاب شامل کریں
           </button>
         </div>
 
-        <input
-          type="text"
-          placeholder="کتاب تلاش کریں..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="mt-8 w-full rounded-xl border border-gray-200 p-4 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
-        />
+        {/* Search + Filters */}
+        <div className="mt-8 flex flex-col md:flex-row gap-3">
+          <input
+            type="text"
+            placeholder="کتاب تلاش کریں..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 rounded-xl border border-gray-200 p-4 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
+          />
 
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="rounded-xl border border-gray-200 p-4 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition md:w-56"
+          >
+            <option value="">تمام زمرے</option>
+            {existingCategories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={filterAuthor}
+            onChange={(e) => setFilterAuthor(e.target.value)}
+            className="rounded-xl border border-gray-200 p-4 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition md:w-56"
+          >
+            <option value="">تمام مصنفین</option>
+            {existingAuthors.map((author) => (
+              <option key={author} value={author}>
+                {author}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {hasActiveFilters && (
+          <div className="mt-4 flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-gray-500">
+              {filteredBooks.length} نتائج ملے
+            </span>
+            <button
+              onClick={() => {
+                setSearch("");
+                setFilterCategory("");
+                setFilterAuthor("");
+              }}
+              className="text-sm text-emerald-700 hover:text-emerald-900 underline"
+            >
+              فلٹرز صاف کریں
+            </button>
+          </div>
+        )}
+
+        {/* Books */}
         {!loaded ? (
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
             {[1, 2, 3].map((i) => (
               <div key={i} className="w-full rounded-2xl border border-gray-200 bg-white p-6 animate-pulse">
                 <div className="h-40 w-full rounded-xl bg-gray-200" />
@@ -167,7 +260,7 @@ export default function BooksPage() {
             ))}
           </div>
         ) : (
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
             {filteredBooks.length === 0 && (
               <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
                 <span className="text-6xl mb-4">📖</span>
@@ -223,8 +316,8 @@ export default function BooksPage() {
       </section>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-xl">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold text-gray-800">
               {editingId ? "کتاب میں ترمیم کریں" : "نئی کتاب شامل کریں"}
             </h3>
@@ -264,7 +357,8 @@ export default function BooksPage() {
               <input
                 type="text"
                 placeholder="نئے زمرے کا نام لکھیں"
-                onChange={(e) => setNewCategory(e.target.value)}
+                value={customCategory}
+                onChange={(e) => setCustomCategory(e.target.value)}
                 className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
                 autoFocus
               />
@@ -285,6 +379,7 @@ export default function BooksPage() {
                   setNewTitle("");
                   setNewAuthor("");
                   setNewCategory("");
+                  setCustomCategory("");
                 }}
                 className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
               >
