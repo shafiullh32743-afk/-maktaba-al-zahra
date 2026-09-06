@@ -42,7 +42,7 @@ export default function OrdersPage() {
       )}
 
       <aside
-        className={`w-64 min-h-screen bg-blue-400 p-6 flex flex-col fixed md:static inset-y-0 right-0 z-50 transform transition-transform duration-300 ${
+        className={`w-64 min-h-screen bg-blue-400 p-6 flex flex-col fixed md:static inset-y-0 right-0 z-50 flex-shrink-0 transform transition-transform duration-300 ${
           mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
         }`}
       >
@@ -101,7 +101,7 @@ export default function OrdersPage() {
         </div>
       </aside>
 
-      <section className="flex-1 p-5 md:p-10">
+      <section className="flex-1 min-w-0 p-5 md:p-10">
         <div className="flex items-center justify-between md:hidden mb-4">
           <button
             onClick={() => setMobileMenuOpen(true)}
@@ -127,7 +127,7 @@ export default function OrdersPage() {
             {orders.map((order) => (
               <div
                 key={order.id}
-                className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4"
+                className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm flex flex-col md:flex-row md:items-start justify-between gap-4"
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -154,6 +154,23 @@ export default function OrdersPage() {
                     <div className="mt-1 flex items-start gap-1 text-gray-500 text-sm">
                       <MapPin size={14} className="mt-0.5 flex-shrink-0" />
                       {order.customer_address}
+                    </div>
+                  )}
+
+                  {order.total_amount > 0 && (
+                    <div className="mt-3 rounded-lg bg-gray-50 border border-gray-200 p-3 text-sm space-y-1 max-w-xs">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">کتاب کی قیمت</span>
+                        <span className="text-gray-700">{order.book_price} روپے</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">ڈیلیوری چارجز</span>
+                        <span className="text-gray-700">{order.delivery_charge} روپے</span>
+                      </div>
+                      <div className="flex justify-between border-t border-gray-200 pt-1">
+                        <span className="font-bold text-gray-800">کل بل</span>
+                        <span className="font-bold text-emerald-700">{order.total_amount} روپے</span>
+                      </div>
                     </div>
                   )}
                 </div>
