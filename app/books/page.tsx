@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function BooksPage() {
@@ -18,6 +18,14 @@ export default function BooksPage() {
   const [newCategory, setNewCategory] = useState("");
   const [customCategory, setCustomCategory] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
+
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [orderBookTitle, setOrderBookTitle] = useState("");
+  const [orderName, setOrderName] = useState("");
+  const [orderPhone, setOrderPhone] = useState("");
+  const [orderAddress, setOrderAddress] = useState("");
+  const [orderSuccess, setOrderSuccess] = useState(false);
+  const [orderSubmitting, setOrderSubmitting] = useState(false);
 
   const fetchBooks = async () => {
     const { data, error } = await supabase
@@ -90,11 +98,35 @@ export default function BooksPage() {
     fetchBooks();
   };
 
+  const handleOrderClick = (title: string) => {
+    setOrderBookTitle(title);
+    setOrderName("");
+    setOrderPhone("");
+    setOrderAddress("");
+    setOrderSuccess(false);
+    setShowOrderModal(true);
+  };
+
+  const handleSubmitOrder = async () => {
+    if (orderName.trim() === "" || orderPhone.trim() === "") return;
+    setOrderSubmitting(true);
+
+    await supabase.from("orders").insert({
+      book_title: orderBookTitle,
+      customer_name: orderName,
+      customer_phone: orderPhone,
+      customer_address: orderAddress,
+      status: "نیا",
+    });
+
+    setOrderSubmitting(false);
+    setOrderSuccess(true);
+  };
+
   const hasActiveFilters = search || filterCategory || filterAuthor;
 
   return (
     <main className="min-h-screen flex bg-gray-50">
-      {/* Mobile overlay */}
       {mobileMenuOpen && (
         <div
           onClick={() => setMobileMenuOpen(false)}
@@ -102,7 +134,6 @@ export default function BooksPage() {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={`w-64 min-h-screen bg-blue-400 p-6 flex flex-col fixed md:static inset-y-0 right-0 z-50 transform transition-transform duration-300 ${
           mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
@@ -142,6 +173,10 @@ export default function BooksPage() {
             <FolderTree size={19} />
             زمرے
           </Link>
+          <Link href="/orders" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <ShoppingCart size={19} />
+            آرڈرز
+          </Link>
         </nav>
 
         <div className="border-t border-white/20 pt-4 space-y-3">
@@ -159,9 +194,7 @@ export default function BooksPage() {
         </div>
       </aside>
 
-      {/* Main Content */}
       <section className="flex-1 p-5 md:p-10 w-full">
-        {/* Mobile top bar */}
         <div className="flex items-center justify-between md:hidden mb-4">
           <button
             onClick={() => setMobileMenuOpen(true)}
@@ -192,7 +225,6 @@ export default function BooksPage() {
           </button>
         </div>
 
-        {/* Search + Filters */}
         <div className="mt-8 flex flex-col md:flex-row gap-3">
           <input
             type="text"
@@ -247,7 +279,6 @@ export default function BooksPage() {
           </div>
         )}
 
-        {/* Books */}
         {!loaded ? (
           <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
             {[1, 2, 3].map((i) => (
@@ -287,7 +318,15 @@ export default function BooksPage() {
                   {book.category}
                 </p>
 
-                <div className="mt-5 w-full flex gap-2">
+                <button
+                  onClick={() => handleOrderClick(book.title)}
+                  className="mt-4 w-full flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-white hover:bg-amber-600 transition font-medium"
+                >
+                  <ShoppingCart size={16} />
+                  آرڈر کریں
+                </button>
+
+                <div className="mt-2 w-full flex gap-2">
                   <Link
                     href={`/books/${encodeURIComponent(book.title)}`}
                     className="flex-1 rounded-lg bg-emerald-700 px-4 py-2 text-white hover:bg-emerald-800 transition text-center"
@@ -386,6 +425,75 @@ export default function BooksPage() {
                 منسوخ کریں
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showOrderModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
+            {orderSuccess ? (
+              <div className="text-center py-6">
+                <span className="text-5xl">✅</span>
+                <h3 className="text-xl font-bold text-gray-800 mt-4">آرڈر موصول ہو گیا</h3>
+                <p className="text-gray-500 mt-2">
+                  ہم جلد آپ سے رابطہ کریں گے۔ شکریہ!
+                </p>
+                <button
+                  onClick={() => setShowOrderModal(false)}
+                  className="mt-6 w-full rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition"
+                >
+                  ٹھیک ہے
+                </button>
+              </div>
+            ) : (
+              <>
+                <h3 className="text-xl font-bold text-gray-800">آرڈر کریں</h3>
+                <p className="text-gray-500 text-sm mt-1">{orderBookTitle}</p>
+
+                <input
+                  type="text"
+                  placeholder="آپ کا نام"
+                  value={orderName}
+                  onChange={(e) => setOrderName(e.target.value)}
+                  className="mt-5 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  autoFocus
+                />
+
+                <input
+                  type="tel"
+                  placeholder="فون نمبر"
+                  value={orderPhone}
+                  onChange={(e) => setOrderPhone(e.target.value)}
+                  className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                />
+
+                <textarea
+                  placeholder="مکمل پتہ"
+                  value={orderAddress}
+                  onChange={(e) => setOrderAddress(e.target.value)}
+                  rows={3}
+                  className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 resize-none"
+                />
+
+                <div className="mt-6 flex gap-3">
+                  <button
+                    onClick={handleSubmitOrder}
+                    disabled={orderSubmitting}
+                    className="flex-1 rounded-xl bg-amber-500 text-white py-3 hover:bg-amber-600 transition disabled:opacity-60"
+                  >
+                    {orderSubmitting ? "بھیجا جا رہا ہے..." : "آرڈر بھیجیں"}
+                  </button>
+
+                  <button
+                    onClick={() => setShowOrderModal(false)}
+                    className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
+                  >
+                    منسوخ کریں
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

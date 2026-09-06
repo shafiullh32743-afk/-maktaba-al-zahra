@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function CategoriesPage() {
@@ -72,6 +72,10 @@ export default function CategoriesPage() {
           <Link href="/categories" className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500 text-white font-medium shadow-md">
             <FolderTree size={19} />
             زمرے
+          </Link>
+          <Link href="/orders" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <ShoppingCart size={19} />
+            آرڈرز
           </Link>
         </nav>
 
