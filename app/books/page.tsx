@@ -15,7 +15,6 @@ export default function BooksPage() {
   const [newCategory, setNewCategory] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  // Supabase سے کتابیں لوڈ کریں
   const fetchBooks = async () => {
     const { data, error } = await supabase
       .from("books")
@@ -38,7 +37,6 @@ export default function BooksPage() {
 
   const existingCategories = Array.from(new Set(books.map((b) => b.category)));
 
-  // نئی کتاب شامل کریں یا موجودہ اپ ڈیٹ کریں
   const handleAddBook = async () => {
     if (newTitle.trim() === "") return;
 
@@ -83,27 +81,38 @@ export default function BooksPage() {
   return (
     <main className="min-h-screen flex bg-gray-50">
       {/* Sidebar */}
-      <aside className="w-64 min-h-screen bg-white border-r border-gray-200 p-6 shadow-sm">
-        <h1 className="text-2xl font-bold text-emerald-800">مكتبہ الزھراء</h1>
+      <aside className="w-64 min-h-screen bg-blue-400 p-6 flex flex-col">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-md">
+            <BookOpen className="text-white" size={20} />
+          </div>
+          <h1 className="text-lg font-bold text-white">مكتبہ الزھراء</h1>
+        </div>
 
-               <nav className="mt-10 space-y-2">
-          <Link href="/" className="flex items-center gap-3 p-3 rounded-xl text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 transition">
-            <LayoutDashboard size={20} />
+        <nav className="mt-10 space-y-1.5 flex-1">
+          <p className="text-white/50 text-xs font-medium px-3 mb-2">مینو</p>
+
+          <Link href="/" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <LayoutDashboard size={19} />
             ڈیش بورڈ
           </Link>
-          <Link href="/books" className="flex items-center gap-3 p-3 rounded-xl bg-emerald-700 text-white font-bold shadow-sm">
-            <BookOpen size={20} />
+          <Link href="/books" className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500 text-white font-medium shadow-md">
+            <BookOpen size={19} />
             کتب
           </Link>
-          <Link href="/authors" className="flex items-center gap-3 p-3 rounded-xl text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 transition">
-            <PenLine size={20} />
+          <Link href="/authors" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <PenLine size={19} />
             مصنفین
           </Link>
-          <Link href="/categories" className="flex items-center gap-3 p-3 rounded-xl text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 transition">
-            <FolderTree size={20} />
+          <Link href="/categories" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <FolderTree size={19} />
             زمرے
           </Link>
         </nav>
+
+        <div className="border-t border-white/20 pt-4">
+          <p className="text-white/50 text-xs text-center">مكتبہ الزھراء © 2026</p>
+        </div>
       </aside>
 
       {/* Main Content */}
@@ -128,7 +137,6 @@ export default function BooksPage() {
           </button>
         </div>
 
-        {/* Search */}
         <input
           type="text"
           placeholder="کتاب تلاش کریں..."
@@ -137,7 +145,6 @@ export default function BooksPage() {
           className="mt-8 w-full rounded-xl border border-gray-200 p-4 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
         />
 
-        {/* Books */}
         {!loaded ? (
           <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {[1, 2, 3].map((i) => (
@@ -164,17 +171,17 @@ export default function BooksPage() {
             {filteredBooks.map((book) => (
               <div
                 key={book.id}
-                className="w-full rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-lg transition flex flex-col items-center text-center"
+                className="w-full rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center"
               >
-                <div className="h-40 w-full rounded-xl bg-amber-100 flex items-center justify-center">
+                <div className="h-40 w-full rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center border border-amber-200">
                   <span className="text-6xl">📚</span>
                 </div>
 
-                <h3 className="mt-5 text-xl font-bold text-gray-800">{book.title}</h3>
-                <p className="mt-2 text-gray-500">{book.author}</p>
+                <h3 className="mt-5 text-xl font-bold text-gray-800 line-clamp-2">{book.title}</h3>
+                <p className="mt-2 text-gray-500 text-sm">{book.author}</p>
 
-                <p className="mt-3 inline-block rounded-full bg-emerald-50 px-3 py-1 text-sm text-emerald-700">
-                  زمرہ: {book.category}
+                <p className="mt-3 inline-block rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-sm font-medium text-emerald-700">
+                  {book.category}
                 </p>
 
                 <div className="mt-5 w-full flex gap-2">
@@ -205,7 +212,6 @@ export default function BooksPage() {
         )}
       </section>
 
-      {/* Add/Edit Book Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-xl">

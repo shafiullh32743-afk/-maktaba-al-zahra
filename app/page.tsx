@@ -32,28 +32,42 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen flex bg-gray-50">
-      <aside className="w-64 min-h-screen bg-white border-r border-gray-200 p-6 shadow-sm">
-        <h1 className="text-2xl font-bold text-emerald-800">مكتبہ الزھراء</h1>
-        <nav className="mt-10 space-y-2">
-          <Link href="/" className="flex items-center gap-3 p-3 rounded-xl bg-emerald-700 text-white font-bold shadow-sm">
-            <LayoutDashboard size={20} />
+      {/* Sidebar */}
+      <aside className="w-64 min-h-screen bg-blue-400 p-6 flex flex-col">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-md">
+            <BookOpen className="text-white" size={20} />
+          </div>
+          <h1 className="text-lg font-bold text-white">مكتبہ الزھراء</h1>
+        </div>
+
+        <nav className="mt-10 space-y-1.5 flex-1">
+          <p className="text-white/50 text-xs font-medium px-3 mb-2">مینو</p>
+
+          <Link href="/" className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500 text-white font-medium shadow-md">
+            <LayoutDashboard size={19} />
             ڈیش بورڈ
           </Link>
-          <Link href="/books" className="flex items-center gap-3 p-3 rounded-xl text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 transition">
-            <BookOpen size={20} />
+          <Link href="/books" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <BookOpen size={19} />
             کتب
           </Link>
-          <Link href="/authors" className="flex items-center gap-3 p-3 rounded-xl text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 transition">
-            <PenLine size={20} />
+          <Link href="/authors" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <PenLine size={19} />
             مصنفین
           </Link>
-          <Link href="/categories" className="flex items-center gap-3 p-3 rounded-xl text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 transition">
-            <FolderTree size={20} />
+          <Link href="/categories" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <FolderTree size={19} />
             زمرے
           </Link>
         </nav>
+
+        <div className="border-t border-white/20 pt-4">
+          <p className="text-white/50 text-xs text-center">مكتبہ الزھراء © 2026</p>
+        </div>
       </aside>
 
+      {/* Main Content */}
       <section className="flex-1 p-10">
         <h2 className="text-3xl font-bold text-gray-900">خوش آمدید 👋</h2>
         <p className="mt-2 text-gray-500">مكتبہ الزھراء کا مختصر جائزہ</p>
