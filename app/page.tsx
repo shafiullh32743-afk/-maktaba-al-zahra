@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, BookOpen, PenLine, FolderTree } from "lucide-react";
+import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function DashboardPage() {
@@ -62,7 +62,17 @@ export default function DashboardPage() {
           </Link>
         </nav>
 
-        <div className="border-t border-white/20 pt-4">
+        <div className="border-t border-white/20 pt-4 space-y-3">
+          <button
+            onClick={() => {
+              document.cookie = "maktaba-auth=; path=/; max-age=0";
+              window.location.href = "/login";
+            }}
+            className="flex items-center gap-3 p-3 rounded-xl w-full text-white/80 hover:bg-white/[0.15] hover:text-white transition"
+          >
+            <LogOut size={19} />
+            لاگ آؤٹ
+          </button>
           <p className="text-white/50 text-xs text-center">مكتبہ الزھراء © 2026</p>
         </div>
       </aside>
