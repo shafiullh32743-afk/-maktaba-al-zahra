@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Upload, MessageCircle } from "lucide-react";
+import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Upload, MessageCircle, Star, MessageSquarePlus } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
 // عارضی ڈیلیوری فارمولا — بعد میں پاکستان پوسٹ کی اصل ریٹ لسٹ کے مطابق بدل دیا جائے گا
@@ -36,12 +36,21 @@ export default function BooksPage() {
   const [orderBookTitle, setOrderBookTitle] = useState("");
   const [orderBookPrice, setOrderBookPrice] = useState(0);
   const [orderBookWeight, setOrderBookWeight] = useState(1);
-    const [orderQuantity, setOrderQuantity] = useState(1);
+  const [orderQuantity, setOrderQuantity] = useState(1);
   const [orderName, setOrderName] = useState("");
   const [orderPhone, setOrderPhone] = useState("");
   const [orderAddress, setOrderAddress] = useState("");
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
+
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewBookTitle, setReviewBookTitle] = useState("");
+  const [reviewName, setReviewName] = useState("");
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewSuccess, setReviewSuccess] = useState(false);
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
 
   const fetchBooks = async () => {
     const { data, error } = await supabase
@@ -55,9 +64,25 @@ export default function BooksPage() {
     setLoaded(true);
   };
 
+  const fetchReviews = async () => {
+    const { data } = await supabase
+      .from("reviews")
+      .select("*")
+      .eq("approved", true);
+    if (data) setReviews(data);
+  };
+
   useEffect(() => {
     fetchBooks();
+    fetchReviews();
   }, []);
+
+  const getBookRating = (title: string) => {
+    const bookReviews = reviews.filter((r) => r.book_title === title);
+    if (bookReviews.length === 0) return null;
+    const avg = bookReviews.reduce((sum, r) => sum + r.rating, 0) / bookReviews.length;
+    return { avg: avg.toFixed(1), count: bookReviews.length };
+  };
 
   const filteredBooks = books.filter((book) => {
     const matchesSearch = book.title.includes(search);
@@ -165,7 +190,7 @@ export default function BooksPage() {
   const deliveryCharge = calculateDeliveryCharge(totalWeight);
   const totalBill = totalBookPrice + deliveryCharge;
 
-    const sendToWhatsApp = () => {
+  const sendToWhatsApp = () => {
     const message = `السلام علیکم، میں نے آرڈر کیا ہے:
 
 📚 کتاب: ${orderBookTitle}
@@ -181,6 +206,7 @@ export default function BooksPage() {
     const whatsappUrl = `https://wa.me/923055232889?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, "_blank");
   };
+
   const handleSubmitOrder = async () => {
     if (orderName.trim() === "" || orderPhone.trim() === "") return;
     setOrderSubmitting(true);
@@ -199,6 +225,31 @@ export default function BooksPage() {
 
     setOrderSubmitting(false);
     setOrderSuccess(true);
+  };
+
+  const handleReviewClick = (title: string) => {
+    setReviewBookTitle(title);
+    setReviewName("");
+    setReviewRating(5);
+    setReviewComment("");
+    setReviewSuccess(false);
+    setShowReviewModal(true);
+  };
+
+  const handleSubmitReview = async () => {
+    if (reviewName.trim() === "" || reviewComment.trim() === "") return;
+    setReviewSubmitting(true);
+
+    await supabase.from("reviews").insert({
+      book_title: reviewBookTitle,
+      customer_name: reviewName,
+      rating: reviewRating,
+      comment: reviewComment,
+      approved: false,
+    });
+
+    setReviewSubmitting(false);
+    setReviewSuccess(true);
   };
 
   const hasActiveFilters = search || filterCategory || filterAuthor;
@@ -254,6 +305,10 @@ export default function BooksPage() {
           <Link href="/orders" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
             <ShoppingCart size={19} />
             آرڈرز
+          </Link>
+          <Link href="/reviews" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <Star size={19} />
+            ریویوز
           </Link>
         </nav>
 
@@ -385,73 +440,92 @@ export default function BooksPage() {
               </div>
             )}
 
-            {filteredBooks.map((book) => (
-              <div
-                key={book.id}
-                className="w-full rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center"
-              >
-                <div className="h-40 w-full rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center border border-amber-200 overflow-hidden">
-                  {book.image_url ? (
-                    <img
-                      src={book.image_url}
-                      alt={book.title}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-6xl">📚</span>
-                  )}
-                </div>
-
-                <h3 className="mt-5 text-xl font-bold text-gray-800 line-clamp-2">{book.title}</h3>
-                <p className="mt-2 text-gray-500 text-sm">{book.author}</p>
-
-                <p className="mt-3 inline-block rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-sm font-medium text-emerald-700">
-                  {book.category}
-                </p>
-
-                {book.price ? (
-                  <div className="mt-3 inline-flex items-baseline gap-1 rounded-xl bg-gradient-to-r from-emerald-50 to-emerald-100/50 border border-emerald-200 px-4 py-1.5 shadow-sm">
-                    <span className="text-xs font-medium text-emerald-600">Rs</span>
-                    <span className="text-2xl font-extrabold text-emerald-700 tracking-tight">
-                      {Number(book.price).toLocaleString()}
-                    </span>
-                  </div>
-                ) : (
-                  <p className="mt-3 text-sm text-gray-400 italic">قیمت درج نہیں</p>
-                )}
-
-                <button
-                  onClick={() => handleOrderClick(book)}
-                  className="mt-4 w-full flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-white hover:bg-amber-600 transition font-medium"
+            {filteredBooks.map((book) => {
+              const ratingInfo = getBookRating(book.title);
+              return (
+                <div
+                  key={book.id}
+                  className="w-full rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center"
                 >
-                  <ShoppingCart size={16} />
-                  آرڈر کریں
-                </button>
+                  <div className="h-40 w-full rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center border border-amber-200 overflow-hidden">
+                    {book.image_url ? (
+                      <img
+                        src={book.image_url}
+                        alt={book.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-6xl">📚</span>
+                    )}
+                  </div>
 
-                <div className="mt-2 w-full flex gap-2">
-                  <Link
-                    href={`/books/${encodeURIComponent(book.title)}`}
-                    className="flex-1 rounded-lg bg-emerald-700 px-4 py-2 text-white hover:bg-emerald-800 transition text-center"
-                  >
-                    تفصیل دیکھیں
-                  </Link>
+                  <h3 className="mt-5 text-xl font-bold text-gray-800 line-clamp-2">{book.title}</h3>
+                  <p className="mt-2 text-gray-500 text-sm">{book.author}</p>
+
+                  {ratingInfo && (
+                    <div className="mt-2 flex items-center gap-1">
+                      <Star size={15} className="fill-amber-400 text-amber-400" />
+                      <span className="text-sm font-bold text-gray-700">{ratingInfo.avg}</span>
+                      <span className="text-xs text-gray-400">({ratingInfo.count} ریویوز)</span>
+                    </div>
+                  )}
+
+                  <p className="mt-3 inline-block rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-sm font-medium text-emerald-700">
+                    {book.category}
+                  </p>
+
+                  {book.price ? (
+                    <div className="mt-3 inline-flex items-baseline gap-1 rounded-xl bg-gradient-to-r from-emerald-50 to-emerald-100/50 border border-emerald-200 px-4 py-1.5 shadow-sm">
+                      <span className="text-xs font-medium text-emerald-600">Rs</span>
+                      <span className="text-2xl font-extrabold text-emerald-700 tracking-tight">
+                        {Number(book.price).toLocaleString()}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm text-gray-400 italic">قیمت درج نہیں</p>
+                  )}
 
                   <button
-                    onClick={() => handleEditClick(book)}
-                    className="rounded-lg bg-amber-50 px-3 py-2 text-amber-700 hover:bg-amber-100 transition"
+                    onClick={() => handleOrderClick(book)}
+                    className="mt-4 w-full flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-white hover:bg-amber-600 transition font-medium"
                   >
-                    ترمیم
+                    <ShoppingCart size={16} />
+                    آرڈر کریں
                   </button>
 
                   <button
-                    onClick={() => handleDeleteBook(book.id)}
-                    className="rounded-lg bg-red-50 px-3 py-2 text-red-600 hover:bg-red-100 transition"
+                    onClick={() => handleReviewClick(book.title)}
+                    className="mt-2 w-full flex items-center justify-center gap-2 rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200 transition font-medium text-sm"
                   >
-                    حذف کریں
+                    <MessageSquarePlus size={15} />
+                    ریویو دیں
                   </button>
+
+                  <div className="mt-2 w-full flex gap-2">
+                    <Link
+                      href={`/books/${encodeURIComponent(book.title)}`}
+                      className="flex-1 rounded-lg bg-emerald-700 px-4 py-2 text-white hover:bg-emerald-800 transition text-center"
+                    >
+                      تفصیل دیکھیں
+                    </Link>
+
+                    <button
+                      onClick={() => handleEditClick(book)}
+                      className="rounded-lg bg-amber-50 px-3 py-2 text-amber-700 hover:bg-amber-100 transition"
+                    >
+                      ترمیم
+                    </button>
+
+                    <button
+                      onClick={() => handleDeleteBook(book.id)}
+                      className="rounded-lg bg-red-50 px-3 py-2 text-red-600 hover:bg-red-100 transition"
+                    >
+                      حذف کریں
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
@@ -679,6 +753,88 @@ export default function BooksPage() {
                   <button
                     onClick={() => setShowOrderModal(false)}
                     className="w-full rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
+                  >
+                    منسوخ کریں
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showReviewModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
+            {reviewSuccess ? (
+              <div className="text-center py-6">
+                <span className="text-5xl">✅</span>
+                <h3 className="text-xl font-bold text-gray-800 mt-4">ریویو موصول ہو گیا</h3>
+                <p className="text-gray-500 mt-2">
+                  آپ کا ریویو منظوری کے بعد نظر آئے گا۔ شکریہ!
+                </p>
+                <button
+                  onClick={() => setShowReviewModal(false)}
+                  className="mt-6 w-full rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition"
+                >
+                  ٹھیک ہے
+                </button>
+              </div>
+            ) : (
+              <>
+                <h3 className="text-xl font-bold text-gray-800">ریویو دیں</h3>
+                <p className="text-gray-500 text-sm mt-1">{reviewBookTitle}</p>
+
+                <div className="mt-5">
+                  <span className="text-sm text-gray-600">ریٹنگ</span>
+                  <div className="mt-2 flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => setReviewRating(star)}
+                        className="transition"
+                      >
+                        <Star
+                          size={30}
+                          className={
+                            star <= reviewRating
+                              ? "fill-amber-400 text-amber-400"
+                              : "text-gray-300"
+                          }
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="آپ کا نام"
+                  value={reviewName}
+                  onChange={(e) => setReviewName(e.target.value)}
+                  className="mt-4 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                />
+
+                <textarea
+                  placeholder="اپنا تبصرہ لکھیں..."
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  rows={4}
+                  className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 resize-none"
+                />
+
+                <div className="mt-6 flex gap-3">
+                  <button
+                    onClick={handleSubmitReview}
+                    disabled={reviewSubmitting}
+                    className="flex-1 rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition disabled:opacity-60"
+                  >
+                    {reviewSubmitting ? "بھیجا جا رہا ہے..." : "ریویو بھیجیں"}
+                  </button>
+
+                  <button
+                    onClick={() => setShowReviewModal(false)}
+                    className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
                   >
                     منسوخ کریں
                   </button>
