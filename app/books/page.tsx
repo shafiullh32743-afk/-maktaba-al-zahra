@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Upload } from "lucide-react";
+import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Upload, MessageCircle } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
 // عارضی ڈیلیوری فارمولا — بعد میں پاکستان پوسٹ کی اصل ریٹ لسٹ کے مطابق بدل دیا جائے گا
@@ -165,6 +165,22 @@ export default function BooksPage() {
   const deliveryCharge = calculateDeliveryCharge(totalWeight);
   const totalBill = totalBookPrice + deliveryCharge;
 
+    const sendToWhatsApp = () => {
+    const message = `السلام علیکم، میں نے آرڈر کیا ہے:
+
+📚 کتاب: ${orderBookTitle}
+🔢 تعداد: ${orderQuantity}
+👤 نام: ${orderName}
+📞 فون: ${orderPhone}
+📍 پتہ: ${orderAddress}
+
+💰 کتاب کی قیمت: ${totalBookPrice} روپے
+🚚 ڈیلیوری چارجز: ${deliveryCharge} روپے
+💵 کل بل: ${totalBill} روپے`;
+
+    const whatsappUrl = `https://wa.me/923055232889?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, "_blank");
+  };
   const handleSubmitOrder = async () => {
     if (orderName.trim() === "" || orderPhone.trim() === "") return;
     setOrderSubmitting(true);
@@ -393,9 +409,16 @@ export default function BooksPage() {
                   {book.category}
                 </p>
 
-                <p className="mt-3 text-2xl font-bold text-gray-900">
-                  {book.price ? `${book.price} روپے` : "قیمت درج نہیں"}
-                </p>
+                {book.price ? (
+                  <div className="mt-3 inline-flex items-baseline gap-1 rounded-xl bg-gradient-to-r from-emerald-50 to-emerald-100/50 border border-emerald-200 px-4 py-1.5 shadow-sm">
+                    <span className="text-xs font-medium text-emerald-600">Rs</span>
+                    <span className="text-2xl font-extrabold text-emerald-700 tracking-tight">
+                      {Number(book.price).toLocaleString()}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-gray-400 italic">قیمت درج نہیں</p>
+                )}
 
                 <button
                   onClick={() => handleOrderClick(book)}
@@ -633,18 +656,29 @@ export default function BooksPage() {
                   className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 resize-none"
                 />
 
-                <div className="mt-6 flex gap-3">
+                <div className="mt-6 space-y-3">
                   <button
                     onClick={handleSubmitOrder}
                     disabled={orderSubmitting}
-                    className="flex-1 rounded-xl bg-amber-500 text-white py-3 hover:bg-amber-600 transition disabled:opacity-60"
+                    className="w-full rounded-xl bg-amber-500 text-white py-3 hover:bg-amber-600 transition disabled:opacity-60"
                   >
                     {orderSubmitting ? "بھیجا جا رہا ہے..." : "آرڈر بھیجیں"}
                   </button>
 
                   <button
+                    onClick={() => {
+                      if (orderName.trim() === "" || orderPhone.trim() === "") return;
+                      sendToWhatsApp();
+                    }}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#25D366] text-white py-3 hover:bg-[#20BD5A] transition font-medium"
+                  >
+                    <MessageCircle size={18} />
+                    WhatsApp پر آرڈر بھیجیں
+                  </button>
+
+                  <button
                     onClick={() => setShowOrderModal(false)}
-                    className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
+                    className="w-full rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
                   >
                     منسوخ کریں
                   </button>
