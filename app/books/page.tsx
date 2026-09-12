@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Upload, MessageCircle, Star, MessageSquarePlus } from "lucide-react";
+import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Upload, MessageCircle, Star, MessageSquarePlus, PackageCheck, PackageX, PackageMinus, FileSpreadsheet, Wallet } from "lucide-react";
+import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabaseClient";
 
 // عارضی ڈیلیوری فارمولا — بعد میں پاکستان پوسٹ کی اصل ریٹ لسٹ کے مطابق بدل دیا جائے گا
@@ -9,6 +10,12 @@ function calculateDeliveryCharge(weight: number) {
   if (weight <= 1) return 225;
   const extraKg = Math.ceil(weight - 1);
   return 225 + extraKg * 100;
+}
+
+function getStockStatus(stock: number) {
+  if (stock <= 0) return { label: "Out of Stock", color: "text-red-600 bg-red-50 border-red-200", icon: "out" };
+  if (stock <= 5) return { label: "Low Stock", color: "text-amber-600 bg-amber-50 border-amber-200", icon: "low" };
+  return { label: "In Stock", color: "text-emerald-600 bg-emerald-50 border-emerald-200", icon: "in" };
 }
 
 export default function BooksPage() {
@@ -26,6 +33,8 @@ export default function BooksPage() {
   const [customCategory, setCustomCategory] = useState("");
   const [newPrice, setNewPrice] = useState("");
   const [newWeight, setNewWeight] = useState("");
+  const [newStock, setNewStock] = useState("");
+    const [newCostPrice, setNewCostPrice] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -33,9 +42,12 @@ export default function BooksPage() {
   const [uploading, setUploading] = useState(false);
 
   const [showOrderModal, setShowOrderModal] = useState(false);
+  const [orderBookId, setOrderBookId] = useState<number | null>(null);
   const [orderBookTitle, setOrderBookTitle] = useState("");
   const [orderBookPrice, setOrderBookPrice] = useState(0);
   const [orderBookWeight, setOrderBookWeight] = useState(1);
+  const [orderBookStock, setOrderBookStock] = useState(0);
+    const [orderBookCostPrice, setOrderBookCostPrice] = useState(0);
   const [orderQuantity, setOrderQuantity] = useState(1);
   const [orderName, setOrderName] = useState("");
   const [orderPhone, setOrderPhone] = useState("");
@@ -51,6 +63,8 @@ export default function BooksPage() {
   const [reviewComment, setReviewComment] = useState("");
   const [reviewSuccess, setReviewSuccess] = useState(false);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
 
   const fetchBooks = async () => {
     const { data, error } = await supabase
@@ -132,6 +146,8 @@ export default function BooksPage() {
       image_url: imageUrl,
       price: parseFloat(newPrice) || 0,
       weight: parseFloat(newWeight) || 1,
+      stock: parseInt(newStock) || 0,
+      cost_price: parseFloat(newCostPrice) || 0,
     };
 
     if (editingId) {
@@ -146,6 +162,7 @@ export default function BooksPage() {
     setCustomCategory("");
     setNewPrice("");
     setNewWeight("");
+    setNewStock("");
     setEditingId(null);
     setImageFile(null);
     setImagePreview(null);
@@ -160,8 +177,10 @@ export default function BooksPage() {
     setNewTitle(book.title);
     setNewAuthor(book.author);
     setNewCategory(book.category);
-    setNewPrice(book.price?.toString() || "");
-    setNewWeight(book.weight?.toString() || "");
+    setNewPrice(book.price ? book.price.toString() : "");
+    setNewWeight(book.weight ? book.weight.toString() : "");
+    setNewStock(book.stock ? book.stock.toString() : "");
+        setNewCostPrice(book.cost_price ? book.cost_price.toString() : "");
     setExistingImageUrl(book.image_url || null);
     setImagePreview(book.image_url || null);
     setImageFile(null);
@@ -174,9 +193,12 @@ export default function BooksPage() {
   };
 
   const handleOrderClick = (book: any) => {
+    setOrderBookId(book.id);
     setOrderBookTitle(book.title);
     setOrderBookPrice(book.price || 0);
     setOrderBookWeight(book.weight || 1);
+    setOrderBookStock(book.stock || 0);
+        setOrderBookCostPrice(book.cost_price || 0);
     setOrderQuantity(1);
     setOrderName("");
     setOrderPhone("");
@@ -221,7 +243,14 @@ export default function BooksPage() {
       delivery_charge: deliveryCharge,
       total_amount: totalBill,
       quantity: orderQuantity,
+      cost_price: orderBookCostPrice * orderQuantity,
     });
+
+    if (orderBookId) {
+      const newStockValue = Math.max(0, orderBookStock - orderQuantity);
+      await supabase.from("books").update({ stock: newStockValue }).eq("id", orderBookId);
+      fetchBooks();
+    }
 
     setOrderSubmitting(false);
     setOrderSuccess(true);
@@ -252,6 +281,58 @@ export default function BooksPage() {
     setReviewSuccess(true);
   };
 
+    const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    setImportResult(null);
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const data = event.target?.result;
+      const workbook = XLSX.read(data, { type: "binary" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+      const booksToInsert = [];
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const title = row[0];
+        const author = row[1];
+        const price = row[2];
+
+        if (!title || typeof title !== "string" || title.trim() === "") continue;
+
+        booksToInsert.push({
+          title: title.toString().trim(),
+          author: author ? author.toString().trim() : "مكتبہ الزھراء",
+          category: "عمومی",
+          price: typeof price === "number" ? price : parseFloat(price) || 0,
+          weight: 1,
+          stock: 0,
+        });
+      }
+
+      if (booksToInsert.length > 0) {
+        const { error } = await supabase.from("books").insert(booksToInsert);
+        if (error) {
+          setImportResult(`خرابی: ${error.message}`);
+        } else {
+          setImportResult(`✅ ${booksToInsert.length} کتابیں کامیابی سے شامل ہو گئیں`);
+          fetchBooks();
+        }
+      } else {
+        setImportResult("کوئی کتاب نہیں ملی، فائل چیک کریں");
+      }
+
+      setImporting(false);
+    };
+
+    reader.readAsBinaryString(file);
+    e.target.value = "";
+  };
   const hasActiveFilters = search || filterCategory || filterAuthor;
 
   return (
@@ -310,6 +391,14 @@ export default function BooksPage() {
             <Star size={19} />
             ریویوز
           </Link>
+          <Link href="/low-stock" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <PackageMinus size={19} />
+            کم سٹاک
+          </Link>
+          <Link href="/expenses" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <Wallet size={19} />
+            اخراجات
+          </Link>
         </nav>
 
         <div className="border-t border-white/20 pt-4 space-y-3">
@@ -344,24 +433,45 @@ export default function BooksPage() {
             <p className="mt-2 text-gray-500">مكتبہ الزھراء کی کتب</p>
           </div>
 
-          <button
-            onClick={() => {
-              setEditingId(null);
-              setNewTitle("");
-              setNewAuthor("");
-              setNewCategory("");
-              setNewPrice("");
-              setNewWeight("");
-              setImageFile(null);
-              setImagePreview(null);
-              setExistingImageUrl(null);
-              setShowModal(true);
-            }}
-            className="rounded-xl px-5 py-3 bg-emerald-700 text-white hover:bg-emerald-800 transition shadow-sm w-full md:w-auto"
-          >
-            + کتاب شامل کریں
-          </button>
+          <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+            <label className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition shadow-sm cursor-pointer font-medium">
+              <FileSpreadsheet size={18} />
+              {importing ? "درآمد ہو رہا ہے..." : "Excel سے درآمد کریں"}
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={handleExcelImport}
+                disabled={importing}
+                className="hidden"
+              />
+            </label>
+
+            <button
+              onClick={() => {
+                setEditingId(null);
+                setNewTitle("");
+                setNewAuthor("");
+                setNewCategory("");
+                setNewPrice("");
+                setNewWeight("");
+                setNewStock("");
+                setImageFile(null);
+                setImagePreview(null);
+                setExistingImageUrl(null);
+                setShowModal(true);
+              }}
+              className="rounded-xl px-5 py-3 bg-emerald-700 text-white hover:bg-emerald-800 transition shadow-sm w-full md:w-auto"
+            >
+              + کتاب شامل کریں
+            </button>
+          </div>
         </div>
+
+        {importResult && (
+          <div className="mt-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-sm px-4 py-2">
+            {importResult}
+          </div>
+        )}
 
         <div className="mt-8 flex flex-col md:flex-row gap-3">
           <input
@@ -442,12 +552,15 @@ export default function BooksPage() {
 
             {filteredBooks.map((book) => {
               const ratingInfo = getBookRating(book.title);
+              const stockInfo = getStockStatus(book.stock ?? 0);
+              const outOfStock = (book.stock ?? 0) <= 0;
+
               return (
                 <div
                   key={book.id}
                   className="w-full rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center"
                 >
-                  <div className="h-40 w-full rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center border border-amber-200 overflow-hidden">
+                  <div className="h-40 w-full rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center border border-amber-200 overflow-hidden relative">
                     {book.image_url ? (
                       <img
                         src={book.image_url}
@@ -459,7 +572,15 @@ export default function BooksPage() {
                     )}
                   </div>
 
-                  <h3 className="mt-5 text-xl font-bold text-gray-800 line-clamp-2">{book.title}</h3>
+                  <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${stockInfo.color}`}>
+                    {stockInfo.icon === "in" && <PackageCheck size={13} />}
+                    {stockInfo.icon === "low" && <PackageMinus size={13} />}
+                    {stockInfo.icon === "out" && <PackageX size={13} />}
+                    {stockInfo.label}
+                    {(book.stock ?? 0) > 0 && ` (${book.stock})`}
+                  </div>
+
+                  <h3 className="mt-3 text-xl font-bold text-gray-800 line-clamp-2">{book.title}</h3>
                   <p className="mt-2 text-gray-500 text-sm">{book.author}</p>
 
                   {ratingInfo && (
@@ -487,10 +608,11 @@ export default function BooksPage() {
 
                   <button
                     onClick={() => handleOrderClick(book)}
-                    className="mt-4 w-full flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-white hover:bg-amber-600 transition font-medium"
+                    disabled={outOfStock}
+                    className="mt-4 w-full flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-white hover:bg-amber-600 transition font-medium disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
                     <ShoppingCart size={16} />
-                    آرڈر کریں
+                    {outOfStock ? "Out of stok" : "آرڈر کریں"}
                   </button>
 
                   <button
@@ -574,23 +696,51 @@ export default function BooksPage() {
             />
 
             <div className="mt-3 flex gap-3">
-              <input
-                type="number"
-                placeholder="قیمت (روپے)"
-                value={newPrice}
-                onChange={(e) => setNewPrice(e.target.value)}
-                className="flex-1 rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-              />
+              <label className="flex-1 block">
+                <span className="text-xs text-gray-500">قیمت (روپے)</span>
+                <input
+                  type="number"
+                  placeholder="مثلاً 500"
+                  value={newPrice}
+                  onChange={(e) => setNewPrice(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                />
+              </label>
 
+              <label className="flex-1 block">
+                <span className="text-xs text-gray-500">وزن (کلوگرام)</span>
+                <input
+                  type="number"
+                  step="0.1"
+                  placeholder="مثلاً 0.5"
+                  value={newWeight}
+                  onChange={(e) => setNewWeight(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                />
+              </label>
+            </div>
+
+            <label className="mt-3 block">
+              <span className="text-xs text-gray-500">سٹاک میں تعداد</span>
               <input
                 type="number"
-                step="0.1"
-                placeholder="وزن (کلوگرام)"
-                value={newWeight}
-                onChange={(e) => setNewWeight(e.target.value)}
-                className="flex-1 rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                placeholder="مثلاً 10"
+                value={newStock}
+                onChange={(e) => setNewStock(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
               />
-            </div>
+            </label>
+                      
+            <label className="mt-3 block">
+              <span className="text-xs text-gray-500">خرید قیمت (لاگت)</span>
+              <input
+                type="number"
+                placeholder="مثلاً 300"
+                value={newCostPrice}
+                onChange={(e) => setNewCostPrice(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              />
+            </label>
 
             <select
               value={newCategory}
@@ -636,6 +786,7 @@ export default function BooksPage() {
                   setCustomCategory("");
                   setNewPrice("");
                   setNewWeight("");
+                  setNewStock("");
                   setImageFile(null);
                   setImagePreview(null);
                   setExistingImageUrl(null);
@@ -670,6 +821,7 @@ export default function BooksPage() {
               <>
                 <h3 className="text-xl font-bold text-gray-800">آرڈر کریں</h3>
                 <p className="text-gray-500 text-sm mt-1">{orderBookTitle}</p>
+                <p className="text-xs text-gray-400 mt-1">دستیاب سٹاک: {orderBookStock}</p>
 
                 <div className="mt-4 flex items-center justify-between">
                   <span className="text-sm text-gray-600">تعداد (نسخے)</span>
@@ -682,7 +834,7 @@ export default function BooksPage() {
                     </button>
                     <span className="w-8 text-center font-bold text-gray-800">{orderQuantity}</span>
                     <button
-                      onClick={() => setOrderQuantity(orderQuantity + 1)}
+                      onClick={() => setOrderQuantity(Math.min(orderBookStock, orderQuantity + 1))}
                       className="w-8 h-8 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition font-bold"
                     >
                       +
@@ -771,7 +923,7 @@ export default function BooksPage() {
                 <span className="text-5xl">✅</span>
                 <h3 className="text-xl font-bold text-gray-800 mt-4">ریویو موصول ہو گیا</h3>
                 <p className="text-gray-500 mt-2">
-                  آپ کا ریویو منظوری کے بعد نظر آئے گا۔ شکریہ!
+                  آپ كی قیمتی رائے كا شکریہ!
                 </p>
                 <button
                   onClick={() => setShowReviewModal(false)}

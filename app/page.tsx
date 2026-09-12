@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Star } from "lucide-react";
+import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Star, PackageMinus, Wallet } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function DashboardPage() {
@@ -25,13 +25,13 @@ export default function DashboardPage() {
   const totalAuthors = new Set(books.map((b) => b.author)).size;
   const totalCategories = new Set(books.map((b) => b.category)).size;
 
-  const stats = [
+    const stats = [
     { label: "کل کتابیں", value: totalBooks, icon: "📚", href: "/books" },
     { label: "مصنفین", value: totalAuthors, icon: "✍️", href: "/authors" },
     { label: "زمرے", value: totalCategories, icon: "🗂️", href: "/categories" },
   ];
 
-  return (
+   return (
     <main className="min-h-screen flex bg-gray-50">
       {mobileMenuOpen && (
         <div
@@ -86,6 +86,14 @@ export default function DashboardPage() {
           <Link href="/reviews" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
             <Star size={19} />
             ریویوز
+          </Link>
+          <Link href="/low-stock" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <PackageMinus size={19} />
+            کم سٹاک
+          </Link>
+          <Link href="/expenses" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <Wallet size={19} />
+            اخراجات
           </Link>
         </nav>
 

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Star, Check, Trash2 } from "lucide-react";
+import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Star, Check, Trash2, PackageMinus, Wallet } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function ReviewsPage() {
@@ -97,6 +97,14 @@ export default function ReviewsPage() {
                 {pendingReviews.length}
               </span>
             )}
+          </Link>
+                    <Link href="/low-stock" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <PackageMinus size={19} />
+            کم سٹاک
+          </Link>
+          <Link href="/expenses" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <Wallet size={19} />
+            اخراجات
           </Link>
         </nav>
 
