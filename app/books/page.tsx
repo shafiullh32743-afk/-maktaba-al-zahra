@@ -1,11 +1,10 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Upload, MessageCircle, Star, MessageSquarePlus, PackageCheck, PackageX, PackageMinus, FileSpreadsheet, Wallet } from "lucide-react";
-import * as XLSX from "xlsx";
+import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Upload, MessageCircle, Star, MessageSquarePlus, PackageCheck, PackageX, PackageMinus, FileSpreadsheet, Wallet, Trash2, Plus, Minus, FileDown } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import * as XLSX from "xlsx";
 
-// عارضی ڈیلیوری فارمولا — بعد میں پاکستان پوسٹ کی اصل ریٹ لسٹ کے مطابق بدل دیا جائے گا
 function calculateDeliveryCharge(weight: number) {
   if (weight <= 1) return 225;
   const extraKg = Math.ceil(weight - 1);
@@ -17,6 +16,16 @@ function getStockStatus(stock: number) {
   if (stock <= 5) return { label: "Low Stock", color: "text-amber-600 bg-amber-50 border-amber-200", icon: "low" };
   return { label: "In Stock", color: "text-emerald-600 bg-emerald-50 border-emerald-200", icon: "in" };
 }
+
+type CartItem = {
+  id: number;
+  title: string;
+  price: number;
+  weight: number;
+  costPrice: number;
+  stock: number;
+  quantity: number;
+};
 
 export default function BooksPage() {
   const [search, setSearch] = useState("");
@@ -34,26 +43,20 @@ export default function BooksPage() {
   const [newPrice, setNewPrice] = useState("");
   const [newWeight, setNewWeight] = useState("");
   const [newStock, setNewStock] = useState("");
-    const [newCostPrice, setNewCostPrice] = useState("");
+  const [newCostPrice, setNewCostPrice] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  const [showOrderModal, setShowOrderModal] = useState(false);
-  const [orderBookId, setOrderBookId] = useState<number | null>(null);
-  const [orderBookTitle, setOrderBookTitle] = useState("");
-  const [orderBookPrice, setOrderBookPrice] = useState(0);
-  const [orderBookWeight, setOrderBookWeight] = useState(1);
-  const [orderBookStock, setOrderBookStock] = useState(0);
-    const [orderBookCostPrice, setOrderBookCostPrice] = useState(0);
-  const [orderQuantity, setOrderQuantity] = useState(1);
-  const [orderName, setOrderName] = useState("");
-  const [orderPhone, setOrderPhone] = useState("");
-  const [orderAddress, setOrderAddress] = useState("");
-  const [orderSuccess, setOrderSuccess] = useState(false);
-  const [orderSubmitting, setOrderSubmitting] = useState(false);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [showCartModal, setShowCartModal] = useState(false);
+  const [cartName, setCartName] = useState("");
+  const [cartPhone, setCartPhone] = useState("");
+  const [cartAddress, setCartAddress] = useState("");
+  const [cartSuccess, setCartSuccess] = useState(false);
+  const [cartSubmitting, setCartSubmitting] = useState(false);
 
   const [reviews, setReviews] = useState<any[]>([]);
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -63,6 +66,7 @@ export default function BooksPage() {
   const [reviewComment, setReviewComment] = useState("");
   const [reviewSuccess, setReviewSuccess] = useState(false);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
+
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
 
@@ -71,18 +75,12 @@ export default function BooksPage() {
       .from("books")
       .select("*")
       .order("id", { ascending: true });
-
-    if (!error && data) {
-      setBooks(data);
-    }
+    if (!error && data) setBooks(data);
     setLoaded(true);
   };
 
   const fetchReviews = async () => {
-    const { data } = await supabase
-      .from("reviews")
-      .select("*")
-      .eq("approved", true);
+    const { data } = await supabase.from("reviews").select("*").eq("approved", true);
     if (data) setReviews(data);
   };
 
@@ -108,6 +106,7 @@ export default function BooksPage() {
   const existingCategories = Array.from(new Set(books.map((b) => b.category)));
   const existingAuthors = Array.from(new Set(books.map((b) => b.author)));
 
+  // ---------- کتاب شامل/ترمیم ----------
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -120,21 +119,14 @@ export default function BooksPage() {
     if (newTitle.trim() === "") return;
     setUploading(true);
 
-    const finalCategory =
-      newCategory === "__new__" ? customCategory.trim() : newCategory;
-
+    const finalCategory = newCategory === "__new__" ? customCategory.trim() : newCategory;
     let imageUrl = existingImageUrl;
 
     if (imageFile) {
       const fileName = `${Date.now()}-${imageFile.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from("book-covers")
-        .upload(fileName, imageFile);
-
+      const { error: uploadError } = await supabase.storage.from("book-covers").upload(fileName, imageFile);
       if (!uploadError) {
-        const { data: publicUrlData } = supabase.storage
-          .from("book-covers")
-          .getPublicUrl(fileName);
+        const { data: publicUrlData } = supabase.storage.from("book-covers").getPublicUrl(fileName);
         imageUrl = publicUrlData.publicUrl;
       }
     }
@@ -163,6 +155,7 @@ export default function BooksPage() {
     setNewPrice("");
     setNewWeight("");
     setNewStock("");
+    setNewCostPrice("");
     setEditingId(null);
     setImageFile(null);
     setImagePreview(null);
@@ -180,7 +173,7 @@ export default function BooksPage() {
     setNewPrice(book.price ? book.price.toString() : "");
     setNewWeight(book.weight ? book.weight.toString() : "");
     setNewStock(book.stock ? book.stock.toString() : "");
-        setNewCostPrice(book.cost_price ? book.cost_price.toString() : "");
+    setNewCostPrice(book.cost_price ? book.cost_price.toString() : "");
     setExistingImageUrl(book.image_url || null);
     setImagePreview(book.image_url || null);
     setImageFile(null);
@@ -192,99 +185,10 @@ export default function BooksPage() {
     fetchBooks();
   };
 
-  const handleOrderClick = (book: any) => {
-    setOrderBookId(book.id);
-    setOrderBookTitle(book.title);
-    setOrderBookPrice(book.price || 0);
-    setOrderBookWeight(book.weight || 1);
-    setOrderBookStock(book.stock || 0);
-        setOrderBookCostPrice(book.cost_price || 0);
-    setOrderQuantity(1);
-    setOrderName("");
-    setOrderPhone("");
-    setOrderAddress("");
-    setOrderSuccess(false);
-    setShowOrderModal(true);
-  };
-
-  const totalBookPrice = orderBookPrice * orderQuantity;
-  const totalWeight = orderBookWeight * orderQuantity;
-  const deliveryCharge = calculateDeliveryCharge(totalWeight);
-  const totalBill = totalBookPrice + deliveryCharge;
-
-  const sendToWhatsApp = () => {
-    const message = `السلام علیکم، میں نے آرڈر کیا ہے:
-
-📚 کتاب: ${orderBookTitle}
-🔢 تعداد: ${orderQuantity}
-👤 نام: ${orderName}
-📞 فون: ${orderPhone}
-📍 پتہ: ${orderAddress}
-
-💰 کتاب کی قیمت: ${totalBookPrice} روپے
-🚚 ڈیلیوری چارجز: ${deliveryCharge} روپے
-💵 کل بل: ${totalBill} روپے`;
-
-    const whatsappUrl = `https://wa.me/923055232889?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, "_blank");
-  };
-
-  const handleSubmitOrder = async () => {
-    if (orderName.trim() === "" || orderPhone.trim() === "") return;
-    setOrderSubmitting(true);
-
-    await supabase.from("orders").insert({
-      book_title: orderBookTitle,
-      customer_name: orderName,
-      customer_phone: orderPhone,
-      customer_address: orderAddress,
-      status: "نیا",
-      book_price: totalBookPrice,
-      delivery_charge: deliveryCharge,
-      total_amount: totalBill,
-      quantity: orderQuantity,
-      cost_price: orderBookCostPrice * orderQuantity,
-    });
-
-    if (orderBookId) {
-      const newStockValue = Math.max(0, orderBookStock - orderQuantity);
-      await supabase.from("books").update({ stock: newStockValue }).eq("id", orderBookId);
-      fetchBooks();
-    }
-
-    setOrderSubmitting(false);
-    setOrderSuccess(true);
-  };
-
-  const handleReviewClick = (title: string) => {
-    setReviewBookTitle(title);
-    setReviewName("");
-    setReviewRating(5);
-    setReviewComment("");
-    setReviewSuccess(false);
-    setShowReviewModal(true);
-  };
-
-  const handleSubmitReview = async () => {
-    if (reviewName.trim() === "" || reviewComment.trim() === "") return;
-    setReviewSubmitting(true);
-
-    await supabase.from("reviews").insert({
-      book_title: reviewBookTitle,
-      customer_name: reviewName,
-      rating: reviewRating,
-      comment: reviewComment,
-      approved: false,
-    });
-
-    setReviewSubmitting(false);
-    setReviewSuccess(true);
-  };
-
-    const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ---------- Excel درآمد ----------
+  const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setImporting(true);
     setImportResult(null);
 
@@ -302,9 +206,7 @@ export default function BooksPage() {
         const title = row[0];
         const author = row[1];
         const price = row[2];
-
         if (!title || typeof title !== "string" || title.trim() === "") continue;
-
         booksToInsert.push({
           title: title.toString().trim(),
           author: author ? author.toString().trim() : "مكتبہ الزھراء",
@@ -326,22 +228,212 @@ export default function BooksPage() {
       } else {
         setImportResult("کوئی کتاب نہیں ملی، فائل چیک کریں");
       }
-
       setImporting(false);
     };
-
     reader.readAsBinaryString(file);
     e.target.value = "";
+  };
+
+  // ---------- ٹوکری (Cart) ----------
+  const addToCart = (book: any) => {
+    setCart((prev) => {
+      const existing = prev.find((item) => item.id === book.id);
+      if (existing) {
+        if (existing.quantity >= (book.stock || 0)) return prev;
+        return prev.map((item) =>
+          item.id === book.id ? { ...item, quantity: item.quantity + 1 } : item
+        );
+      }
+      return [
+        ...prev,
+        {
+          id: book.id,
+          title: book.title,
+          price: book.price || 0,
+          weight: book.weight || 1,
+          costPrice: book.cost_price || 0,
+          stock: book.stock || 0,
+          quantity: 1,
+        },
+      ];
+    });
+  };
+
+  const updateCartQuantity = (id: number, delta: number) => {
+    setCart((prev) =>
+      prev
+        .map((item) => {
+          if (item.id !== id) return item;
+          const newQty = item.quantity + delta;
+          if (newQty <= 0) return null;
+          if (newQty > item.stock) return item;
+          return { ...item, quantity: newQty };
+        })
+        .filter((item): item is CartItem => item !== null)
+    );
+  };
+
+  const removeFromCart = (id: number) => {
+    setCart((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const cartSubtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const cartTotalWeight = cart.reduce((sum, item) => sum + item.weight * item.quantity, 0);
+  const cartDeliveryCharge = cart.length > 0 ? calculateDeliveryCharge(cartTotalWeight) : 0;
+  const cartTotalBill = cartSubtotal + cartDeliveryCharge;
+
+  const sendCartToWhatsApp = () => {
+    const itemsList = cart
+      .map((item) => `📚 ${item.title} — تعداد: ${item.quantity} — Rs ${item.price * item.quantity}`)
+      .join("\n");
+
+    const message = `السلام علیکم، میں نے آرڈر کیا ہے:
+
+${itemsList}
+
+👤 نام: ${cartName}
+📞 فون: ${cartPhone}
+📍 پتہ: ${cartAddress}
+
+💰 کتابوں کی مجموعی قیمت: ${cartSubtotal} روپے
+🚚 ڈیلیوری چارجز: ${cartDeliveryCharge} روپے
+💵 کل بل: ${cartTotalBill} روپے`;
+
+    const whatsappUrl = `https://wa.me/923055232889?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, "_blank");
+  };
+
+  const handleSubmitCartOrder = async () => {
+    if (cartName.trim() === "" || cartPhone.trim() === "" || cart.length === 0) return;
+    setCartSubmitting(true);
+
+    const orderGroup = `grp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    const orderRows = cart.map((item, index) => ({
+      book_title: item.title,
+      customer_name: cartName,
+      customer_phone: cartPhone,
+      customer_address: cartAddress,
+      status: "نیا",
+      book_price: item.price * item.quantity,
+      cost_price: item.costPrice * item.quantity,
+      delivery_charge: index === 0 ? cartDeliveryCharge : 0,
+      total_amount: index === 0 ? cartTotalBill : item.price * item.quantity,
+      quantity: item.quantity,
+      order_group: orderGroup,
+    }));
+
+    await supabase.from("orders").insert(orderRows);
+
+    for (const item of cart) {
+      const newStockValue = Math.max(0, item.stock - item.quantity);
+      await supabase.from("books").update({ stock: newStockValue }).eq("id", item.id);
+    }
+
+    fetchBooks();
+    setCartSubmitting(false);
+    setCartSuccess(true);
+  };
+
+  const closeCartModal = () => {
+    setShowCartModal(false);
+    if (cartSuccess) {
+      setCart([]);
+      setCartName("");
+      setCartPhone("");
+      setCartAddress("");
+      setCartSuccess(false);
+    }
+  };
+
+  // ---------- ریویو ----------
+  const handleReviewClick = (title: string) => {
+    setReviewBookTitle(title);
+    setReviewName("");
+    setReviewRating(5);
+    setReviewComment("");
+    setReviewSuccess(false);
+    setShowReviewModal(true);
+  };
+
+  const handleSubmitReview = async () => {
+    if (reviewName.trim() === "" || reviewComment.trim() === "") return;
+    setReviewSubmitting(true);
+    await supabase.from("reviews").insert({
+      book_title: reviewBookTitle,
+      customer_name: reviewName,
+      rating: reviewRating,
+      comment: reviewComment,
+      approved: false,
+    });
+    setReviewSubmitting(false);
+    setReviewSuccess(true);
+  };
+
+    const handleDownloadPDF = () => {
+    const rows = filteredBooks
+      .map(
+        (book, index) => `
+        <tr>
+          <td style="padding:8px;border:1px solid #ccc;text-align:center;">${index + 1}</td>
+          <td style="padding:8px;border:1px solid #ccc;">${book.title}</td>
+          <td style="padding:8px;border:1px solid #ccc;">${book.author}</td>
+          <td style="padding:8px;border:1px solid #ccc;">${book.category}</td>
+          <td style="padding:8px;border:1px solid #ccc;text-align:center;">${book.price || "-"}</td>
+          <td style="padding:8px;border:1px solid #ccc;text-align:center;">${book.stock ?? "-"}</td>
+        </tr>`
+      )
+      .join("");
+
+    const html = `
+      <html dir="rtl" lang="ur">
+        <head>
+          <meta charset="UTF-8" />
+          <title>مكتبہ الزھراء - فہرست کتب</title>
+          <style>
+            body { font-family: Arial, "Noto Nastaliq Urdu", sans-serif; padding: 24px; }
+            h1 { text-align: center; color: #047857; }
+            p { text-align: center; color: #555; margin-top: 4px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 24px; font-size: 14px; }
+            th { background: #047857; color: white; padding: 8px; border: 1px solid #ccc; }
+          </style>
+        </head>
+        <body>
+          <h1>مكتبہ الزھراء</h1>
+          <p>فہرست کتب — کل ${filteredBooks.length} کتابیں</p>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>کتاب کا نام</th>
+                <th>مصنف</th>
+                <th>زمرہ</th>
+                <th>قیمت</th>
+                <th>سٹاک</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </body>
+      </html>`;
+
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 300);
+    }
   };
   const hasActiveFilters = search || filterCategory || filterAuthor;
 
   return (
     <main className="min-h-screen flex bg-gray-50">
       {mobileMenuOpen && (
-        <div
-          onClick={() => setMobileMenuOpen(false)}
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-        />
+        <div onClick={() => setMobileMenuOpen(false)} className="fixed inset-0 bg-black/50 z-40 md:hidden" />
       )}
 
       <aside
@@ -356,48 +448,36 @@ export default function BooksPage() {
             </div>
             <h1 className="text-lg font-bold text-white">مكتبہ الزھراء</h1>
           </div>
-          <button
-            onClick={() => setMobileMenuOpen(false)}
-            className="md:hidden text-white/80 hover:text-white"
-          >
+          <button onClick={() => setMobileMenuOpen(false)} className="md:hidden text-white/80 hover:text-white">
             <X size={22} />
           </button>
         </div>
 
         <nav className="mt-10 space-y-1.5 flex-1">
           <p className="text-white/50 text-xs font-medium px-3 mb-2">مینو</p>
-
           <Link href="/" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <LayoutDashboard size={19} />
-            ڈیش بورڈ
+            <LayoutDashboard size={19} /> ڈیش بورڈ
           </Link>
           <Link href="/books" className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500 text-white font-medium shadow-md">
-            <BookOpen size={19} />
-            کتب
+            <BookOpen size={19} /> کتب
           </Link>
           <Link href="/authors" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <PenLine size={19} />
-            مصنفین
+            <PenLine size={19} /> مصنفین
           </Link>
           <Link href="/categories" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <FolderTree size={19} />
-            زمرے
+            <FolderTree size={19} /> زمرے
           </Link>
           <Link href="/orders" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <ShoppingCart size={19} />
-            آرڈرز
+            <ShoppingCart size={19} /> آرڈرز
           </Link>
           <Link href="/reviews" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Star size={19} />
-            ریویوز
+            <Star size={19} /> ریویوز
           </Link>
           <Link href="/low-stock" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <PackageMinus size={19} />
-            کم سٹاک
+            <PackageMinus size={19} /> کم سٹاک
           </Link>
           <Link href="/expenses" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Wallet size={19} />
-            اخراجات
+            <Wallet size={19} /> اخراجات
           </Link>
         </nav>
 
@@ -409,8 +489,7 @@ export default function BooksPage() {
             }}
             className="flex items-center gap-3 p-3 rounded-xl w-full text-white/80 hover:bg-white/[0.15] hover:text-white transition"
           >
-            <LogOut size={19} />
-            لاگ آؤٹ
+            <LogOut size={19} /> لاگ آؤٹ
           </button>
           <p className="text-white/50 text-xs text-center">مكتبہ الزھراء © 2026</p>
         </div>
@@ -418,10 +497,7 @@ export default function BooksPage() {
 
       <section className="flex-1 min-w-0 p-5 md:p-10">
         <div className="flex items-center justify-between md:hidden mb-4">
-          <button
-            onClick={() => setMobileMenuOpen(true)}
-            className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm"
-          >
+          <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm">
             <Menu size={22} />
           </button>
           <h1 className="text-lg font-bold text-emerald-800">مكتبہ الزھراء</h1>
@@ -434,17 +510,31 @@ export default function BooksPage() {
           </div>
 
           <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+            <button
+              onClick={() => setShowCartModal(true)}
+              className="relative flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition shadow-sm font-medium"
+            >
+              <ShoppingCart size={18} />
+              ٹوکری
+              {cartCount > 0 && (
+                <span className="absolute -top-2 -left-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+
             <label className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition shadow-sm cursor-pointer font-medium">
               <FileSpreadsheet size={18} />
               {importing ? "درآمد ہو رہا ہے..." : "Excel سے درآمد کریں"}
-              <input
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                onChange={handleExcelImport}
-                disabled={importing}
-                className="hidden"
-              />
+              <input type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelImport} disabled={importing} className="hidden" />
             </label>
+                        <button
+              onClick={handleDownloadPDF}
+              className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition shadow-sm font-medium"
+            >
+              <FileDown size={18} />
+              PDF ڈاؤن لوڈ کریں
+            </button>
 
             <button
               onClick={() => {
@@ -455,6 +545,7 @@ export default function BooksPage() {
                 setNewPrice("");
                 setNewWeight("");
                 setNewStock("");
+                setNewCostPrice("");
                 setImageFile(null);
                 setImagePreview(null);
                 setExistingImageUrl(null);
@@ -481,7 +572,6 @@ export default function BooksPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="flex-1 rounded-xl border border-gray-200 p-4 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
           />
-
           <select
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
@@ -489,12 +579,9 @@ export default function BooksPage() {
           >
             <option value="">تمام زمرے</option>
             {existingCategories.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
+              <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>
-
           <select
             value={filterAuthor}
             onChange={(e) => setFilterAuthor(e.target.value)}
@@ -502,18 +589,14 @@ export default function BooksPage() {
           >
             <option value="">تمام مصنفین</option>
             {existingAuthors.map((author) => (
-              <option key={author} value={author}>
-                {author}
-              </option>
+              <option key={author} value={author}>{author}</option>
             ))}
           </select>
         </div>
 
         {hasActiveFilters && (
           <div className="mt-4 flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-gray-500">
-              {filteredBooks.length} نتائج ملے
-            </span>
+            <span className="text-sm text-gray-500">{filteredBooks.length} نتائج ملے</span>
             <button
               onClick={() => {
                 setSearch("");
@@ -544,9 +627,7 @@ export default function BooksPage() {
               <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
                 <span className="text-6xl mb-4">📖</span>
                 <p className="text-gray-500 text-lg">کوئی کتاب نہیں ملی</p>
-                <p className="text-gray-400 text-sm mt-1">
-                  کوئی مختلف نام تلاش کریں یا نئی کتاب شامل کریں
-                </p>
+                <p className="text-gray-400 text-sm mt-1">کوئی مختلف نام تلاش کریں یا نئی کتاب شامل کریں</p>
               </div>
             )}
 
@@ -554,19 +635,16 @@ export default function BooksPage() {
               const ratingInfo = getBookRating(book.title);
               const stockInfo = getStockStatus(book.stock ?? 0);
               const outOfStock = (book.stock ?? 0) <= 0;
+              const inCart = cart.find((item) => item.id === book.id);
 
               return (
                 <div
                   key={book.id}
                   className="w-full rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center"
                 >
-                  <div className="h-40 w-full rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center border border-amber-200 overflow-hidden relative">
+                  <div className="h-40 w-full rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center border border-amber-200 overflow-hidden">
                     {book.image_url ? (
-                      <img
-                        src={book.image_url}
-                        alt={book.title}
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={book.image_url} alt={book.title} className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-6xl">📚</span>
                     )}
@@ -606,14 +684,33 @@ export default function BooksPage() {
                     <p className="mt-3 text-sm text-gray-400 italic">قیمت درج نہیں</p>
                   )}
 
-                  <button
-                    onClick={() => handleOrderClick(book)}
-                    disabled={outOfStock}
-                    className="mt-4 w-full flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-white hover:bg-amber-600 transition font-medium disabled:bg-gray-300 disabled:cursor-not-allowed"
-                  >
-                    <ShoppingCart size={16} />
-                    {outOfStock ? "Out of stok" : "آرڈر کریں"}
-                  </button>
+                  {inCart ? (
+                    <div className="mt-4 w-full flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
+                      <button
+                        onClick={() => updateCartQuantity(book.id, -1)}
+                        className="w-7 h-7 rounded-md bg-white text-emerald-700 flex items-center justify-center hover:bg-emerald-100"
+                      >
+                        <Minus size={14} />
+                      </button>
+                      <span className="font-bold text-emerald-800">{inCart.quantity} ٹوکری میں</span>
+                      <button
+                        onClick={() => updateCartQuantity(book.id, 1)}
+                        disabled={inCart.quantity >= (book.stock ?? 0)}
+                        className="w-7 h-7 rounded-md bg-white text-emerald-700 flex items-center justify-center hover:bg-emerald-100 disabled:opacity-40"
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => addToCart(book)}
+                      disabled={outOfStock}
+                      className="mt-4 w-full flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-white hover:bg-amber-600 transition font-medium disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    >
+                      <ShoppingCart size={16} />
+                      {outOfStock ? "سٹاک ختم" : "ٹوکری میں ڈالیں"}
+                    </button>
+                  )}
 
                   <button
                     onClick={() => handleReviewClick(book.title)}
@@ -630,14 +727,12 @@ export default function BooksPage() {
                     >
                       تفصیل دیکھیں
                     </Link>
-
                     <button
                       onClick={() => handleEditClick(book)}
                       className="rounded-lg bg-amber-50 px-3 py-2 text-amber-700 hover:bg-amber-100 transition"
                     >
                       ترمیم
                     </button>
-
                     <button
                       onClick={() => handleDeleteBook(book.id)}
                       className="rounded-lg bg-red-50 px-3 py-2 text-red-600 hover:bg-red-100 transition"
@@ -652,12 +747,11 @@ export default function BooksPage() {
         )}
       </section>
 
+      {/* کتاب شامل/ترمیم Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-gray-800">
-              {editingId ? "کتاب میں ترمیم کریں" : "نئی کتاب شامل کریں"}
-            </h3>
+            <h3 className="text-xl font-bold text-gray-800">{editingId ? "کتاب میں ترمیم کریں" : "نئی کتاب شامل کریں"}</h3>
 
             <label className="mt-5 block">
               <span className="text-sm text-gray-600">کتاب کی تصویر (اختیاری)</span>
@@ -670,12 +764,7 @@ export default function BooksPage() {
                     <span className="text-sm">تصویر منتخب کرنے کے لیے کلک کریں</span>
                   </div>
                 )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageSelect}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                />
+                <input type="file" accept="image/*" onChange={handleImageSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
               </div>
             </label>
 
@@ -706,7 +795,6 @@ export default function BooksPage() {
                   className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
                 />
               </label>
-
               <label className="flex-1 block">
                 <span className="text-xs text-gray-500">وزن (کلوگرام)</span>
                 <input
@@ -730,7 +818,7 @@ export default function BooksPage() {
                 className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
               />
             </label>
-                      
+
             <label className="mt-3 block">
               <span className="text-xs text-gray-500">خرید قیمت (لاگت)</span>
               <input
@@ -749,9 +837,7 @@ export default function BooksPage() {
             >
               <option value="">زمرہ منتخب کریں</option>
               {existingCategories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
+                <option key={cat} value={cat}>{cat}</option>
               ))}
               <option value="__new__">+ نیا زمرہ شامل کریں</option>
             </select>
@@ -775,7 +861,6 @@ export default function BooksPage() {
               >
                 {uploading ? "محفوظ ہو رہا ہے..." : editingId ? "محفوظ کریں" : "شامل کریں"}
               </button>
-
               <button
                 onClick={() => {
                   setShowModal(false);
@@ -787,6 +872,7 @@ export default function BooksPage() {
                   setNewPrice("");
                   setNewWeight("");
                   setNewStock("");
+                  setNewCostPrice("");
                   setImageFile(null);
                   setImagePreview(null);
                   setExistingImageUrl(null);
@@ -800,18 +886,17 @@ export default function BooksPage() {
         </div>
       )}
 
-      {showOrderModal && (
+      {/* ٹوکری Modal */}
+      {showCartModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
-            {orderSuccess ? (
+          <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+            {cartSuccess ? (
               <div className="text-center py-6">
                 <span className="text-5xl">✅</span>
                 <h3 className="text-xl font-bold text-gray-800 mt-4">آرڈر موصول ہو گیا</h3>
-                <p className="text-gray-500 mt-2">
-                  ہم جلد آپ سے رابطہ کریں گے۔ شکریہ!
-                </p>
+                <p className="text-gray-500 mt-2">ہم جلد آپ سے رابطہ کریں گے۔ شکریہ!</p>
                 <button
-                  onClick={() => setShowOrderModal(false)}
+                  onClick={closeCartModal}
                   className="mt-6 w-full rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition"
                 >
                   ٹھیک ہے
@@ -819,102 +904,121 @@ export default function BooksPage() {
               </div>
             ) : (
               <>
-                <h3 className="text-xl font-bold text-gray-800">آرڈر کریں</h3>
-                <p className="text-gray-500 text-sm mt-1">{orderBookTitle}</p>
-                <p className="text-xs text-gray-400 mt-1">دستیاب سٹاک: {orderBookStock}</p>
-
-                <div className="mt-4 flex items-center justify-between">
-                  <span className="text-sm text-gray-600">تعداد (نسخے)</span>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => setOrderQuantity(Math.max(1, orderQuantity - 1))}
-                      className="w-8 h-8 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition font-bold"
-                    >
-                      −
-                    </button>
-                    <span className="w-8 text-center font-bold text-gray-800">{orderQuantity}</span>
-                    <button
-                      onClick={() => setOrderQuantity(Math.min(orderBookStock, orderQuantity + 1))}
-                      className="w-8 h-8 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition font-bold"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-4 rounded-xl bg-gray-50 border border-gray-200 p-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">کتاب کی قیمت ({orderQuantity} × {orderBookPrice})</span>
-                    <span className="font-medium text-gray-800">{totalBookPrice} روپے</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">ڈیلیوری چارجز</span>
-                    <span className="font-medium text-gray-800">{deliveryCharge} روپے</span>
-                  </div>
-                  <div className="border-t border-gray-200 pt-2 flex justify-between">
-                    <span className="font-bold text-gray-800">کل بل</span>
-                    <span className="font-bold text-emerald-700 text-lg">{totalBill} روپے</span>
-                  </div>
-                </div>
-
-                <input
-                  type="text"
-                  placeholder="آپ کا نام"
-                  value={orderName}
-                  onChange={(e) => setOrderName(e.target.value)}
-                  className="mt-4 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                  autoFocus
-                />
-
-                <input
-                  type="tel"
-                  placeholder="فون نمبر"
-                  value={orderPhone}
-                  onChange={(e) => setOrderPhone(e.target.value)}
-                  className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                />
-
-                <textarea
-                  placeholder="مکمل پتہ"
-                  value={orderAddress}
-                  onChange={(e) => setOrderAddress(e.target.value)}
-                  rows={3}
-                  className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 resize-none"
-                />
-
-                <div className="mt-6 space-y-3">
-                  <button
-                    onClick={handleSubmitOrder}
-                    disabled={orderSubmitting}
-                    className="w-full rounded-xl bg-amber-500 text-white py-3 hover:bg-amber-600 transition disabled:opacity-60"
-                  >
-                    {orderSubmitting ? "بھیجا جا رہا ہے..." : "آرڈر بھیجیں"}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      if (orderName.trim() === "" || orderPhone.trim() === "") return;
-                      sendToWhatsApp();
-                    }}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#25D366] text-white py-3 hover:bg-[#20BD5A] transition font-medium"
-                  >
-                    <MessageCircle size={18} />
-                    WhatsApp پر آرڈر بھیجیں
-                  </button>
-
-                  <button
-                    onClick={() => setShowOrderModal(false)}
-                    className="w-full rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
-                  >
-                    منسوخ کریں
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-gray-800">آپ کی ٹوکری</h3>
+                  <button onClick={() => setShowCartModal(false)} className="text-gray-400 hover:text-gray-600">
+                    <X size={22} />
                   </button>
                 </div>
+
+                {cart.length === 0 ? (
+                  <div className="mt-8 flex flex-col items-center justify-center text-center py-8">
+                    <span className="text-5xl mb-3">🛒</span>
+                    <p className="text-gray-500">آپ کی ٹوکری خالی ہے</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-4 space-y-3">
+                      {cart.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between rounded-xl border border-gray-200 p-3">
+                          <div className="flex-1">
+                            <p className="font-medium text-gray-800 text-sm">{item.title}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">Rs {item.price} × {item.quantity} = Rs {item.price * item.quantity}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => updateCartQuantity(item.id, -1)}
+                              className="w-7 h-7 rounded-md bg-gray-100 text-gray-700 flex items-center justify-center hover:bg-gray-200"
+                            >
+                              <Minus size={14} />
+                            </button>
+                            <span className="w-6 text-center font-bold">{item.quantity}</span>
+                            <button
+                              onClick={() => updateCartQuantity(item.id, 1)}
+                              disabled={item.quantity >= item.stock}
+                              className="w-7 h-7 rounded-md bg-gray-100 text-gray-700 flex items-center justify-center hover:bg-gray-200 disabled:opacity-40"
+                            >
+                              <Plus size={14} />
+                            </button>
+                            <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700 mr-1">
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-5 rounded-xl bg-gray-50 border border-gray-200 p-4 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">کتابوں کی مجموعی قیمت</span>
+                        <span className="font-medium text-gray-800">{cartSubtotal} روپے</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">ڈیلیوری چارجز</span>
+                        <span className="font-medium text-gray-800">{cartDeliveryCharge} روپے</span>
+                      </div>
+                      <div className="border-t border-gray-200 pt-2 flex justify-between">
+                        <span className="font-bold text-gray-800">کل بل</span>
+                        <span className="font-bold text-emerald-700 text-lg">{cartTotalBill} روپے</span>
+                      </div>
+                    </div>
+
+                    <input
+                      type="text"
+                      placeholder="آپ کا نام"
+                      value={cartName}
+                      onChange={(e) => setCartName(e.target.value)}
+                      className="mt-4 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+                    <input
+                      type="tel"
+                      placeholder="فون نمبر"
+                      value={cartPhone}
+                      onChange={(e) => setCartPhone(e.target.value)}
+                      className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+                    <textarea
+                      placeholder="مکمل پتہ"
+                      value={cartAddress}
+                      onChange={(e) => setCartAddress(e.target.value)}
+                      rows={3}
+                      className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 resize-none"
+                    />
+
+                    <div className="mt-6 space-y-3">
+                      <button
+                        onClick={handleSubmitCartOrder}
+                        disabled={cartSubmitting}
+                        className="w-full rounded-xl bg-amber-500 text-white py-3 hover:bg-amber-600 transition disabled:opacity-60"
+                      >
+                        {cartSubmitting ? "بھیجا جا رہا ہے..." : "آرڈر بھیجیں"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (cartName.trim() === "" || cartPhone.trim() === "") return;
+                          sendCartToWhatsApp();
+                        }}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#25D366] text-white py-3 hover:bg-[#20BD5A] transition font-medium"
+                      >
+                        <MessageCircle size={18} />
+                        WhatsApp پر آرڈر بھیجیں
+                      </button>
+                      <button
+                        onClick={() => setShowCartModal(false)}
+                        className="w-full rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
+                      >
+                        بند کریں
+                      </button>
+                    </div>
+                  </>
+                )}
               </>
             )}
           </div>
         </div>
       )}
 
+      {/* ریویو Modal */}
       {showReviewModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
@@ -922,9 +1026,7 @@ export default function BooksPage() {
               <div className="text-center py-6">
                 <span className="text-5xl">✅</span>
                 <h3 className="text-xl font-bold text-gray-800 mt-4">ریویو موصول ہو گیا</h3>
-                <p className="text-gray-500 mt-2">
-                  آپ كی قیمتی رائے كا شکریہ!
-                </p>
+                <p className="text-gray-500 mt-2">آپ کا ریویو منظوری کے بعد نظر آئے گا۔ شکریہ!</p>
                 <button
                   onClick={() => setShowReviewModal(false)}
                   className="mt-6 w-full rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition"
@@ -941,19 +1043,8 @@ export default function BooksPage() {
                   <span className="text-sm text-gray-600">ریٹنگ</span>
                   <div className="mt-2 flex items-center gap-1">
                     {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        onClick={() => setReviewRating(star)}
-                        className="transition"
-                      >
-                        <Star
-                          size={30}
-                          className={
-                            star <= reviewRating
-                              ? "fill-amber-400 text-amber-400"
-                              : "text-gray-300"
-                          }
-                        />
+                      <button key={star} onClick={() => setReviewRating(star)} className="transition">
+                        <Star size={30} className={star <= reviewRating ? "fill-amber-400 text-amber-400" : "text-gray-300"} />
                       </button>
                     ))}
                   </div>
@@ -966,7 +1057,6 @@ export default function BooksPage() {
                   onChange={(e) => setReviewName(e.target.value)}
                   className="mt-4 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
                 />
-
                 <textarea
                   placeholder="اپنا تبصرہ لکھیں..."
                   value={reviewComment}
@@ -983,7 +1073,6 @@ export default function BooksPage() {
                   >
                     {reviewSubmitting ? "بھیجا جا رہا ہے..." : "ریویو بھیجیں"}
                   </button>
-
                   <button
                     onClick={() => setShowReviewModal(false)}
                     className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"

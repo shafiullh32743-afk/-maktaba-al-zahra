@@ -6,20 +6,44 @@ import { supabase } from "@/lib/supabaseClient";
 
 export default function DashboardPage() {
   const [books, setBooks] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [expenses, setExpenses] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    const fetchBooks = async () => {
-      const { data, error } = await supabase
+    const fetchAll = async () => {
+      const { data: booksData } = await supabase
         .from("books")
         .select("*")
         .order("id", { ascending: true });
-      if (!error && data) setBooks(data);
+      if (booksData) setBooks(booksData);
+
+      const { data: ordersData } = await supabase.from("orders").select("*");
+      if (ordersData) setOrders(ordersData);
+
+      const { data: expensesData } = await supabase.from("expenses").select("*");
+      if (expensesData) setExpenses(expensesData);
+
       setLoaded(true);
     };
-    fetchBooks();
+    fetchAll();
   }, []);
+
+  const now = new Date();
+  const thisMonthOrders = orders.filter((o) => {
+    const d = new Date(o.created_at || Date.now());
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+  const thisMonthExpenses = expenses.filter((e) => {
+    const d = new Date(e.expense_date);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+
+  const thisMonthRevenue = thisMonthOrders.reduce((sum, o) => sum + (o.book_price || 0), 0);
+  const thisMonthCost = thisMonthOrders.reduce((sum, o) => sum + (o.cost_price || 0), 0);
+  const thisMonthExpenseTotal = thisMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const thisMonthProfit = thisMonthRevenue - thisMonthCost - thisMonthExpenseTotal;
 
   const totalBooks = books.length;
   const totalAuthors = new Set(books.map((b) => b.author)).size;
@@ -130,6 +154,27 @@ export default function DashboardPage() {
           <p className="mt-8 text-gray-500">لوڈ ہو رہا ہے...</p>
         ) : (
           <>
+                        <div className="mt-8 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-6">
+              <p className="text-sm text-emerald-700 font-medium">اس مہینے کا نفع</p>
+              <p className={`text-4xl font-extrabold mt-1 ${thisMonthProfit >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                Rs {thisMonthProfit.toLocaleString()}
+              </p>
+              <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
+                <div>
+                  <p className="text-gray-500">فروخت</p>
+                  <p className="font-bold text-gray-800">Rs {thisMonthRevenue.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">لاگت</p>
+                  <p className="font-bold text-gray-800">Rs {thisMonthCost.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">اخراجات</p>
+                  <p className="font-bold text-gray-800">Rs {thisMonthExpenseTotal.toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+
             <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
               {stats.map((stat) => (
                 <Link
