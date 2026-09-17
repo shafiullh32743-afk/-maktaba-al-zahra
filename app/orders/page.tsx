@@ -1,13 +1,14 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Phone, MapPin, Star, PackageMinus, Wallet } from "lucide-react";
+import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Phone, MapPin, Star, PackageMinus, Wallet, Bell } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [newOrderAlert, setNewOrderAlert] = useState<string | null>(null);
 
   const fetchOrders = async () => {
     const { data, error } = await supabase
@@ -18,8 +19,37 @@ export default function OrdersPage() {
     setLoaded(true);
   };
 
+  const playNotificationSound = () => {
+    const audio = new Audio(
+      "data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoAAACAgICAgICAgIA="
+    );
+    audio.volume = 0.5;
+    audio.play().catch(() => {});
+  };
+
   useEffect(() => {
     fetchOrders();
+
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from("orders")
+        .select("*")
+        .order("id", { ascending: false });
+
+      if (data) {
+        setOrders((prevOrders) => {
+          if (prevOrders.length > 0 && data.length > prevOrders.length) {
+            const newest = data[0];
+            playNotificationSound();
+            setNewOrderAlert(`نیا آرڈر: ${newest.book_title} — ${newest.customer_name}`);
+            setTimeout(() => setNewOrderAlert(null), 6000);
+          }
+          return data;
+        });
+      }
+    }, 15000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const handleStatusChange = async (ids: number[], newStatus: string) => {
@@ -120,6 +150,13 @@ export default function OrdersPage() {
 
         <h2 className="text-2xl md:text-3xl font-bold text-gray-900">آرڈرز</h2>
         <p className="mt-2 text-gray-500">موصول شدہ کتابوں کے آرڈرز دیکھیں</p>
+
+        {newOrderAlert && (
+          <div className="mt-4 flex items-center gap-3 rounded-xl bg-emerald-600 text-white px-5 py-3 shadow-lg animate-pulse">
+            <Bell size={20} />
+            <span className="font-medium">{newOrderAlert}</span>
+          </div>
+        )}
 
         {!loaded ? (
           <p className="mt-8 text-gray-500">لوڈ ہو رہا ہے...</p>

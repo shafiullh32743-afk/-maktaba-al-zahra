@@ -5,6 +5,33 @@ import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, Shoppi
 import { supabase } from "@/lib/supabaseClient";
 import * as XLSX from "xlsx";
 
+const urduToRomanMap: Record<string, string> = {
+  "ا": "a", "آ": "aa", "ب": "b", "پ": "p", "ت": "t", "ٹ": "t", "ث": "s",
+  "ج": "j", "چ": "ch", "ح": "h", "خ": "kh", "د": "d", "ڈ": "d", "ذ": "z",
+  "ر": "r", "ڑ": "r", "ز": "z", "ژ": "zh", "س": "s", "ش": "sh", "ص": "s",
+  "ض": "z", "ط": "t", "ظ": "z", "ع": "a", "غ": "gh", "ف": "f", "ق": "q",
+  "ک": "k", "گ": "g", "ل": "l", "م": "m", "ن": "n", "ں": "n", "و": "o",
+  "ہ": "h", "ھ": "h", "ء": "", "ی": "i", "ے": "e", "؟": "", "۔": "",
+};
+
+function generateSlugFromTitle(title: string) {
+  let result = "";
+  for (const ch of title) {
+    if (urduToRomanMap[ch] !== undefined) {
+      result += urduToRomanMap[ch];
+    } else if (/[a-zA-Z0-9\s]/.test(ch)) {
+      result += ch;
+    } else if (ch === " ") {
+      result += "-";
+    }
+  }
+  return result
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
+}
 function calculateDeliveryCharge(weight: number) {
   if (weight <= 1) return 225;
   const extraKg = Math.ceil(weight - 1);
@@ -44,6 +71,7 @@ export default function BooksPage() {
   const [newWeight, setNewWeight] = useState("");
   const [newStock, setNewStock] = useState("");
   const [newCostPrice, setNewCostPrice] = useState("");
+    const [newSlug, setNewSlug] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -75,7 +103,26 @@ export default function BooksPage() {
       .from("books")
       .select("*")
       .order("id", { ascending: true });
-    if (!error && data) setBooks(data);
+
+    if (!error && data) {
+      setBooks(data);
+
+      // پرانی کتابوں کے لیے خودکار طور پر slug بنائیں (صرف ایک بار)
+      const booksWithoutSlug = data.filter((b: any) => !b.slug);
+      for (const b of booksWithoutSlug) {
+        const slug = generateSlugFromTitle(b.title);
+        if (slug) {
+          await supabase.from("books").update({ slug }).eq("id", b.id);
+        }
+      }
+      if (booksWithoutSlug.length > 0) {
+        const { data: refreshed } = await supabase
+          .from("books")
+          .select("*")
+          .order("id", { ascending: true });
+        if (refreshed) setBooks(refreshed);
+      }
+    }
     setLoaded(true);
   };
 
@@ -140,6 +187,7 @@ export default function BooksPage() {
       weight: parseFloat(newWeight) || 1,
       stock: parseInt(newStock) || 0,
       cost_price: parseFloat(newCostPrice) || 0,
+      slug: newSlug || generateSlugFromTitle(newTitle),
     };
 
     if (editingId) {
@@ -174,6 +222,7 @@ export default function BooksPage() {
     setNewWeight(book.weight ? book.weight.toString() : "");
     setNewStock(book.stock ? book.stock.toString() : "");
     setNewCostPrice(book.cost_price ? book.cost_price.toString() : "");
+    setNewSlug(book.slug || generateSlugFromTitle(book.title));
     setExistingImageUrl(book.image_url || null);
     setImagePreview(book.image_url || null);
     setImageFile(null);
@@ -722,7 +771,7 @@ ${itemsList}
 
                   <div className="mt-2 w-full flex gap-2">
                     <Link
-                      href={`/books/${encodeURIComponent(book.title)}`}
+                      href={`/books/${book.slug || encodeURIComponent(book.title)}`}
                       className="flex-1 rounded-lg bg-emerald-700 px-4 py-2 text-white hover:bg-emerald-800 transition text-center"
                     >
                       تفصیل دیکھیں
@@ -772,9 +821,24 @@ ${itemsList}
               type="text"
               placeholder="کتاب کا نام"
               value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
+              onChange={(e) => {
+                setNewTitle(e.target.value);
+                if (!editingId) setNewSlug(generateSlugFromTitle(e.target.value));
+              }}
               className="mt-5 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
             />
+
+            <label className="mt-3 block">
+              <span className="text-xs text-gray-500">ویب ایڈریس (URL) — چاہیں تو تبدیل کریں</span>
+              <input
+                type="text"
+                placeholder="book-name-in-roman"
+                value={newSlug}
+                onChange={(e) => setNewSlug(e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""))}
+                dir="ltr"
+                className="mt-1 w-full rounded-xl border border-gray-200 p-3 text-left focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              />
+            </label>
 
             <input
               type="text"
