@@ -1,9 +1,65 @@
 "use client";
-import { useState, useEffect } from "react";
+
+import { useState, useEffect, ChangeEvent } from "react";
 import Link from "next/link";
-import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Upload, MessageCircle, Star, MessageSquarePlus, PackageCheck, PackageX, PackageMinus, FileSpreadsheet, Wallet, Trash2, Plus, Minus, FileDown } from "lucide-react";
+import Image from "next/image";
+import {
+  LayoutDashboard,
+  BookOpen,
+  PenLine,
+  FolderTree,
+  LogOut,
+  Menu,
+  X,
+  ShoppingCart,
+  Upload,
+  MessageCircle,
+  Star,
+  MessageSquarePlus,
+  PackageCheck,
+  PackageX,
+  PackageMinus,
+  FileSpreadsheet,
+  Wallet,
+  Trash2,
+  Plus,
+  Minus,
+  FileDown,
+} from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import * as XLSX from "xlsx";
+
+interface Book {
+  id: number;
+  title: string;
+  author: string;
+  category: string;
+  price?: number;
+  weight?: number;
+  stock?: number;
+  cost_price?: number;
+  slug?: string;
+  image_url?: string;
+}
+
+interface Review {
+  id: number;
+  book_title: string;
+  customer_name: string;
+  rating: number;
+  comment: string;
+  approved: boolean;
+}
+
+type CartItem = {
+  id: number;
+  title: string;
+  price: number;
+  weight: number;
+  costPrice: number;
+  stock: number;
+  quantity: number;
+};
 
 const urduToRomanMap: Record<string, string> = {
   "ا": "a", "آ": "aa", "ب": "b", "پ": "p", "ت": "t", "ٹ": "t", "ث": "s",
@@ -14,7 +70,7 @@ const urduToRomanMap: Record<string, string> = {
   "ہ": "h", "ھ": "h", "ء": "", "ی": "i", "ے": "e", "؟": "", "۔": "",
 };
 
-function generateSlugFromTitle(title: string) {
+function generateSlugFromTitle(title: string): string {
   let result = "";
   for (const ch of title) {
     if (urduToRomanMap[ch] !== undefined) {
@@ -32,7 +88,8 @@ function generateSlugFromTitle(title: string) {
     .replace(/-+/g, "-")
     .replace(/[^a-z0-9-]/g, "");
 }
-function calculateDeliveryCharge(weight: number) {
+
+function calculateDeliveryCharge(weight: number): number {
   if (weight <= 1) return 225;
   const extraKg = Math.ceil(weight - 1);
   return 225 + extraKg * 100;
@@ -44,21 +101,11 @@ function getStockStatus(stock: number) {
   return { label: "In Stock", color: "text-emerald-600 bg-emerald-50 border-emerald-200", icon: "in" };
 }
 
-type CartItem = {
-  id: number;
-  title: string;
-  price: number;
-  weight: number;
-  costPrice: number;
-  stock: number;
-  quantity: number;
-};
-
 export default function BooksPage() {
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterAuthor, setFilterAuthor] = useState("");
-  const [books, setBooks] = useState<any[]>([]);
+  const [books, setBooks] = useState<Book[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -71,7 +118,7 @@ export default function BooksPage() {
   const [newWeight, setNewWeight] = useState("");
   const [newStock, setNewStock] = useState("");
   const [newCostPrice, setNewCostPrice] = useState("");
-    const [newSlug, setNewSlug] = useState("");
+  const [newSlug, setNewSlug] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -86,7 +133,7 @@ export default function BooksPage() {
   const [cartSuccess, setCartSuccess] = useState(false);
   const [cartSubmitting, setCartSubmitting] = useState(false);
 
-  const [reviews, setReviews] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewBookTitle, setReviewBookTitle] = useState("");
   const [reviewName, setReviewName] = useState("");
@@ -105,22 +152,22 @@ export default function BooksPage() {
       .order("id", { ascending: true });
 
     if (!error && data) {
-      setBooks(data);
+      setBooks(data as Book[]);
 
-      // پرانی کتابوں کے لیے خودکار طور پر slug بنائیں (صرف ایک بار)
-      const booksWithoutSlug = data.filter((b: any) => !b.slug);
-      for (const b of booksWithoutSlug) {
-        const slug = generateSlugFromTitle(b.title);
-        if (slug) {
-          await supabase.from("books").update({ slug }).eq("id", b.id);
-        }
-      }
+      // پرانی کتابوں کے لیے خودکار طور پر slug بنائیں (بہتر پرفارمنس کے ساتھ)
+      const booksWithoutSlug = (data as Book[]).filter((b) => !b.slug);
       if (booksWithoutSlug.length > 0) {
+        await Promise.all(
+          booksWithoutSlug.map((b) => {
+            const slug = generateSlugFromTitle(b.title);
+            return slug ? supabase.from("books").update({ slug }).eq("id", b.id) : null;
+          })
+        );
         const { data: refreshed } = await supabase
           .from("books")
           .select("*")
           .order("id", { ascending: true });
-        if (refreshed) setBooks(refreshed);
+        if (refreshed) setBooks(refreshed as Book[]);
       }
     }
     setLoaded(true);
@@ -128,7 +175,7 @@ export default function BooksPage() {
 
   const fetchReviews = async () => {
     const { data } = await supabase.from("reviews").select("*").eq("approved", true);
-    if (data) setReviews(data);
+    if (data) setReviews(data as Review[]);
   };
 
   useEffect(() => {
@@ -153,8 +200,7 @@ export default function BooksPage() {
   const existingCategories = Array.from(new Set(books.map((b) => b.category)));
   const existingAuthors = Array.from(new Set(books.map((b) => b.author)));
 
-  // ---------- کتاب شامل/ترمیم ----------
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setImageFile(file);
@@ -213,7 +259,7 @@ export default function BooksPage() {
     fetchBooks();
   };
 
-  const handleEditClick = (book: any) => {
+  const handleEditClick = (book: Book) => {
     setEditingId(book.id);
     setNewTitle(book.title);
     setNewAuthor(book.author);
@@ -234,8 +280,7 @@ export default function BooksPage() {
     fetchBooks();
   };
 
-  // ---------- Excel درآمد ----------
-  const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleExcelImport = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setImporting(true);
@@ -247,7 +292,7 @@ export default function BooksPage() {
       const workbook = XLSX.read(data, { type: "binary" });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
       const booksToInsert = [];
       for (let i = 1; i < rows.length; i++) {
@@ -283,8 +328,7 @@ export default function BooksPage() {
     e.target.value = "";
   };
 
-  // ---------- ٹوکری (Cart) ----------
-  const addToCart = (book: any) => {
+  const addToCart = (book: Book) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.id === book.id);
       if (existing) {
@@ -396,7 +440,6 @@ ${itemsList}
     }
   };
 
-  // ---------- ریویو ----------
   const handleReviewClick = (title: string) => {
     setReviewBookTitle(title);
     setReviewName("");
@@ -420,7 +463,7 @@ ${itemsList}
     setReviewSuccess(true);
   };
 
-    const handleDownloadPDF = () => {
+  const handleDownloadPDF = () => {
     const rows = filteredBooks
       .map(
         (book, index) => `
@@ -477,6 +520,7 @@ ${itemsList}
       }, 300);
     }
   };
+
   const hasActiveFilters = search || filterCategory || filterAuthor;
 
   return (
@@ -577,7 +621,8 @@ ${itemsList}
               {importing ? "درآمد ہو رہا ہے..." : "Excel سے درآمد کریں"}
               <input type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelImport} disabled={importing} className="hidden" />
             </label>
-                        <button
+
+            <button
               onClick={handleDownloadPDF}
               className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition shadow-sm font-medium"
             >
@@ -691,9 +736,15 @@ ${itemsList}
                   key={book.id}
                   className="w-full rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center"
                 >
-                  <div className="h-40 w-full rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center border border-amber-200 overflow-hidden">
+                  <div className="relative h-40 w-full rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center border border-amber-200 overflow-hidden">
                     {book.image_url ? (
-                      <img src={book.image_url} alt={book.title} className="w-full h-full object-cover" />
+                      <Image
+                        src={book.image_url}
+                        alt={book.title}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      />
                     ) : (
                       <span className="text-6xl">📚</span>
                     )}
@@ -806,7 +857,9 @@ ${itemsList}
               <span className="text-sm text-gray-600">کتاب کی تصویر (اختیاری)</span>
               <div className="mt-2 border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-emerald-400 transition cursor-pointer relative">
                 {imagePreview ? (
-                  <img src={imagePreview} alt="preview" className="h-32 mx-auto rounded-lg object-cover" />
+                  <div className="relative h-32 w-full">
+                    <Image src={imagePreview} alt="preview" fill className="rounded-lg object-cover" />
+                  </div>
                 ) : (
                   <div className="flex flex-col items-center gap-2 text-gray-400 py-4">
                     <Upload size={24} />
