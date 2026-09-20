@@ -57,18 +57,32 @@ export default function BookDetailPage() {
       const identifier = params.title as string;
       if (!identifier) return;
 
-      const { data: books, error: bookError } = await supabase
+      let fetchedBook: Book | null = null;
+
+      const { data: bySlug } = await supabase
         .from("books")
         .select("*")
-        .or(`slug.eq.${identifier},title.eq.${identifier}`)
+        .eq("slug", identifier)
         .limit(1);
 
-      if (bookError || !books || books.length === 0) {
+      if (bySlug && bySlug.length > 0) {
+        fetchedBook = bySlug[0] as Book;
+      } else {
+        const { data: byTitle } = await supabase
+          .from("books")
+          .select("*")
+          .eq("title", identifier)
+          .limit(1);
+        if (byTitle && byTitle.length > 0) {
+          fetchedBook = byTitle[0] as Book;
+        }
+      }
+
+      if (!fetchedBook) {
         setLoaded(true);
         return;
       }
 
-      const fetchedBook = books[0] as Book;
       setBook(fetchedBook);
 
       const { data: reviewData } = await supabase

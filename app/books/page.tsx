@@ -89,6 +89,17 @@ function generateSlugFromTitle(title: string): string {
     .replace(/[^a-z0-9-]/g, "");
 }
 
+function makeUniqueSlug(baseSlug: string, allBooks: Book[], excludeId: number | null): string {
+  const taken = new Set(
+    allBooks.filter((b) => b.id !== excludeId).map((b) => (b.slug || "").toLowerCase())
+  );
+  if (!baseSlug) baseSlug = "book";
+  if (!taken.has(baseSlug)) return baseSlug;
+  let counter = 2;
+  while (taken.has(`${baseSlug}-${counter}`)) counter++;
+  return `${baseSlug}-${counter}`;
+}
+
 function calculateDeliveryCharge(weight: number): number {
   if (weight <= 1) return 225;
   const extraKg = Math.ceil(weight - 1);
@@ -124,6 +135,7 @@ export default function BooksPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCartModal, setShowCartModal] = useState(false);
@@ -145,6 +157,8 @@ export default function BooksPage() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
 
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
   const fetchBooks = async () => {
     const { data, error } = await supabase
       .from("books")
@@ -154,13 +168,14 @@ export default function BooksPage() {
     if (!error && data) {
       setBooks(data as Book[]);
 
-      // پرانی کتابوں کے لیے خودکار طور پر slug بنائیں (بہتر پرفارمنس کے ساتھ)
       const booksWithoutSlug = (data as Book[]).filter((b) => !b.slug);
       if (booksWithoutSlug.length > 0) {
+        const currentBooks = data as Book[];
         await Promise.all(
           booksWithoutSlug.map((b) => {
-            const slug = generateSlugFromTitle(b.title);
-            return slug ? supabase.from("books").update({ slug }).eq("id", b.id) : null;
+            const base = generateSlugFromTitle(b.title);
+            const unique = makeUniqueSlug(base, currentBooks, b.id);
+            return unique ? supabase.from("books").update({ slug: unique }).eq("id", b.id) : null;
           })
         );
         const { data: refreshed } = await supabase
@@ -191,7 +206,7 @@ export default function BooksPage() {
   };
 
   const filteredBooks = books.filter((book) => {
-    const matchesSearch = book.title.includes(search);
+    const matchesSearch = search.trim() === "" || book.title.toLowerCase().includes(search.trim().toLowerCase());
     const matchesCategory = filterCategory ? book.category === filterCategory : true;
     const matchesAuthor = filterAuthor ? book.author === filterAuthor : true;
     return matchesSearch && matchesCategory && matchesAuthor;
@@ -205,12 +220,14 @@ export default function BooksPage() {
     if (file) {
       setImageFile(file);
       setImagePreview(URL.createObjectURL(file));
+      setSaveError(null);
     }
   };
 
   const handleAddBook = async () => {
     if (newTitle.trim() === "") return;
     setUploading(true);
+    setSaveError(null);
 
     const finalCategory = newCategory === "__new__" ? customCategory.trim() : newCategory;
     let imageUrl = existingImageUrl;
@@ -218,11 +235,17 @@ export default function BooksPage() {
     if (imageFile) {
       const fileName = `${Date.now()}-${imageFile.name}`;
       const { error: uploadError } = await supabase.storage.from("book-covers").upload(fileName, imageFile);
-      if (!uploadError) {
-        const { data: publicUrlData } = supabase.storage.from("book-covers").getPublicUrl(fileName);
-        imageUrl = publicUrlData.publicUrl;
+      if (uploadError) {
+        setSaveError(`تصویر اپلوڈ نہیں ہو سکی: ${uploadError.message}`);
+        setUploading(false);
+        return;
       }
+      const { data: publicUrlData } = supabase.storage.from("book-covers").getPublicUrl(fileName);
+      imageUrl = publicUrlData.publicUrl;
     }
+
+    const baseSlug = newSlug.trim() || generateSlugFromTitle(newTitle);
+    const uniqueSlug = makeUniqueSlug(baseSlug, books, editingId);
 
     const bookData = {
       title: newTitle,
@@ -233,13 +256,17 @@ export default function BooksPage() {
       weight: parseFloat(newWeight) || 1,
       stock: parseInt(newStock) || 0,
       cost_price: parseFloat(newCostPrice) || 0,
-      slug: newSlug || generateSlugFromTitle(newTitle),
+      slug: uniqueSlug,
     };
 
-    if (editingId) {
-      await supabase.from("books").update(bookData).eq("id", editingId);
-    } else {
-      await supabase.from("books").insert(bookData);
+    const { error: saveErr } = editingId
+      ? await supabase.from("books").update(bookData).eq("id", editingId)
+      : await supabase.from("books").insert(bookData);
+
+    if (saveErr) {
+      setSaveError(`محفوظ نہیں ہو سکا: ${saveErr.message}`);
+      setUploading(false);
+      return;
     }
 
     setNewTitle("");
@@ -250,6 +277,7 @@ export default function BooksPage() {
     setNewWeight("");
     setNewStock("");
     setNewCostPrice("");
+    setNewSlug("");
     setEditingId(null);
     setImageFile(null);
     setImagePreview(null);
@@ -272,11 +300,13 @@ export default function BooksPage() {
     setExistingImageUrl(book.image_url || null);
     setImagePreview(book.image_url || null);
     setImageFile(null);
+    setSaveError(null);
     setShowModal(true);
   };
 
   const handleDeleteBook = async (id: number) => {
     await supabase.from("books").delete().eq("id", id);
+    setConfirmDeleteId(null);
     fetchBooks();
   };
 
@@ -294,20 +324,33 @@ export default function BooksPage() {
       const sheet = workbook.Sheets[sheetName];
       const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
+      const usedSlugsThisBatch: string[] = [];
+
       const booksToInsert = [];
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
         const title = row[0];
         const author = row[1];
         const price = row[2];
+        const category = row[3];
         if (!title || typeof title !== "string" || title.trim() === "") continue;
+
+        const base = generateSlugFromTitle(title.toString().trim());
+        const combinedExisting = books.map((b) => ({ id: b.id, slug: b.slug || "" } as Book));
+        let slug = makeUniqueSlug(base, combinedExisting, null);
+        while (usedSlugsThisBatch.includes(slug)) {
+          slug = makeUniqueSlug(slug, [{ id: -1, slug } as Book], null);
+        }
+        usedSlugsThisBatch.push(slug);
+
         booksToInsert.push({
           title: title.toString().trim(),
           author: author ? author.toString().trim() : "مكتبہ الزھراء",
-          category: "عمومی",
+          category: category && category.toString().trim() !== "" ? category.toString().trim() : "عمومی",
           price: typeof price === "number" ? price : parseFloat(price) || 0,
           weight: 1,
           stock: 0,
+          slug,
         });
       }
 
@@ -420,7 +463,13 @@ ${itemsList}
     await supabase.from("orders").insert(orderRows);
 
     for (const item of cart) {
-      const newStockValue = Math.max(0, item.stock - item.quantity);
+      const { data: freshBook } = await supabase
+        .from("books")
+        .select("stock")
+        .eq("id", item.id)
+        .single();
+      const liveStock = freshBook?.stock ?? item.stock;
+      const newStockValue = Math.max(0, liveStock - item.quantity);
       await supabase.from("books").update({ stock: newStockValue }).eq("id", item.id);
     }
 
@@ -640,9 +689,11 @@ ${itemsList}
                 setNewWeight("");
                 setNewStock("");
                 setNewCostPrice("");
+                setNewSlug("");
                 setImageFile(null);
                 setImagePreview(null);
                 setExistingImageUrl(null);
+                setSaveError(null);
                 setShowModal(true);
               }}
               className="rounded-xl px-5 py-3 bg-emerald-700 text-white hover:bg-emerald-800 transition shadow-sm w-full md:w-auto"
@@ -834,7 +885,7 @@ ${itemsList}
                       ترمیم
                     </button>
                     <button
-                      onClick={() => handleDeleteBook(book.id)}
+                      onClick={() => setConfirmDeleteId(book.id)}
                       className="rounded-lg bg-red-50 px-3 py-2 text-red-600 hover:bg-red-100 transition"
                     >
                       حذف کریں
@@ -847,11 +898,40 @@ ${itemsList}
         )}
       </section>
 
-      {/* کتاب شامل/ترمیم Modal */}
+      {confirmDeleteId !== null && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
+            <span className="text-5xl">⚠️</span>
+            <h3 className="text-lg font-bold text-gray-800 mt-4">کیا آپ واقعی یہ کتاب حذف کرنا چاہتے ہیں؟</h3>
+            <p className="text-gray-500 text-sm mt-2">یہ عمل واپس نہیں ہو سکتا۔</p>
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => handleDeleteBook(confirmDeleteId)}
+                className="flex-1 rounded-xl bg-red-600 text-white py-3 hover:bg-red-700 transition"
+              >
+                ہاں، حذف کریں
+              </button>
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
+              >
+                منسوخ کریں
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-xl font-bold text-gray-800">{editingId ? "کتاب میں ترمیم کریں" : "نئی کتاب شامل کریں"}</h3>
+
+            {saveError && (
+              <div className="mt-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2">
+                {saveError}
+              </div>
+            )}
 
             <label className="mt-5 block">
               <span className="text-sm text-gray-600">کتاب کی تصویر (اختیاری)</span>
@@ -891,6 +971,7 @@ ${itemsList}
                 dir="ltr"
                 className="mt-1 w-full rounded-xl border border-gray-200 p-3 text-left focus:outline-none focus:ring-2 focus:ring-emerald-600"
               />
+              <span className="text-[11px] text-gray-400">اگر یہ ایڈریس پہلے سے استعمال ہو رہا ہو تو خود بخود ایک نمبر لگا دیا جائے گا۔</span>
             </label>
 
             <input
@@ -990,9 +1071,11 @@ ${itemsList}
                   setNewWeight("");
                   setNewStock("");
                   setNewCostPrice("");
+                  setNewSlug("");
                   setImageFile(null);
                   setImagePreview(null);
                   setExistingImageUrl(null);
+                  setSaveError(null);
                 }}
                 className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
               >
@@ -1003,7 +1086,6 @@ ${itemsList}
         </div>
       )}
 
-      {/* ٹوکری Modal */}
       {showCartModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
@@ -1135,7 +1217,6 @@ ${itemsList}
         </div>
       )}
 
-      {/* ریویو Modal */}
       {showReviewModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
