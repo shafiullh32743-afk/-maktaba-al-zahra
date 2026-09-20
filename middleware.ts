@@ -3,9 +3,15 @@ import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
   const isLoggedIn = request.cookies.get("maktaba-auth")?.value === "true";
-  const isLoginPage = request.nextUrl.pathname.startsWith("/login");
+  const path = request.nextUrl.pathname;
 
-  if (!isLoggedIn && !isLoginPage) {
+  const isLoginPage = path.startsWith("/login");
+  const isSitemap = path === "/sitemap.xml";
+  const isBookDetailPage = /^\/books\/[^/]+$/.test(path);
+
+  const isPublicPage = isLoginPage || isSitemap || isBookDetailPage;
+
+  if (!isLoggedIn && !isPublicPage) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
