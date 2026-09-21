@@ -43,10 +43,13 @@ interface Review {
   approved: boolean;
 }
 
+const WISHLIST_KEY = "maktaba-wishlist"; // same key used on the books page
+
 export default function BookDetailPage() {
   const params = useParams();
   const [book, setBook] = useState<Book | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [relatedBooks, setRelatedBooks] = useState<Book[]>([]); // NEW
   const [loaded, setLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
@@ -85,6 +88,15 @@ export default function BookDetailPage() {
 
       setBook(fetchedBook);
 
+      // NEW: check if this book is already in the visitor's wishlist
+      try {
+        const stored = localStorage.getItem(WISHLIST_KEY);
+        const list: number[] = stored ? JSON.parse(stored) : [];
+        setIsLiked(list.includes(Number(fetchedBook.id)));
+      } catch {
+        // ignore corrupt localStorage data
+      }
+
       const { data: reviewData } = await supabase
         .from("reviews")
         .select("*")
@@ -95,22 +107,52 @@ export default function BookDetailPage() {
         setReviews(reviewData as Review[]);
       }
 
+      // NEW: fetch a few other books from the same category
+      const { data: related } = await supabase
+        .from("books")
+        .select("*")
+        .eq("category", fetchedBook.category)
+        .neq("id", fetchedBook.id)
+        .limit(4);
+
+      if (related) setRelatedBooks(related as Book[]);
+
       setLoaded(true);
     };
 
     fetchBookAndReviews();
   }, [params.title]);
 
-    const handleWhatsAppOrder = () => {
+  const handleWhatsAppOrder = () => {
     if (!book) return;
     const message = "Assalam o Alaikum! Main yeh kitab khareedna chahta hoon: " + book.title;
     const url = "https://wa.me/923055232889?text=" + encodeURIComponent(message);
     window.open(url, "_blank");
   };
+
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  // NEW: toggle wishlist and persist to localStorage (same store the books page reads)
+  const toggleLike = () => {
+    if (!book) return;
+    const bid = Number(book.id);
+    try {
+      const stored = localStorage.getItem(WISHLIST_KEY);
+      let list: number[] = stored ? JSON.parse(stored) : [];
+      if (list.includes(bid)) {
+        list = list.filter((x) => x !== bid);
+      } else {
+        list.push(bid);
+      }
+      localStorage.setItem(WISHLIST_KEY, JSON.stringify(list));
+    } catch {
+      // storage unavailable — still flip the visual state for this session
+    }
+    setIsLiked((prev) => !prev);
   };
 
   const avgRating =
@@ -231,117 +273,149 @@ export default function BookDetailPage() {
               <p className="text-gray-600 text-xl font-semibold">مطلوبہ کتاب نہیں ملی</p>
             </div>
           ) : (
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-0">
-              <div className="lg:col-span-7 p-8 lg:p-12 flex flex-col justify-between order-2 lg:order-1">
-                <div>
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-4 py-1.5 text-xs font-semibold text-[#4A90E2] border border-blue-100">
-                      <Tag size={14} /> {book.category}
-                    </span>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setIsLiked(!isLiked)}
-                        className={`p-2.5 rounded-full border transition ${
-                          isLiked ? "bg-rose-50 border-rose-200 text-rose-500" : "bg-gray-50 border-gray-200 text-gray-400 hover:text-rose-500"
-                        }`}
-                      >
-                        <Heart size={20} className={isLiked ? "fill-rose-500" : ""} />
-                      </button>
-                      <button
-                        onClick={handleShare}
-                        className="p-2.5 rounded-full bg-gray-50 border border-gray-200 text-gray-500 hover:bg-gray-100 transition relative"
-                        title="لنک کاپی کریں"
-                      >
-                        <Share2 size={20} />
-                        {copied && (
-                          <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] py-1 px-2 rounded shadow">
-                            کاپی ہو گیا!
-                          </span>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  <h1 className="mt-5 text-3xl md:text-4xl font-bold text-gray-900 leading-snug text-right">{book.title}</h1>
-
-                  <p className="mt-4 text-gray-600 flex items-center justify-start gap-2 text-lg font-medium">
-                    <User size={20} className="text-[#4A90E2]" />
-                    مصنف / ناشر: <span className="text-gray-800 font-semibold">{book.author}</span>
-                  </p>
-
-                  {avgRating && (
-                    <div className="mt-4 flex items-center gap-1.5 bg-amber-50 px-3.5 py-1.5 rounded-full border border-amber-200 w-fit">
-                      <Star size={18} className="fill-amber-400 text-amber-400" />
-                      <span className="font-bold text-gray-800 text-base">{avgRating}</span>
-                      <span className="text-xs text-gray-400">({reviews.length} ریویوز)</span>
-                    </div>
-                  )}
-
-                  {book.price ? (
-                    <div className="mt-6 inline-flex items-baseline gap-1.5 rounded-2xl bg-blue-50/50 border border-blue-100 px-6 py-3 shadow-sm">
-                      <span className="text-base font-medium text-[#4A90E2]">Rs</span>
-                      <span className="text-4xl font-extrabold text-blue-700 tracking-tight">
-                        {Number(book.price).toLocaleString()}
+            <>
+              <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-0">
+                <div className="lg:col-span-7 p-8 lg:p-12 flex flex-col justify-between order-2 lg:order-1">
+                  <div>
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-4 py-1.5 text-xs font-semibold text-[#4A90E2] border border-blue-100">
+                        <Tag size={14} /> {book.category}
                       </span>
-                    </div>
-                  ) : (
-                    <div className="mt-6 inline-block bg-blue-100 text-[#4A90E2] px-5 py-2 rounded-xl text-base font-semibold">
-                      مفت دستیاب
-                    </div>
-                  )}
 
-                  <div className="mt-8 flex gap-3">
-                    <button
-                      onClick={handleWhatsAppOrder}
-                      className="flex-1 bg-[#25D366] hover:bg-[#20BD5A] text-white font-semibold py-4 px-6 rounded-xl flex items-center justify-center gap-2 text-lg shadow-md hover:shadow-lg transition"
-                    >
-                      <MessageCircle size={22} /> واٹس ایپ پر آرڈر کریں
-                    </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={toggleLike}
+                          className={`p-2.5 rounded-full border transition ${
+                            isLiked ? "bg-rose-50 border-rose-200 text-rose-500" : "bg-gray-50 border-gray-200 text-gray-400 hover:text-rose-500"
+                          }`}
+                        >
+                          <Heart size={20} className={isLiked ? "fill-rose-500" : ""} />
+                        </button>
+                        <button
+                          onClick={handleShare}
+                          className="p-2.5 rounded-full bg-gray-50 border border-gray-200 text-gray-500 hover:bg-gray-100 transition relative"
+                          title="لنک کاپی کریں"
+                        >
+                          <Share2 size={20} />
+                          {copied && (
+                            <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] py-1 px-2 rounded shadow">
+                              کاپی ہو گیا!
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <h1 className="mt-5 text-3xl md:text-4xl font-bold text-gray-900 leading-snug text-right">{book.title}</h1>
+
+                    <p className="mt-4 text-gray-600 flex items-center justify-start gap-2 text-lg font-medium">
+                      <User size={20} className="text-[#4A90E2]" />
+                      مصنف / ناشر: <span className="text-gray-800 font-semibold">{book.author}</span>
+                    </p>
+
+                    {avgRating && (
+                      <div className="mt-4 flex items-center gap-1.5 bg-amber-50 px-3.5 py-1.5 rounded-full border border-amber-200 w-fit">
+                        <Star size={18} className="fill-amber-400 text-amber-400" />
+                        <span className="font-bold text-gray-800 text-base">{avgRating}</span>
+                        <span className="text-xs text-gray-400">({reviews.length} ریویوز)</span>
+                      </div>
+                    )}
+
+                    {book.price ? (
+                      <div className="mt-6 inline-flex items-baseline gap-1.5 rounded-2xl bg-blue-50/50 border border-blue-100 px-6 py-3 shadow-sm">
+                        <span className="text-base font-medium text-[#4A90E2]">Rs</span>
+                        <span className="text-4xl font-extrabold text-blue-700 tracking-tight">
+                          {Number(book.price).toLocaleString()}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="mt-6 inline-block bg-blue-100 text-[#4A90E2] px-5 py-2 rounded-xl text-base font-semibold">
+                        مفت دستیاب
+                      </div>
+                    )}
+
+                    <div className="mt-8 flex gap-3">
+                      <button
+                        onClick={handleWhatsAppOrder}
+                        className="flex-1 bg-[#25D366] hover:bg-[#20BD5A] text-white font-semibold py-4 px-6 rounded-xl flex items-center justify-center gap-2 text-lg shadow-md hover:shadow-lg transition"
+                      >
+                        <MessageCircle size={22} /> واٹس ایپ پر آرڈر کریں
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                {reviews.length > 0 && (
-                  <div className="mt-10 pt-6 border-t border-gray-100">
-                    <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2 justify-start">
-                      <Star size={20} className="text-amber-500 fill-amber-400" /> قارئین کی رائے
-                    </h3>
-                    <div className="space-y-3 max-h-56 overflow-y-auto pl-1">
-                      {reviews.map((r) => (
-                        <div key={r.id} className="rounded-2xl bg-slate-50 p-4 border border-slate-100 transition hover:bg-white hover:shadow-md text-right">
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-gray-800 text-sm">{r.customer_name}</span>
-                            <div className="flex items-center gap-0.5">
-                              {[1, 2, 3, 4, 5].map((s) => (
-                                <Star key={s} size={13} className={s <= r.rating ? "fill-amber-400 text-amber-400" : "text-gray-300"} />
-                              ))}
+                  {reviews.length > 0 && (
+                    <div className="mt-10 pt-6 border-t border-gray-100">
+                      <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2 justify-start">
+                        <Star size={20} className="text-amber-500 fill-amber-400" /> قارئین کی رائے
+                      </h3>
+                      <div className="space-y-3 max-h-56 overflow-y-auto pl-1">
+                        {reviews.map((r) => (
+                          <div key={r.id} className="rounded-2xl bg-slate-50 p-4 border border-slate-100 transition hover:bg-white hover:shadow-md text-right">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-gray-800 text-sm">{r.customer_name}</span>
+                              <div className="flex items-center gap-0.5">
+                                {[1, 2, 3, 4, 5].map((s) => (
+                                  <Star key={s} size={13} className={s <= r.rating ? "fill-amber-400 text-amber-400" : "text-gray-300"} />
+                                ))}
+                              </div>
                             </div>
+                            <p className="mt-2 text-gray-600 text-sm leading-normal">{r.comment}</p>
                           </div>
-                          <p className="mt-2 text-gray-600 text-sm leading-normal">{r.comment}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="lg:col-span-5 bg-gradient-to-br from-blue-50 to-blue-100/40 p-10 flex items-center justify-center border-b lg:border-b-0 lg:border-r border-blue-50 order-1 lg:order-2">
-                <div className="relative h-96 w-64 rounded-2xl overflow-hidden shadow-2xl transition-transform duration-300 hover:scale-105 border border-blue-100">
-                  {book.image_url ? (
-                    <img
-                      src={book.image_url}
-                      alt={book.title}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-blue-100 flex flex-col items-center justify-center text-[#4A90E2]">
-                      <BookOpen size={72} />
-                      <span className="mt-3 text-base font-medium">سرورق دستیاب نہیں</span>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
+
+                <div className="lg:col-span-5 bg-gradient-to-br from-blue-50 to-blue-100/40 p-10 flex items-center justify-center border-b lg:border-b-0 lg:border-r border-blue-50 order-1 lg:order-2">
+                  <div className="relative h-96 w-64 rounded-2xl overflow-hidden shadow-2xl transition-transform duration-300 hover:scale-105 border border-blue-100">
+                    {book.image_url ? (
+                      <img
+                        src={book.image_url}
+                        alt={book.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-blue-100 flex flex-col items-center justify-center text-[#4A90E2]">
+                        <BookOpen size={72} />
+                        <span className="mt-3 text-base font-medium">سرورق دستیاب نہیں</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
+
+              {/* NEW: related books from the same category */}
+              {relatedBooks.length > 0 && (
+                <div className="mt-8">
+                  <h3 className="text-xl font-bold text-gray-800 mb-4 text-right">متعلقہ کتابیں</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {relatedBooks.map((rb) => (
+                      <Link
+                        key={rb.id}
+                        href={`/books/${rb.slug || encodeURIComponent(rb.title)}`}
+                        className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition p-4 text-right block"
+                      >
+                        <div className="relative h-28 w-full rounded-lg bg-blue-50 flex items-center justify-center overflow-hidden border border-blue-100">
+                          {rb.image_url ? (
+                            <img src={rb.image_url} alt={rb.title} className="w-full h-full object-cover" />
+                          ) : (
+                            <BookOpen size={32} className="text-blue-300" />
+                          )}
+                        </div>
+                        <p className="mt-2 text-sm font-semibold text-gray-800 line-clamp-2">{rb.title}</p>
+                        {rb.price ? (
+                          <p className="mt-1 text-xs font-bold text-emerald-700">Rs {Number(rb.price).toLocaleString()}</p>
+                        ) : (
+                          <p className="mt-1 text-xs text-gray-400">قیمت درج نہیں</p>
+                        )}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </section>

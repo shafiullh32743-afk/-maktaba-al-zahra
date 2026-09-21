@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, ChangeEvent } from "react";
+import { useState, useEffect, ChangeEvent, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
   BookOpen,
@@ -25,6 +26,11 @@ import {
   Plus,
   Minus,
   FileDown,
+  Heart,
+  CheckSquare,
+  Square,
+  Tags,
+  Printer,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import * as XLSX from "xlsx";
@@ -70,6 +76,8 @@ const urduToRomanMap: Record<string, string> = {
   "ہ": "h", "ھ": "h", "ء": "", "ی": "i", "ے": "e", "؟": "", "۔": "",
 };
 
+const WISHLIST_KEY = "maktaba-wishlist";
+
 function generateSlugFromTitle(title: string): string {
   let result = "";
   for (const ch of title) {
@@ -112,10 +120,60 @@ function getStockStatus(stock: number) {
   return { label: "In Stock", color: "text-emerald-600 bg-emerald-50 border-emerald-200", icon: "in" };
 }
 
+// NEW: client-side image compression before upload (resize + re-encode as JPEG)
+function compressImage(file: File, maxWidth = 1000, quality = 0.75): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxWidth / img.width);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("canvas context unavailable"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error("compression failed"));
+              return;
+            }
+            const newName = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+            resolve(new File([blob], newName, { type: "image/jpeg" }));
+          },
+          "image/jpeg",
+          quality
+        );
+      };
+      img.onerror = () => reject(new Error("image load failed"));
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error("file read failed"));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function BooksPage() {
+  // useSearchParams needs a Suspense boundary around it in the Next.js app router
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-emerald-700">لوڈ ہو رہا ہے...</div>}>
+      <BooksPageInner />
+    </Suspense>
+  );
+}
+
+function BooksPageInner() {
+  const searchParams = useSearchParams();
+
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterAuthor, setFilterAuthor] = useState("");
+  const [showWishlistOnly, setShowWishlistOnly] = useState(false); // NEW
   const [books, setBooks] = useState<Book[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -136,6 +194,7 @@ export default function BooksPage() {
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [compressing, setCompressing] = useState(false); // NEW
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCartModal, setShowCartModal] = useState(false);
@@ -158,6 +217,43 @@ export default function BooksPage() {
   const [importResult, setImportResult] = useState<string | null>(null);
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
+  // NEW: wishlist (persisted in localStorage, per-browser)
+  const [wishlist, setWishlist] = useState<number[]>([]);
+
+  // NEW: bulk selection / bulk actions
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkCategory, setBulkCategory] = useState("");
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+
+  // NEW: pick up ?author=... from the URL (used by the Authors page cards)
+  useEffect(() => {
+    const authorParam = searchParams.get("author");
+    if (authorParam) setFilterAuthor(authorParam);
+  }, [searchParams]);
+
+  // NEW: load wishlist from localStorage once on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(WISHLIST_KEY);
+      if (stored) setWishlist(JSON.parse(stored));
+    } catch {
+      // ignore corrupt localStorage data
+    }
+  }, []);
+
+  const toggleWishlist = (id: number) => {
+    setWishlist((prev) => {
+      const updated = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      try {
+        localStorage.setItem(WISHLIST_KEY, JSON.stringify(updated));
+      } catch {
+        // storage full or unavailable — wishlist still works for this session
+      }
+      return updated;
+    });
+  };
 
   const fetchBooks = async () => {
     const { data, error } = await supabase
@@ -209,18 +305,28 @@ export default function BooksPage() {
     const matchesSearch = search.trim() === "" || book.title.toLowerCase().includes(search.trim().toLowerCase());
     const matchesCategory = filterCategory ? book.category === filterCategory : true;
     const matchesAuthor = filterAuthor ? book.author === filterAuthor : true;
-    return matchesSearch && matchesCategory && matchesAuthor;
+    const matchesWishlist = showWishlistOnly ? wishlist.includes(book.id) : true; // NEW
+    return matchesSearch && matchesCategory && matchesAuthor && matchesWishlist;
   });
 
   const existingCategories = Array.from(new Set(books.map((b) => b.category)));
   const existingAuthors = Array.from(new Set(books.map((b) => b.author)));
 
-  const handleImageSelect = (e: ChangeEvent<HTMLInputElement>) => {
+  // NEW: compress the image in the background as soon as it's picked
+  const handleImageSelect = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file) return;
+    setImagePreview(URL.createObjectURL(file));
+    setSaveError(null);
+    setCompressing(true);
+    try {
+      const compressed = await compressImage(file);
+      setImageFile(compressed);
+    } catch {
+      // if compression fails for any reason, fall back to the original file
       setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
-      setSaveError(null);
+    } finally {
+      setCompressing(false);
     }
   };
 
@@ -570,7 +676,80 @@ ${itemsList}
     }
   };
 
-  const hasActiveFilters = search || filterCategory || filterAuthor;
+  // NEW: print small shelf labels (title + author + price) for a set of books
+  const handlePrintLabels = (booksToPrint: Book[]) => {
+    if (booksToPrint.length === 0) return;
+
+    const labelsHtml = booksToPrint
+      .map(
+        (b) => `
+        <div class="label">
+          <div class="label-title">${b.title}</div>
+          <div class="label-author">${b.author}</div>
+          <div class="label-price">${b.price ? "Rs " + Number(b.price).toLocaleString() : "قیمت درج نہیں"}</div>
+        </div>`
+      )
+      .join("");
+
+    const html = `
+      <html dir="rtl" lang="ur">
+        <head>
+          <meta charset="UTF-8" />
+          <title>لیبلز پرنٹ</title>
+          <style>
+            body { font-family: Arial, "Noto Nastaliq Urdu", sans-serif; margin: 0; padding: 12px; }
+            .labels-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+            .label { border: 1px dashed #999; border-radius: 6px; padding: 10px 6px; text-align: center; break-inside: avoid; }
+            .label-title { font-weight: bold; font-size: 13px; line-height: 1.3; }
+            .label-author { font-size: 10px; color: #555; margin-top: 3px; }
+            .label-price { font-size: 14px; color: #047857; font-weight: bold; margin-top: 5px; }
+          </style>
+        </head>
+        <body>
+          <div class="labels-grid">${labelsHtml}</div>
+        </body>
+      </html>`;
+
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 300);
+    }
+  };
+
+  // NEW: bulk selection helpers
+  const toggleSelect = (id: number) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const clearSelection = () => {
+    setSelectedIds([]);
+    setBulkCategory("");
+  };
+
+  const handleBulkCategoryChange = async () => {
+    if (selectedIds.length === 0 || !bulkCategory) return;
+    setBulkProcessing(true);
+    await supabase.from("books").update({ category: bulkCategory }).in("id", selectedIds);
+    setBulkProcessing(false);
+    clearSelection();
+    fetchBooks();
+  };
+
+  const handleBulkDeleteConfirmed = async () => {
+    setBulkProcessing(true);
+    await supabase.from("books").delete().in("id", selectedIds);
+    setBulkProcessing(false);
+    setConfirmBulkDelete(false);
+    clearSelection();
+    fetchBooks();
+  };
+
+  const hasActiveFilters = search || filterCategory || filterAuthor || showWishlistOnly;
 
   return (
     <main className="min-h-screen flex bg-gray-50">
@@ -637,7 +816,7 @@ ${itemsList}
         </div>
       </aside>
 
-      <section className="flex-1 min-w-0 p-5 md:p-10">
+      <section className="flex-1 min-w-0 p-5 md:p-10 pb-28">
         <div className="flex items-center justify-between md:hidden mb-4">
           <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm">
             <Menu size={22} />
@@ -651,7 +830,7 @@ ${itemsList}
             <p className="mt-2 text-gray-500">مكتبہ الزھراء کی کتب</p>
           </div>
 
-          <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+          <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto flex-wrap">
             <button
               onClick={() => setShowCartModal(true)}
               className="relative flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition shadow-sm font-medium"
@@ -677,6 +856,15 @@ ${itemsList}
             >
               <FileDown size={18} />
               PDF ڈاؤن لوڈ کریں
+            </button>
+
+            {/* NEW: print labels for everything currently visible */}
+            <button
+              onClick={() => handlePrintLabels(filteredBooks)}
+              className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition shadow-sm font-medium"
+            >
+              <Printer size={18} />
+              لیبلز پرنٹ کریں
             </button>
 
             <button
@@ -737,6 +925,19 @@ ${itemsList}
               <option key={author} value={author}>{author}</option>
             ))}
           </select>
+
+          {/* NEW: wishlist-only toggle */}
+          <button
+            onClick={() => setShowWishlistOnly((v) => !v)}
+            className={`flex items-center justify-center gap-2 rounded-xl border px-5 py-4 transition font-medium ${
+              showWishlistOnly
+                ? "bg-rose-50 border-rose-300 text-rose-600"
+                : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            <Heart size={18} className={showWishlistOnly ? "fill-rose-500" : ""} />
+            پسندیدہ
+          </button>
         </div>
 
         {hasActiveFilters && (
@@ -747,6 +948,7 @@ ${itemsList}
                 setSearch("");
                 setFilterCategory("");
                 setFilterAuthor("");
+                setShowWishlistOnly(false);
               }}
               className="text-sm text-emerald-700 hover:text-emerald-900 underline"
             >
@@ -781,12 +983,36 @@ ${itemsList}
               const stockInfo = getStockStatus(book.stock ?? 0);
               const outOfStock = (book.stock ?? 0) <= 0;
               const inCart = cart.find((item) => item.id === book.id);
+              const isWished = wishlist.includes(book.id);
+              const isSelected = selectedIds.includes(book.id);
 
               return (
                 <div
                   key={book.id}
-                  className="w-full rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center"
+                  className={`relative w-full rounded-2xl border bg-white p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center ${
+                    isSelected ? "border-emerald-400 ring-2 ring-emerald-200" : "border-gray-200"
+                  }`}
                 >
+                  {/* NEW: bulk-select checkbox */}
+                  <button
+                    onClick={() => toggleSelect(book.id)}
+                    className="absolute top-3 right-3 z-10 bg-white/90 rounded-md p-1 shadow-sm text-emerald-700"
+                    title="منتخب کریں"
+                  >
+                    {isSelected ? <CheckSquare size={20} /> : <Square size={20} />}
+                  </button>
+
+                  {/* NEW: wishlist heart */}
+                  <button
+                    onClick={() => toggleWishlist(book.id)}
+                    className={`absolute top-3 left-3 z-10 rounded-full p-1.5 shadow-sm transition ${
+                      isWished ? "bg-rose-50 text-rose-500" : "bg-white/90 text-gray-400 hover:text-rose-500"
+                    }`}
+                    title="پسندیدہ"
+                  >
+                    <Heart size={18} className={isWished ? "fill-rose-500" : ""} />
+                  </button>
+
                   <div className="relative h-40 w-full rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center border border-amber-200 overflow-hidden">
                     {book.image_url ? (
                       <Image
@@ -898,6 +1124,83 @@ ${itemsList}
         )}
       </section>
 
+      {/* NEW: floating bulk-action bar */}
+      {selectedIds.length > 0 && (
+        <div className="fixed bottom-0 inset-x-0 md:inset-x-auto md:right-64 md:left-0 bg-white border-t border-gray-200 shadow-2xl z-40 p-4">
+          <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center gap-3">
+            <span className="font-bold text-gray-800 whitespace-nowrap">{selectedIds.length} کتابیں منتخب</span>
+
+            <select
+              value={bulkCategory}
+              onChange={(e) => setBulkCategory(e.target.value)}
+              className="rounded-xl border border-gray-200 p-2.5 bg-white flex-1 w-full md:w-auto"
+            >
+              <option value="">زمرہ تبدیل کریں...</option>
+              {existingCategories.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+            <button
+              onClick={handleBulkCategoryChange}
+              disabled={!bulkCategory || bulkProcessing}
+              className="flex items-center gap-2 rounded-xl px-4 py-2.5 bg-emerald-700 text-white hover:bg-emerald-800 transition disabled:opacity-50 whitespace-nowrap"
+            >
+              <Tags size={16} /> لاگو کریں
+            </button>
+
+            <button
+              onClick={() => handlePrintLabels(books.filter((b) => selectedIds.includes(b.id)))}
+              className="flex items-center gap-2 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-700 hover:bg-gray-200 transition whitespace-nowrap"
+            >
+              <Printer size={16} /> لیبلز پرنٹ کریں
+            </button>
+
+            <button
+              onClick={() => setConfirmBulkDelete(true)}
+              disabled={bulkProcessing}
+              className="flex items-center gap-2 rounded-xl px-4 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 transition whitespace-nowrap"
+            >
+              <Trash2 size={16} /> حذف کریں
+            </button>
+
+            <button
+              onClick={clearSelection}
+              className="text-sm text-gray-500 hover:text-gray-700 underline whitespace-nowrap"
+            >
+              منتخب ہٹائیں
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: bulk delete confirmation */}
+      {confirmBulkDelete && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
+            <span className="text-5xl">⚠️</span>
+            <h3 className="text-lg font-bold text-gray-800 mt-4">
+              کیا آپ واقعی {selectedIds.length} کتابیں حذف کرنا چاہتے ہیں؟
+            </h3>
+            <p className="text-gray-500 text-sm mt-2">یہ عمل واپس نہیں ہو سکتا۔</p>
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={handleBulkDeleteConfirmed}
+                disabled={bulkProcessing}
+                className="flex-1 rounded-xl bg-red-600 text-white py-3 hover:bg-red-700 transition disabled:opacity-60"
+              >
+                {bulkProcessing ? "حذف ہو رہا ہے..." : "ہاں، حذف کریں"}
+              </button>
+              <button
+                onClick={() => setConfirmBulkDelete(false)}
+                className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
+              >
+                منسوخ کریں
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmDeleteId !== null && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
@@ -948,6 +1251,7 @@ ${itemsList}
                 )}
                 <input type="file" accept="image/*" onChange={handleImageSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
               </div>
+              {compressing && <span className="text-xs text-gray-400 mt-1 block">تصویر کا سائز کم کیا جا رہا ہے...</span>}
             </label>
 
             <input
@@ -1054,7 +1358,7 @@ ${itemsList}
             <div className="mt-6 flex gap-3">
               <button
                 onClick={handleAddBook}
-                disabled={uploading}
+                disabled={uploading || compressing}
                 className="flex-1 rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition disabled:opacity-60"
               >
                 {uploading ? "محفوظ ہو رہا ہے..." : editingId ? "محفوظ کریں" : "شامل کریں"}
