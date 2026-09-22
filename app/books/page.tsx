@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   ShoppingCart,
+    Users,
   Upload,
   MessageCircle,
   Star,
@@ -790,6 +791,9 @@ ${itemsList}
           </Link>
           <Link href="/orders" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
             <ShoppingCart size={19} /> آرڈرز
+          </Link>
+          <Link href="/customers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <Users size={19} /> کسٹمرز
           </Link>
           <Link href="/reviews" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
             <Star size={19} /> ریویوز

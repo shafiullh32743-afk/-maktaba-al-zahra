@@ -11,6 +11,7 @@ import {
   Star,
   ArrowRight,
   User,
+  Users,
   Tag,
   Share2,
   Heart,
@@ -210,6 +211,10 @@ export default function BookDetailPage() {
 
           <Link href="/orders" className="flex items-center gap-3 px-4 py-3 rounded-xl text-white/90 hover:bg-white/10 transition duration-200">
             <ShoppingCart size={20} /> آرڈرز
+          </Link>
+
+            <Link href="/customers" className="flex items-center gap-3 px-4 py-3 rounded-xl text-white/90 hover:bg-white/10 transition duration-200">
+            <Users size={20} /> کسٹمرز
           </Link>
 
           <Link href="/reviews" className="flex items-center gap-3 px-4 py-3 rounded-xl text-white/90 hover:bg-white/10 transition duration-200">
