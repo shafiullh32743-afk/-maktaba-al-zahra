@@ -206,6 +206,12 @@ function BooksPageInner() {
   const [editingImageSrc, setEditingImageSrc] = useState<string | null>(null);
   const [editingImageFileName, setEditingImageFileName] = useState<string>("image.jpg");
   const [rotationDegrees, setRotationDegrees] = useState(0);
+   const [cropBox, setCropBox] = useState({ x: 0, y: 0, w: 100, h: 100 });
+  const [dragMode, setDragMode] = useState
+    "move" | "tl" | "tr" | "bl" | "br" | "t" | "b" | "l" | "r" | null
+  >(null);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0, box: { x: 0, y: 0, w: 0, h: 0 } });
+  const imageEditorAreaRef = useState<{ current: HTMLDivElement | null }>({ current: null })[0];
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCartModal, setShowCartModal] = useState(false);
@@ -343,6 +349,68 @@ function BooksPageInner() {
     setRotationDegrees((prev) => (prev + delta + 360) % 360);
   };
 
+  const getEditorPoint = (e: React.MouseEvent | React.TouchEvent, area: HTMLDivElement) => {
+    const rect = area.getBoundingClientRect();
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
+    return {
+      x: ((clientX - rect.left) / rect.width) * 100,
+      y: ((clientY - rect.top) / rect.height) * 100,
+    };
+  };
+
+    const startDrag = (
+    e: React.MouseEvent | React.TouchEvent,
+    mode: "move" | "tl" | "tr" | "bl" | "br" | "t" | "b" | "l" | "r",
+    area: HTMLDivElement
+  ) => {
+    e.stopPropagation();
+    const point = getEditorPoint(e, area);
+    setDragMode(mode);
+    setDragStart({ x: point.x, y: point.y, box: { ...cropBox } });
+  };
+
+  const onDragMove = (e: React.MouseEvent | React.TouchEvent, area: HTMLDivElement) => {
+    if (!dragMode) return;
+    const point = getEditorPoint(e, area);
+    const dx = point.x - dragStart.x;
+    const dy = point.y - dragStart.y;
+    const start = dragStart.box;
+    const minSize = 10;
+
+    let { x, y, w, h } = start;
+
+    if (dragMode === "move") {
+      x = Math.max(0, Math.min(100 - start.w, start.x + dx));
+      y = Math.max(0, Math.min(100 - start.h, start.y + dy));
+    }
+
+    // بائیں طرف
+    if (dragMode === "tl" || dragMode === "bl" || dragMode === "l") {
+      const newX = Math.max(0, Math.min(start.x + start.w - minSize, start.x + dx));
+      w = start.w + (start.x - newX);
+      x = newX;
+    }
+    // دائیں طرف
+    if (dragMode === "tr" || dragMode === "br" || dragMode === "r") {
+      w = Math.max(minSize, Math.min(100 - start.x, start.w + dx));
+    }
+    // اوپر
+    if (dragMode === "tl" || dragMode === "tr" || dragMode === "t") {
+      const newY = Math.max(0, Math.min(start.y + start.h - minSize, start.y + dy));
+      h = start.h + (start.y - newY);
+      y = newY;
+    }
+    // نیچے
+    if (dragMode === "bl" || dragMode === "br" || dragMode === "b") {
+      h = Math.max(minSize, Math.min(100 - start.y, start.h + dy));
+    }
+
+    setCropBox({ x, y, w, h });
+  };
+
+  const endDrag = () => setDragMode(null);
+
   const handleConfirmImageEdit = async () => {
     if (!editingImageSrc) return;
     setCompressing(true);
@@ -354,21 +422,37 @@ function BooksPageInner() {
         img.onerror = reject;
         img.src = editingImageSrc;
       });
+
+      // پہلے rotation لگائیں
       const rad = (rotationDegrees * Math.PI) / 180;
       const swap = rotationDegrees === 90 || rotationDegrees === 270;
-      const canvas = document.createElement("canvas");
-      canvas.width = swap ? img.height : img.width;
-      canvas.height = swap ? img.width : img.height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("canvas unavailable");
-      ctx.translate(canvas.width / 2, canvas.height / 2);
-      ctx.rotate(rad);
-      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      const rotatedCanvas = document.createElement("canvas");
+      rotatedCanvas.width = swap ? img.height : img.width;
+      rotatedCanvas.height = swap ? img.width : img.height;
+      const rCtx = rotatedCanvas.getContext("2d");
+      if (!rCtx) throw new Error("canvas unavailable");
+      rCtx.translate(rotatedCanvas.width / 2, rotatedCanvas.height / 2);
+      rCtx.rotate(rad);
+      rCtx.drawImage(img, -img.width / 2, -img.height / 2);
+
+      // پھر crop لگائیں (فیصد کو اصل پکسلز میں تبدیل کریں)
+      const cropX = (cropBox.x / 100) * rotatedCanvas.width;
+      const cropY = (cropBox.y / 100) * rotatedCanvas.height;
+      const cropW = (cropBox.w / 100) * rotatedCanvas.width;
+      const cropH = (cropBox.h / 100) * rotatedCanvas.height;
+
+      const finalCanvas = document.createElement("canvas");
+      finalCanvas.width = cropW;
+      finalCanvas.height = cropH;
+      const fCtx = finalCanvas.getContext("2d");
+      if (!fCtx) throw new Error("canvas unavailable");
+      fCtx.drawImage(rotatedCanvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
       const blob: Blob = await new Promise((resolve, reject) => {
-        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/jpeg", 0.9);
+        finalCanvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/jpeg", 0.9);
       });
-      const rotatedFile = new File([blob], editingImageFileName.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
-      const compressed = await compressImage(rotatedFile);
+      const finalFile = new File([blob], editingImageFileName.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+      const compressed = await compressImage(finalFile);
       setImageFile(compressed);
       setImagePreview(URL.createObjectURL(compressed));
     } catch {
@@ -376,6 +460,7 @@ function BooksPageInner() {
     } finally {
       setCompressing(false);
       setEditingImageSrc(null);
+      setCropBox({ x: 10, y: 10, w: 80, h: 80 });
     }
   };
 
@@ -1294,30 +1379,87 @@ ${itemsList}
 
             {showImageEditor && editingImageSrc && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl text-center">
             <h3 className="text-lg font-bold text-gray-800">تصویر درست کریں</h3>
-            <div className="mt-4 flex items-center justify-center overflow-hidden rounded-xl bg-gray-100 h-64">
+            <p className="text-xs text-gray-400 mt-1">فریم کو گھسیٹ کر کاٹنے کی جگہ منتخب کریں</p>
+
+            <div
+              className="mt-4 relative overflow-hidden rounded-xl bg-gray-900 h-72 select-none touch-none"
+              onMouseMove={(e) => onDragMove(e, e.currentTarget)}
+              onMouseUp={endDrag}
+              onMouseLeave={endDrag}
+              onTouchMove={(e) => onDragMove(e, e.currentTarget)}
+              onTouchEnd={endDrag}
+            >
               <img
                 src={editingImageSrc}
                 alt="edit preview"
-                style={{ transform: `rotate(${rotationDegrees}deg)`, maxWidth: "90%", maxHeight: "90%" }}
-                className="object-contain transition-transform"
+                style={{ transform: `rotate(${rotationDegrees}deg)` }}
+                className="absolute inset-0 w-full h-full object-contain transition-transform pointer-events-none"
               />
+              {/* Crop overlay */}
+              <div
+                className="absolute border-2 border-emerald-400 bg-emerald-400/10 cursor-move"
+                style={{
+                  left: `${cropBox.x}%`,
+                  top: `${cropBox.y}%`,
+                  width: `${cropBox.w}%`,
+                  height: `${cropBox.h}%`,
+                }}
+                onMouseDown={(e) => startDrag(e, "move", e.currentTarget.parentElement as HTMLDivElement)}
+                onTouchStart={(e) => startDrag(e, "move", e.currentTarget.parentElement as HTMLDivElement)}
+              >
+                {/* چار کونے */}
+                <div className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-nwse-resize"
+                  onMouseDown={(e) => startDrag(e, "tl", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
+                  onTouchStart={(e) => startDrag(e, "tl", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
+                <div className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-nesw-resize"
+                  onMouseDown={(e) => startDrag(e, "tr", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
+                  onTouchStart={(e) => startDrag(e, "tr", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
+                <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-nesw-resize"
+                  onMouseDown={(e) => startDrag(e, "bl", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
+                  onTouchStart={(e) => startDrag(e, "bl", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
+                <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-nwse-resize"
+                  onMouseDown={(e) => startDrag(e, "br", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
+                  onTouchStart={(e) => startDrag(e, "br", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
+
+                {/* چار درمیانی نقاط */}
+                <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-ns-resize"
+                  onMouseDown={(e) => startDrag(e, "t", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
+                  onTouchStart={(e) => startDrag(e, "t", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
+                <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-ns-resize"
+                  onMouseDown={(e) => startDrag(e, "b", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
+                  onTouchStart={(e) => startDrag(e, "b", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
+                <div className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-ew-resize"
+                  onMouseDown={(e) => startDrag(e, "l", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
+                  onTouchStart={(e) => startDrag(e, "l", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
+                <div className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-ew-resize"
+                  onMouseDown={(e) => startDrag(e, "r", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
+                  onTouchStart={(e) => startDrag(e, "r", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
+              </div>
             </div>
+
             <div className="mt-4 flex justify-center gap-3">
               <button
                 onClick={() => rotateImage(-90)}
-                className="flex items-center gap-2 rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200 transition"
+                className="flex items-center gap-2 rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200 transition text-sm"
               >
-                <RotateCcw size={18} /> بائیں گھمائیں
+                <RotateCcw size={16} /> بائیں گھمائیں
               </button>
               <button
                 onClick={() => rotateImage(90)}
-                className="flex items-center gap-2 rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200 transition"
+                className="flex items-center gap-2 rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200 transition text-sm"
               >
-                <RotateCw size={18} /> دائیں گھمائیں
+                <RotateCw size={16} /> دائیں گھمائیں
+              </button>
+              <button
+                onClick={() => setCropBox({ x: 0, y: 0, w: 100, h: 100 })}
+                className="rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200 transition text-sm"
+              >
+                پوری تصویر
               </button>
             </div>
+
             <div className="mt-6 flex gap-3">
               <button
                 onClick={handleConfirmImageEdit}
@@ -1329,6 +1471,7 @@ ${itemsList}
                 onClick={() => {
                   setShowImageEditor(false);
                   setEditingImageSrc(null);
+                  setCropBox({ x: 10, y: 10, w: 80, h: 80 });
                 }}
                 className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
               >
