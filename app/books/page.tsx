@@ -19,6 +19,7 @@ import {
   Gift,
   Ticket,
   RotateCcw,
+  RotateCw,
   Upload,
   MessageCircle,
   Star,
@@ -201,6 +202,10 @@ function BooksPageInner() {
   const [uploading, setUploading] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [compressing, setCompressing] = useState(false); // NEW
+  const [showImageEditor, setShowImageEditor] = useState(false);
+  const [editingImageSrc, setEditingImageSrc] = useState<string | null>(null);
+  const [editingImageFileName, setEditingImageFileName] = useState<string>("image.jpg");
+  const [rotationDegrees, setRotationDegrees] = useState(0);
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCartModal, setShowCartModal] = useState(false);
@@ -319,20 +324,58 @@ function BooksPageInner() {
   const existingAuthors = Array.from(new Set(books.map((b) => b.author)));
 
   // NEW: compress the image in the background as soon as it's picked
-  const handleImageSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setImagePreview(URL.createObjectURL(file));
     setSaveError(null);
+    setEditingImageFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setEditingImageSrc(ev.target?.result as string);
+      setRotationDegrees(0);
+      setShowImageEditor(true);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const rotateImage = (delta: number) => {
+    setRotationDegrees((prev) => (prev + delta + 360) % 360);
+  };
+
+  const handleConfirmImageEdit = async () => {
+    if (!editingImageSrc) return;
     setCompressing(true);
+    setShowImageEditor(false);
     try {
-      const compressed = await compressImage(file);
+      const img = new window.Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = editingImageSrc;
+      });
+      const rad = (rotationDegrees * Math.PI) / 180;
+      const swap = rotationDegrees === 90 || rotationDegrees === 270;
+      const canvas = document.createElement("canvas");
+      canvas.width = swap ? img.height : img.width;
+      canvas.height = swap ? img.width : img.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("canvas unavailable");
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(rad);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      const blob: Blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/jpeg", 0.9);
+      });
+      const rotatedFile = new File([blob], editingImageFileName.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg" });
+      const compressed = await compressImage(rotatedFile);
       setImageFile(compressed);
+      setImagePreview(URL.createObjectURL(compressed));
     } catch {
-      // if compression fails for any reason, fall back to the original file
-      setImageFile(file);
+      // اگر کوئی مسئلہ آئے تو کچھ نہ بدلیں
     } finally {
       setCompressing(false);
+      setEditingImageSrc(null);
     }
   };
 
@@ -1249,6 +1292,52 @@ ${itemsList}
         </div>
       )}
 
+            {showImageEditor && editingImageSrc && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
+            <h3 className="text-lg font-bold text-gray-800">تصویر درست کریں</h3>
+            <div className="mt-4 flex items-center justify-center overflow-hidden rounded-xl bg-gray-100 h-64">
+              <img
+                src={editingImageSrc}
+                alt="edit preview"
+                style={{ transform: `rotate(${rotationDegrees}deg)`, maxWidth: "90%", maxHeight: "90%" }}
+                className="object-contain transition-transform"
+              />
+            </div>
+            <div className="mt-4 flex justify-center gap-3">
+              <button
+                onClick={() => rotateImage(-90)}
+                className="flex items-center gap-2 rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200 transition"
+              >
+                <RotateCcw size={18} /> بائیں گھمائیں
+              </button>
+              <button
+                onClick={() => rotateImage(90)}
+                className="flex items-center gap-2 rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200 transition"
+              >
+                <RotateCw size={18} /> دائیں گھمائیں
+              </button>
+            </div>
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={handleConfirmImageEdit}
+                className="flex-1 rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition"
+              >
+                تصدیق کریں
+              </button>
+              <button
+                onClick={() => {
+                  setShowImageEditor(false);
+                  setEditingImageSrc(null);
+                }}
+                className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
+              >
+                منسوخ کریں
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
@@ -1267,13 +1356,20 @@ ${itemsList}
                   <div className="relative h-32 w-full">
                     <Image src={imagePreview} alt="preview" fill className="rounded-lg object-cover" />
                   </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-2 text-gray-400 py-4">
-                    <Upload size={24} />
-                    <span className="text-sm">تصویر منتخب کرنے کے لیے کلک کریں</span>
-                  </div>
-                )}
+                ) : null}
                 <input type="file" accept="image/*" onChange={handleImageSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-emerald-400 transition cursor-pointer relative text-gray-500">
+                  <Upload size={20} />
+                  <span className="text-xs">گیلری سے منتخب کریں</span>
+                  <input type="file" accept="image/*" onChange={handleImageSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
+                </label>
+                <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-emerald-400 transition cursor-pointer relative text-gray-500">
+                  <Upload size={20} />
+                  <span className="text-xs">کیمرہ سے تصویر لیں</span>
+                  <input type="file" accept="image/*" capture="environment" onChange={handleImageSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
+                </label>
               </div>
               {compressing && <span className="text-xs text-gray-400 mt-1 block">تصویر کا سائز کم کیا جا رہا ہے...</span>}
             </label>

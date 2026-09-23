@@ -15,6 +15,10 @@ import {
   PackageMinus,
   Wallet,
   Users,
+  Receipt,
+  Truck,
+  Ticket,
+  RotateCcw,
   Search,
   Phone,
   Mail,
@@ -192,6 +196,21 @@ export default function CustomersPage() {
           </Link>
           <Link href="/customers" className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500 text-white font-medium shadow-md">
             <Users size={19} /> کسٹمرز
+          </Link>
+          <Link href="/invoices" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <Receipt size={19} /> رسیدیں
+          </Link>
+          <Link href="/suppliers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <Truck size={19} /> سپلائرز
+          </Link>
+          <Link href="/loyalty" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <Gift size={19} /> لائلٹی پوائنٹس
+          </Link>
+          <Link href="/coupons" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <Ticket size={19} /> کوپنز
+          </Link>
+          <Link href="/returns" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <RotateCcw size={19} /> واپسی/خراب
           </Link>
           <Link href="/reviews" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
             <Star size={19} /> ریویوز

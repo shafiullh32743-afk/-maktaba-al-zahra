@@ -16,6 +16,10 @@ import {
   Wallet,
   Users,
   Receipt,
+  Truck,
+  Gift,
+  Ticket,
+  RotateCcw,
   Plus,
   Trash2,
   Printer,
@@ -245,7 +249,7 @@ export default function InvoicesPage() {
 
         <nav className="mt-10 space-y-1.5 flex-1">
           <p className="text-white/50 text-xs font-medium px-3 mb-2">مینو</p>
-          <Link href="/" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+        <Link href="/" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
             <LayoutDashboard size={19} /> ڈیش بورڈ
           </Link>
           <Link href="/books" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
@@ -265,6 +269,18 @@ export default function InvoicesPage() {
           </Link>
           <Link href="/invoices" className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500 text-white font-medium shadow-md">
             <Receipt size={19} /> رسیدیں
+          </Link>
+          <Link href="/suppliers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <Truck size={19} /> سپلائرز
+          </Link>
+          <Link href="/loyalty" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <Gift size={19} /> لائلٹی پوائنٹس
+          </Link>
+          <Link href="/coupons" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <Ticket size={19} /> کوپنز
+          </Link>
+          <Link href="/returns" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <RotateCcw size={19} /> واپسی/خراب
           </Link>
           <Link href="/reviews" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
             <Star size={19} /> ریویوز
