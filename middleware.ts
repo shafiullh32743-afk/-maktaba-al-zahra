@@ -8,8 +8,9 @@ export function middleware(request: NextRequest) {
   const isLoginPage = path.startsWith("/login");
   const isSitemap = path === "/sitemap.xml";
   const isBookDetailPage = /^\/books\/[^/]+$/.test(path);
+  const isShopPage = path === "/shop"; // نیا — عوامی دکان کا صفحہ، لاگ ان درکار نہیں
 
-  const isPublicPage = isLoginPage || isSitemap || isBookDetailPage;
+  const isPublicPage = isLoginPage || isSitemap || isBookDetailPage || isShopPage;
 
   if (!isLoggedIn && !isPublicPage) {
     return NextResponse.redirect(new URL("/login", request.url));

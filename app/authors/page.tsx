@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Users, Star, PackageMinus, Wallet } from "lucide-react";
+import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Users, Receipt, Truck, Gift, Ticket, RotateCcw, Star, PackageMinus, Wallet } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function AuthorsPage() {
