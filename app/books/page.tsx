@@ -127,7 +127,6 @@ function getStockStatus(stock: number) {
   return { label: "In Stock", color: "text-emerald-600 bg-emerald-50 border-emerald-200", icon: "in" };
 }
 
-// NEW: client-side image compression before upload (resize + re-encode as JPEG)
 function compressImage(file: File, maxWidth = 1000, quality = 0.75): Promise<File> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -166,7 +165,6 @@ function compressImage(file: File, maxWidth = 1000, quality = 0.75): Promise<Fil
 }
 
 export default function BooksPage() {
-  // useSearchParams needs a Suspense boundary around it in the Next.js app router
   return (
     <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-emerald-700">لوڈ ہو رہا ہے...</div>}>
       <BooksPageInner />
@@ -180,7 +178,7 @@ function BooksPageInner() {
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterAuthor, setFilterAuthor] = useState("");
-  const [showWishlistOnly, setShowWishlistOnly] = useState(false); // NEW
+  const [showWishlistOnly, setShowWishlistOnly] = useState(false);
   const [books, setBooks] = useState<Book[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -201,17 +199,16 @@ function BooksPageInner() {
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [compressing, setCompressing] = useState(false); // NEW
+  const [compressing, setCompressing] = useState(false);
   const [showImageEditor, setShowImageEditor] = useState(false);
   const [editingImageSrc, setEditingImageSrc] = useState<string | null>(null);
   const [editingImageFileName, setEditingImageFileName] = useState<string>("image.jpg");
   const [rotationDegrees, setRotationDegrees] = useState(0);
-   const [cropBox, setCropBox] = useState({ x: 0, y: 0, w: 100, h: 100 });
-  const [dragMode, setDragMode] = useState
+  const [cropBox, setCropBox] = useState({ x: 0, y: 0, w: 100, h: 100 });
+  const [dragMode, setDragMode] = useState<
     "move" | "tl" | "tr" | "bl" | "br" | "t" | "b" | "l" | "r" | null
   >(null);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0, box: { x: 0, y: 0, w: 0, h: 0 } });
-  const imageEditorAreaRef = useState<{ current: HTMLDivElement | null }>({ current: null })[0];
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCartModal, setShowCartModal] = useState(false);
@@ -235,28 +232,23 @@ function BooksPageInner() {
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
-  // NEW: wishlist (persisted in localStorage, per-browser)
   const [wishlist, setWishlist] = useState<number[]>([]);
 
-  // NEW: bulk selection / bulk actions
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkCategory, setBulkCategory] = useState("");
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
 
-  // NEW: pick up ?author=... from the URL (used by the Authors page cards)
   useEffect(() => {
     const authorParam = searchParams.get("author");
     if (authorParam) setFilterAuthor(authorParam);
   }, [searchParams]);
 
-  // NEW: load wishlist from localStorage once on mount
   useEffect(() => {
     try {
       const stored = localStorage.getItem(WISHLIST_KEY);
       if (stored) setWishlist(JSON.parse(stored));
     } catch {
-      // ignore corrupt localStorage data
     }
   }, []);
 
@@ -266,7 +258,6 @@ function BooksPageInner() {
       try {
         localStorage.setItem(WISHLIST_KEY, JSON.stringify(updated));
       } catch {
-        // storage full or unavailable — wishlist still works for this session
       }
       return updated;
     });
@@ -322,14 +313,13 @@ function BooksPageInner() {
     const matchesSearch = search.trim() === "" || book.title.toLowerCase().includes(search.trim().toLowerCase());
     const matchesCategory = filterCategory ? book.category === filterCategory : true;
     const matchesAuthor = filterAuthor ? book.author === filterAuthor : true;
-    const matchesWishlist = showWishlistOnly ? wishlist.includes(book.id) : true; // NEW
+    const matchesWishlist = showWishlistOnly ? wishlist.includes(book.id) : true;
     return matchesSearch && matchesCategory && matchesAuthor && matchesWishlist;
   });
 
   const existingCategories = Array.from(new Set(books.map((b) => b.category)));
   const existingAuthors = Array.from(new Set(books.map((b) => b.author)));
 
-  // NEW: compress the image in the background as soon as it's picked
   const handleImageSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -359,7 +349,7 @@ function BooksPageInner() {
     };
   };
 
-    const startDrag = (
+  const startDrag = (
     e: React.MouseEvent | React.TouchEvent,
     mode: "move" | "tl" | "tr" | "bl" | "br" | "t" | "b" | "l" | "r",
     area: HTMLDivElement
@@ -385,23 +375,19 @@ function BooksPageInner() {
       y = Math.max(0, Math.min(100 - start.h, start.y + dy));
     }
 
-    // بائیں طرف
     if (dragMode === "tl" || dragMode === "bl" || dragMode === "l") {
       const newX = Math.max(0, Math.min(start.x + start.w - minSize, start.x + dx));
       w = start.w + (start.x - newX);
       x = newX;
     }
-    // دائیں طرف
     if (dragMode === "tr" || dragMode === "br" || dragMode === "r") {
       w = Math.max(minSize, Math.min(100 - start.x, start.w + dx));
     }
-    // اوپر
     if (dragMode === "tl" || dragMode === "tr" || dragMode === "t") {
       const newY = Math.max(0, Math.min(start.y + start.h - minSize, start.y + dy));
       h = start.h + (start.y - newY);
       y = newY;
     }
-    // نیچے
     if (dragMode === "bl" || dragMode === "br" || dragMode === "b") {
       h = Math.max(minSize, Math.min(100 - start.y, start.h + dy));
     }
@@ -423,7 +409,6 @@ function BooksPageInner() {
         img.src = editingImageSrc;
       });
 
-      // پہلے rotation لگائیں
       const rad = (rotationDegrees * Math.PI) / 180;
       const swap = rotationDegrees === 90 || rotationDegrees === 270;
       const rotatedCanvas = document.createElement("canvas");
@@ -435,7 +420,6 @@ function BooksPageInner() {
       rCtx.rotate(rad);
       rCtx.drawImage(img, -img.width / 2, -img.height / 2);
 
-      // پھر crop لگائیں (فیصد کو اصل پکسلز میں تبدیل کریں)
       const cropX = (cropBox.x / 100) * rotatedCanvas.width;
       const cropY = (cropBox.y / 100) * rotatedCanvas.height;
       const cropW = (cropBox.w / 100) * rotatedCanvas.width;
@@ -456,7 +440,6 @@ function BooksPageInner() {
       setImageFile(compressed);
       setImagePreview(URL.createObjectURL(compressed));
     } catch {
-      // اگر کوئی مسئلہ آئے تو کچھ نہ بدلیں
     } finally {
       setCompressing(false);
       setEditingImageSrc(null);
@@ -810,7 +793,6 @@ ${itemsList}
     }
   };
 
-  // NEW: print small shelf labels (title + author + price) for a set of books
   const handlePrintLabels = (booksToPrint: Book[]) => {
     if (booksToPrint.length === 0) return;
 
@@ -855,7 +837,6 @@ ${itemsList}
     }
   };
 
-  // NEW: bulk selection helpers
   const toggleSelect = (id: number) => {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
@@ -1010,7 +991,6 @@ ${itemsList}
               PDF ڈاؤن لوڈ کریں
             </button>
 
-            {/* NEW: print labels for everything currently visible */}
             <button
               onClick={() => handlePrintLabels(filteredBooks)}
               className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition shadow-sm font-medium"
@@ -1078,7 +1058,6 @@ ${itemsList}
             ))}
           </select>
 
-          {/* NEW: wishlist-only toggle */}
           <button
             onClick={() => setShowWishlistOnly((v) => !v)}
             className={`flex items-center justify-center gap-2 rounded-xl border px-5 py-4 transition font-medium ${
@@ -1145,7 +1124,6 @@ ${itemsList}
                     isSelected ? "border-emerald-400 ring-2 ring-emerald-200" : "border-gray-200"
                   }`}
                 >
-                  {/* NEW: bulk-select checkbox */}
                   <button
                     onClick={() => toggleSelect(book.id)}
                     className="absolute top-3 right-3 z-10 bg-white/90 rounded-md p-1 shadow-sm text-emerald-700"
@@ -1154,7 +1132,6 @@ ${itemsList}
                     {isSelected ? <CheckSquare size={20} /> : <Square size={20} />}
                   </button>
 
-                  {/* NEW: wishlist heart */}
                   <button
                     onClick={() => toggleWishlist(book.id)}
                     className={`absolute top-3 left-3 z-10 rounded-full p-1.5 shadow-sm transition ${
@@ -1276,7 +1253,6 @@ ${itemsList}
         )}
       </section>
 
-      {/* NEW: floating bulk-action bar */}
       {selectedIds.length > 0 && (
         <div className="fixed bottom-0 inset-x-0 md:inset-x-auto md:right-64 md:left-0 bg-white border-t border-gray-200 shadow-2xl z-40 p-4">
           <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center gap-3">
@@ -1325,7 +1301,6 @@ ${itemsList}
         </div>
       )}
 
-      {/* NEW: bulk delete confirmation */}
       {confirmBulkDelete && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
@@ -1377,7 +1352,7 @@ ${itemsList}
         </div>
       )}
 
-            {showImageEditor && editingImageSrc && (
+      {showImageEditor && editingImageSrc && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl text-center">
             <h3 className="text-lg font-bold text-gray-800">تصویر درست کریں</h3>
@@ -1397,7 +1372,6 @@ ${itemsList}
                 style={{ transform: `rotate(${rotationDegrees}deg)` }}
                 className="absolute inset-0 w-full h-full object-contain transition-transform pointer-events-none"
               />
-              {/* Crop overlay */}
               <div
                 className="absolute border-2 border-emerald-400 bg-emerald-400/10 cursor-move"
                 style={{
@@ -1409,7 +1383,6 @@ ${itemsList}
                 onMouseDown={(e) => startDrag(e, "move", e.currentTarget.parentElement as HTMLDivElement)}
                 onTouchStart={(e) => startDrag(e, "move", e.currentTarget.parentElement as HTMLDivElement)}
               >
-                {/* چار کونے */}
                 <div className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-nwse-resize"
                   onMouseDown={(e) => startDrag(e, "tl", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
                   onTouchStart={(e) => startDrag(e, "tl", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
@@ -1423,7 +1396,6 @@ ${itemsList}
                   onMouseDown={(e) => startDrag(e, "br", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
                   onTouchStart={(e) => startDrag(e, "br", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
 
-                {/* چار درمیانی نقاط */}
                 <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-ns-resize"
                   onMouseDown={(e) => startDrag(e, "t", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
                   onTouchStart={(e) => startDrag(e, "t", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
