@@ -176,7 +176,7 @@ export default function BookDetailPage() {
       )}
 
       <aside
-        className={`w-72 min-h-screen bg-[#4A90E2] p-6 flex flex-col fixed md:static inset-y-0 left-0 z-50 flex-shrink-0 transform transition-transform duration-300 shadow-xl ${
+        className={`w-72 min-h-screen md:h-screen md:sticky md:top-0 md:overflow-y-auto bg-[#4A90E2] p-6 flex flex-col fixed inset-y-0 left-0 z-50 flex-shrink-0 transform transition-transform duration-300 shadow-xl ${
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >

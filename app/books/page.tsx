@@ -873,7 +873,7 @@ ${itemsList}
       )}
 
       <aside
-        className={`w-64 min-h-screen bg-blue-400 p-6 flex flex-col fixed md:static inset-y-0 right-0 z-50 flex-shrink-0 transform transition-transform duration-300 ${
+        className={`w-64 min-h-screen md:h-screen md:sticky md:top-0 md:overflow-y-auto bg-blue-400 p-6 flex flex-col fixed inset-y-0 right-0 z-50 flex-shrink-0 transform transition-transform duration-300 ${
           mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
         }`}
       >
@@ -949,7 +949,8 @@ ${itemsList}
         </div>
       </aside>
 
-      <section className="flex-1 min-w-0 p-5 md:p-10 pb-28">
+            <section className="flex-1 min-w-0 pb-28">
+        <div className="sticky top-0 z-30 bg-gray-50 p-5 md:p-10 md:pb-0">
         <div className="flex items-center justify-between md:hidden mb-4">
           <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm">
             <Menu size={22} />
@@ -1087,7 +1088,9 @@ ${itemsList}
             </button>
           </div>
         )}
+        </div>
 
+        <div className="px-5 md:px-10"></div>
         {!loaded ? (
           <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
             {[1, 2, 3].map((i) => (
@@ -1466,14 +1469,23 @@ ${itemsList}
 
             <label className="mt-5 block">
               <span className="text-sm text-gray-600">کتاب کی تصویر (اختیاری)</span>
-              <div className="mt-2 border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-emerald-400 transition cursor-pointer relative">
-                {imagePreview ? (
-                  <div className="relative h-32 w-full">
-                    <Image src={imagePreview} alt="preview" fill className="rounded-lg object-cover" />
-                  </div>
-                ) : null}
-                <input type="file" accept="image/*" onChange={handleImageSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
-              </div>
+              {imagePreview && (
+                <div className="mt-2 relative h-32 w-full">
+                  <Image src={imagePreview} alt="preview" fill className="rounded-lg object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImagePreview(null);
+                      setImageFile(null);
+                      setExistingImageUrl(null);
+                    }}
+                    className="absolute top-2 left-2 bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center shadow-md hover:bg-red-600 transition"
+                    title="تصویر ہٹائیں"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-emerald-400 transition cursor-pointer relative text-gray-500">
                   <Upload size={20} />

@@ -36,7 +36,7 @@ export default function AuthorsPage() {
       )}
 
       <aside
-        className={`w-64 min-h-screen bg-blue-400 p-6 flex flex-col fixed md:static inset-y-0 right-0 z-50 transform transition-transform duration-300 ${
+        className={`w-64 min-h-screen md:h-screen md:sticky md:top-0 md:overflow-y-auto bg-blue-400 p-6 flex flex-col fixed inset-y-0 right-0 z-50 transform transition-transform duration-300 ${
           mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
         }`}
       >
@@ -81,6 +81,26 @@ export default function AuthorsPage() {
           <Link href="/customers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
             <Users size={19} />
             کسٹمرز
+          </Link>
+          <Link href="/invoices" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <Receipt size={19} />
+            رسیدیں
+          </Link>
+          <Link href="/suppliers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <Truck size={19} />
+            سپلائرز
+          </Link>
+          <Link href="/loyalty" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <Gift size={19} />
+            لائلٹی پوائنٹس
+          </Link>
+          <Link href="/coupons" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <Ticket size={19} />
+            کوپنز
+          </Link>
+          <Link href="/returns" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+            <RotateCcw size={19} />
+            واپسی/خراب
           </Link>
           <Link href="/reviews" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
             <Star size={19} />
@@ -136,12 +156,21 @@ export default function AuthorsPage() {
           <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {authors.map((author) => (
               <div key={author} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-lg transition">
-                <span className="text-4xl">👤</span>
-                <h3 className="mt-4 text-xl font-bold text-gray-800">{author}</h3>
-                <p className="mt-2 text-emerald-700 text-sm">{authorMap[author].length} کتابیں</p>
+                <Link href={`/books?author=${encodeURIComponent(author)}`} className="block">
+                  <span className="text-4xl">👤</span>
+                  <h3 className="mt-4 text-xl font-bold text-gray-800 hover:text-emerald-700 transition">{author}</h3>
+                  <p className="mt-2 text-emerald-700 text-sm">{authorMap[author].length} کتابیں — سب دیکھیں</p>
+                </Link>
                 <ul className="mt-3 space-y-1">
                   {authorMap[author].map((title) => (
-                    <li key={title} className="text-gray-500 text-sm">• {title}</li>
+                    <li key={title}>
+                      <Link
+                        href={`/books?author=${encodeURIComponent(author)}`}
+                        className="text-gray-500 text-sm hover:text-emerald-700 hover:underline transition"
+                      >
+                        • {title}
+                      </Link>
+                    </li>
                   ))}
                 </ul>
               </div>
