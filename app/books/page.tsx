@@ -362,6 +362,7 @@ function BooksPageInner() {
 
   const onDragMove = (e: React.MouseEvent | React.TouchEvent, area: HTMLDivElement) => {
     if (!dragMode) return;
+    if ("touches" in e) e.preventDefault();
     const point = getEditorPoint(e, area);
     const dx = point.x - dragStart.x;
     const dy = point.y - dragStart.y;
@@ -1363,13 +1364,14 @@ ${itemsList}
             <p className="text-xs text-gray-400 mt-1">فریم کو گھسیٹ کر کاٹنے کی جگہ منتخب کریں</p>
 
             <div
-              className="mt-4 relative overflow-hidden rounded-xl bg-gray-900 h-72 select-none touch-none"
-              onMouseMove={(e) => onDragMove(e, e.currentTarget)}
-              onMouseUp={endDrag}
-              onMouseLeave={endDrag}
-              onTouchMove={(e) => onDragMove(e, e.currentTarget)}
-              onTouchEnd={endDrag}
-            >
+  className="mt-4 relative overflow-hidden rounded-xl bg-gray-900 h-72 select-none"
+  onMouseMove={(e) => onDragMove(e, e.currentTarget)}
+  onMouseUp={endDrag}
+  onMouseLeave={endDrag}
+  onTouchMove={(e) => onDragMove(e, e.currentTarget)}
+  onTouchEnd={endDrag}
+  onTouchCancel={endDrag}
+>
               <img
                 src={editingImageSrc}
                 alt="edit preview"
