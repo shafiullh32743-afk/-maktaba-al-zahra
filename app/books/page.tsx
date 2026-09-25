@@ -951,7 +951,7 @@ ${itemsList}
       </aside>
 
             <section className="flex-1 min-w-0 pb-28">
-        <div className="sticky top-0 z-30 bg-gray-50 p-5 md:p-10 md:pb-0">
+        <div className="bg-gray-50 p-5 md:p-10 md:pb-0">
         <div className="flex items-center justify-between md:hidden mb-4">
           <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm">
             <Menu size={22} />
