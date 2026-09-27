@@ -35,7 +35,7 @@ export default function CategoriesPage() {
       )}
 
       <aside
-        className={`w-64 min-h-screen md:h-screen md:sticky md:top-0 md:overflow-y-auto bg-blue-400 p-6 flex flex-col fixed inset-y-0 right-0 z-50 transform transition-transform duration-300 ${
+        className={`w-64 min-h-screen md:h-screen md:sticky md:top-0 md:overflow-y-auto bg-blue-400 p-6 flex flex-col fixed md:relative inset-y-0 right-0 z-50 transform transition-transform duration-300 ${
           mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
         }`}
       >
@@ -154,11 +154,15 @@ export default function CategoriesPage() {
         ) : (
           <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {categories.map((cat) => (
-              <div key={cat} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-lg transition">
+              <Link
+                key={cat}
+                href={`/books?category=${encodeURIComponent(cat)}`}
+                className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all"
+              >
                 <span className="text-4xl">📂</span>
-                <h3 className="mt-4 text-xl font-bold text-gray-800">{cat}</h3>
-                <p className="mt-2 text-emerald-700 text-sm">{categoryCounts[cat]} کتابیں</p>
-              </div>
+                <h3 className="mt-4 text-xl font-bold text-gray-800 hover:text-emerald-700 transition">{cat}</h3>
+                <p className="mt-2 text-emerald-700 text-sm">{categoryCounts[cat]} کتابیں — دیکھیں</p>
+              </Link>
             ))}
           </div>
         )}
