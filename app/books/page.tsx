@@ -231,6 +231,7 @@ function BooksPageInner() {
   const [importResult, setImportResult] = useState<string | null>(null);
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   const [wishlist, setWishlist] = useState<number[]>([]);
 
@@ -1148,13 +1149,18 @@ ${itemsList}
                     <Heart size={18} className={isWished ? "fill-rose-500" : ""} />
                   </button>
 
-                  <div className="relative h-40 w-full rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center border border-amber-200 overflow-hidden">
+                  <div
+                    onClick={() => book.image_url && setZoomedImage(book.image_url)}
+                    className={`relative w-full aspect-[3/4] rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center border border-amber-200 overflow-hidden ${
+                      book.image_url ? "cursor-pointer" : ""
+                    }`}
+                  >
                     {book.image_url ? (
                       <Image
                         src={book.image_url}
                         alt={book.title}
                         fill
-                        className="object-contain"
+                        className="object-cover"
                         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                       />
                     ) : (
@@ -1359,6 +1365,25 @@ ${itemsList}
         </div>
       )}
 
+      {zoomedImage && (
+        <div
+          onClick={() => setZoomedImage(null)}
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[70] p-4 cursor-zoom-out"
+        >
+          <button
+            onClick={() => setZoomedImage(null)}
+            className="absolute top-4 left-4 text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition"
+          >
+            <X size={24} />
+          </button>
+          <img
+            src={zoomedImage}
+            alt="بڑی تصویر"
+            className="w-full max-w-2xl max-h-[90vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
       {showImageEditor && editingImageSrc && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl text-center">
