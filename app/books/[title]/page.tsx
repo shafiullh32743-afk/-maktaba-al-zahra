@@ -167,7 +167,7 @@ export default function BookDetailPage() {
       : null;
 
   return (
-    <main className="min-h-screen flex bg-slate-50 font-sans" dir="ltr">
+    <main className="min-h-screen flex bg-slate-50 font-sans" dir="rtl">
       {mobileMenuOpen && (
         <div
           onClick={() => setMobileMenuOpen(false)}

@@ -1,13 +1,14 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Users, Receipt, Truck, Gift, Ticket, RotateCcw, Star, PackageMinus, Wallet } from "lucide-react";
+import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Users, Receipt, Truck, Gift, Ticket, RotateCcw, Star, PackageMinus, Wallet, Search } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function AuthorsPage() {
   const [books, setBooks] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState(""); // سرچ کی سٹیٹ
 
   useEffect(() => {
     const fetchBooks = async () => {
@@ -20,14 +21,25 @@ export default function AuthorsPage() {
 
   const authorMap: Record<string, string[]> = {};
   books.forEach((book) => {
-    if (!authorMap[book.author]) authorMap[book.author] = [];
-    authorMap[book.author].push(book.title);
+    if (book.author) {
+      if (!authorMap[book.author]) authorMap[book.author] = [];
+      authorMap[book.author].push(book.title);
+    }
   });
 
   const authors = Object.keys(authorMap);
 
+  // سرچ کی بنیاد پر مصنفین کو فلٹر کرنا (مصنف کے نام یا کتاب کے نام سے تلاش کریں)
+  const filteredAuthors = authors.filter((author) => {
+    const matchesAuthor = author.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesBook = authorMap[author].some((title) =>
+      title.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    return matchesAuthor || matchesBook;
+  });
+
   return (
-    <main className="min-h-screen flex bg-gray-50">
+    <main className="min-h-screen flex bg-gray-50 dir-rtl">
       {mobileMenuOpen && (
         <div
           onClick={() => setMobileMenuOpen(false)}
@@ -142,19 +154,37 @@ export default function AuthorsPage() {
           <h1 className="text-lg font-bold text-emerald-800">مكتبہ الزھراء</h1>
         </div>
 
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-900">مصنفین</h2>
-        <p className="mt-2 text-gray-500">مصنفین اور ان کی کتب دیکھیں</p>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">مصنفین</h2>
+            <p className="mt-2 text-gray-500">مصنفین اور ان کی کتب دیکھیں</p>
+          </div>
+
+          {/* سرچ انپٹ بار */}
+          <div className="relative w-full md:w-72">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input
+              type="text"
+              placeholder="مصنف یا کتاب کا نام تلاش کریں..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pr-10 pl-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition shadow-sm"
+            />
+          </div>
+        </div>
 
         {!loaded ? (
           <p className="mt-8 text-gray-500">لوڈ ہو رہا ہے...</p>
-        ) : authors.length === 0 ? (
+        ) : filteredAuthors.length === 0 ? (
           <div className="mt-16 flex flex-col items-center justify-center text-center">
             <span className="text-6xl mb-4">✍️</span>
-            <p className="text-gray-500 text-lg">ابھی کوئی مصنف موجود نہیں</p>
+            <p className="text-gray-500 text-lg">
+              {searchTerm ? "کوئی مصنف یا کتاب نہیں ملی" : "ابھی کوئی مصنف موجود نہیں"}
+            </p>
           </div>
         ) : (
           <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {authors.map((author) => (
+            {filteredAuthors.map((author) => (
               <div key={author} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-lg transition">
                 <Link href={`/books?author=${encodeURIComponent(author)}`} className="block">
                   <span className="text-4xl">👤</span>

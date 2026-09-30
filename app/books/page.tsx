@@ -38,6 +38,10 @@ import {
   Square,
   Tags,
   Printer,
+  Filter,
+  MapPin,
+  Phone,
+  Globe,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import * as XLSX from "xlsx";
@@ -53,6 +57,7 @@ interface Book {
   cost_price?: number;
   slug?: string;
   image_url?: string;
+  language?: string;
 }
 
 interface Review {
@@ -178,7 +183,13 @@ function BooksPageInner() {
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterAuthor, setFilterAuthor] = useState("");
+  const [filterLanguage, setFilterLanguage] = useState("");
+  const [filterPriceFrom, setFilterPriceFrom] = useState("");
+  const [filterPriceTo, setFilterPriceTo] = useState("");
+  const [inStockOnly, setInStockOnly] = useState(false);
   const [showWishlistOnly, setShowWishlistOnly] = useState(false);
+  const [showFilterSidebar, setShowFilterSidebar] = useState(false);
+
   const [books, setBooks] = useState<Book[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -188,6 +199,7 @@ function BooksPageInner() {
   const [newAuthor, setNewAuthor] = useState("");
   const [newCategory, setNewCategory] = useState("");
   const [customCategory, setCustomCategory] = useState("");
+  const [newLanguage, setNewLanguage] = useState("اردو");
   const [newPrice, setNewPrice] = useState("");
   const [newWeight, setNewWeight] = useState("");
   const [newStock, setNewStock] = useState("");
@@ -251,8 +263,7 @@ function BooksPageInner() {
     try {
       const stored = localStorage.getItem(WISHLIST_KEY);
       if (stored) setWishlist(JSON.parse(stored));
-    } catch {
-    }
+    } catch {}
   }, []);
 
   const toggleWishlist = (id: number) => {
@@ -260,8 +271,7 @@ function BooksPageInner() {
       const updated = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
       try {
         localStorage.setItem(WISHLIST_KEY, JSON.stringify(updated));
-      } catch {
-      }
+      } catch {}
       return updated;
     });
   };
@@ -312,16 +322,47 @@ function BooksPageInner() {
     return { avg: avg.toFixed(1), count: bookReviews.length };
   };
 
+  const resetAllFilters = () => {
+    setSearch("");
+    setFilterCategory("");
+    setFilterAuthor("");
+    setFilterLanguage("");
+    setFilterPriceFrom("");
+    setFilterPriceTo("");
+    setInStockOnly(false);
+    setShowWishlistOnly(false);
+  };
+
   const filteredBooks = books.filter((book) => {
     const matchesSearch = search.trim() === "" || book.title.toLowerCase().includes(search.trim().toLowerCase());
     const matchesCategory = filterCategory ? book.category === filterCategory : true;
     const matchesAuthor = filterAuthor ? book.author === filterAuthor : true;
+    const matchesLanguage = filterLanguage ? (book.language || "اردو") === filterLanguage : true;
+    const matchesStock = inStockOnly ? (book.stock ?? 0) > 0 : true;
     const matchesWishlist = showWishlistOnly ? wishlist.includes(book.id) : true;
-    return matchesSearch && matchesCategory && matchesAuthor && matchesWishlist;
+
+    const price = book.price || 0;
+    const minPrice = filterPriceFrom !== "" ? parseFloat(filterPriceFrom) : null;
+    const maxPrice = filterPriceTo !== "" ? parseFloat(filterPriceTo) : null;
+
+    const matchesPriceFrom = minPrice === null || price >= minPrice;
+    const matchesPriceTo = maxPrice === null || price <= maxPrice;
+
+    return (
+      matchesSearch &&
+      matchesCategory &&
+      matchesAuthor &&
+      matchesLanguage &&
+      matchesStock &&
+      matchesWishlist &&
+      matchesPriceFrom &&
+      matchesPriceTo
+    );
   });
 
   const existingCategories = Array.from(new Set(books.map((b) => b.category)));
   const existingAuthors = Array.from(new Set(books.map((b) => b.author)));
+  const existingLanguages = Array.from(new Set(books.map((b) => b.language || "اردو")));
 
   const handleImageSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -478,6 +519,7 @@ function BooksPageInner() {
       title: newTitle,
       author: newAuthor || "مكتبہ الزھراء",
       category: finalCategory || "عمومی",
+      language: newLanguage || "اردو",
       image_url: imageUrl,
       price: parseFloat(newPrice) || 0,
       weight: parseFloat(newWeight) || 1,
@@ -500,6 +542,7 @@ function BooksPageInner() {
     setNewAuthor("");
     setNewCategory("");
     setCustomCategory("");
+    setNewLanguage("اردو");
     setNewPrice("");
     setNewWeight("");
     setNewStock("");
@@ -519,6 +562,7 @@ function BooksPageInner() {
     setNewTitle(book.title);
     setNewAuthor(book.author);
     setNewCategory(book.category);
+    setNewLanguage(book.language || "اردو");
     setNewPrice(book.price ? book.price.toString() : "");
     setNewWeight(book.weight ? book.weight.toString() : "");
     setNewStock(book.stock ? book.stock.toString() : "");
@@ -560,6 +604,7 @@ function BooksPageInner() {
         const author = row[1];
         const price = row[2];
         const category = row[3];
+        const language = row[4];
         if (!title || typeof title !== "string" || title.trim() === "") continue;
 
         const base = generateSlugFromTitle(title.toString().trim());
@@ -574,6 +619,7 @@ function BooksPageInner() {
           title: title.toString().trim(),
           author: author ? author.toString().trim() : "مكتبہ الزھراء",
           category: category && category.toString().trim() !== "" ? category.toString().trim() : "عمومی",
+          language: language ? language.toString().trim() : "اردو",
           price: typeof price === "number" ? price : parseFloat(price) || 0,
           weight: 1,
           stock: 0,
@@ -868,1002 +914,1173 @@ ${itemsList}
     fetchBooks();
   };
 
-  const hasActiveFilters = search || filterCategory || filterAuthor || showWishlistOnly;
+  const hasActiveFilters =
+    search ||
+    filterCategory ||
+    filterAuthor ||
+    filterLanguage ||
+    filterPriceFrom ||
+    filterPriceTo ||
+    inStockOnly ||
+    showWishlistOnly;
 
   return (
-    <main className="min-h-screen flex bg-gray-50">
-      {mobileMenuOpen && (
-        <div onClick={() => setMobileMenuOpen(false)} className="fixed inset-0 bg-black/50 z-40 md:hidden" />
-      )}
-
-      <aside
-        className={`w-64 min-h-screen md:h-screen md:sticky md:top-0 md:overflow-y-auto bg-blue-400 p-6 flex flex-col fixed inset-y-0 right-0 z-50 flex-shrink-0 transform transition-transform duration-300 ${
-          mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
-        }`}
+    <main dir="rtl" className="min-h-screen flex flex-col bg-gray-50 relative">
+      {/* 1. فلوٹنگ WhatsApp بٹن (ہمیشہ نظر آنے والا) */}
+      <a
+        href="https://wa.me/923055232889?text=%D8%A7%D9%84%D8%B3%D9%84%D8%A7%D9%85%20%D8%B9%D9%84%DB%8C%DA%A9%D9%85%D8%8C%20%D9%85%DA%98%DB%8C%D8%AF%20%D9%85%D8%B9%D9%84%D9%88%D9%85%D8%A7%D8%AA%20%DA%86%D8%A7%DB%81%DB%8C%DB%9C"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-6 left-6 z-50 bg-emerald-500 hover:bg-emerald-600 text-white p-4 rounded-full shadow-2xl transition transform hover:scale-110 flex items-center justify-center group"
+        title="واٹس ایپ پر رابطہ کریں"
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-md">
-              <BookOpen className="text-white" size={20} />
-            </div>
-            <h1 className="text-lg font-bold text-white">مكتبہ الزھراء</h1>
-          </div>
-          <button onClick={() => setMobileMenuOpen(false)} className="md:hidden text-white/80 hover:text-white">
-            <X size={22} />
-          </button>
-        </div>
+        <MessageCircle size={28} />
+        <span className="max-w-0 overflow-hidden whitespace-nowrap group-hover:max-w-xs transition-all duration-300 ease-in-out text-sm font-bold pr-0 group-hover:pr-2">
+          رابطہ کریں
+        </span>
+      </a>
 
-        <nav className="mt-10 space-y-1.5 flex-1">
-          <p className="text-white/50 text-xs font-medium px-3 mb-2">مینو</p>
-          <Link href="/" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <LayoutDashboard size={19} /> ڈیش بورڈ
-          </Link>
-          <Link href="/books" className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500 text-white font-medium shadow-md">
-            <BookOpen size={19} /> کتب
-          </Link>
-          <Link href="/authors" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <PenLine size={19} /> مصنفین
-          </Link>
-          <Link href="/categories" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <FolderTree size={19} /> زمرے
-          </Link>
-          <Link href="/orders" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <ShoppingCart size={19} /> آرڈرز
-          </Link>
-          <Link href="/customers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Users size={19} /> کسٹمرز
-          </Link>
-          <Link href="/invoices" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Receipt size={19} /> رسیدیں
-          </Link>
-          <Link href="/suppliers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Truck size={19} /> سپلائرز
-          </Link>
-          <Link href="/loyalty" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Gift size={19} /> لائلٹی پوائنٹس
-          </Link>
-          <Link href="/coupons" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Ticket size={19} /> کوپنز
-          </Link>
-          <Link href="/returns" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <RotateCcw size={19} /> واپسی/خراب
-          </Link>
-          <Link href="/reviews" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Star size={19} /> ریویوز
-          </Link>
-          <Link href="/low-stock" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <PackageMinus size={19} /> کم سٹاک
-          </Link>
-          <Link href="/expenses" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Wallet size={19} /> اخراجات
-          </Link>
-        </nav>
+      {/* اوپر کا بینر */}
+      <div className="bg-emerald-800 text-white text-sm py-2 px-4 flex flex-col md:flex-row items-center justify-center gap-2 text-center">
+        <span>مكتبہ الزھراء میں خوش آمدید — آن لائن اسلامک بک سٹور</span>
+        <span className="hidden md:inline">•</span>
+        <a href="https://wa.me/923055232889" target="_blank" className="font-bold underline hover:text-emerald-200">
+          آرڈر کرنے کے لیے رابطہ کریں: 0305-5232889
+        </a>
+      </div>
 
-        <div className="border-t border-white/20 pt-4 space-y-3">
-          <button
-            onClick={() => {
-              document.cookie = "maktaba-auth=; path=/; max-age=0";
-              window.location.href = "/login";
-            }}
-            className="flex items-center gap-3 p-3 rounded-xl w-full text-white/80 hover:bg-white/[0.15] hover:text-white transition"
-          >
-            <LogOut size={19} /> لاگ آؤٹ
-          </button>
-          <p className="text-white/50 text-xs text-center">مكتبہ الزھراء © 2026</p>
-        </div>
-      </aside>
-
-            <section className="flex-1 min-w-0 pb-28">
-        <div className="md:sticky md:top-0 md:z-30 bg-gray-50 p-5 md:p-10 md:pb-0">
-        <div className="flex items-center justify-between md:hidden mb-4">
-          <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm">
-            <Menu size={22} />
-          </button>
-          <h1 className="text-lg font-bold text-emerald-800">مكتبہ الزھراء</h1>
-        </div>
-
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">ہماری کتب</h2>
-            <p className="mt-2 text-gray-500">مكتبہ الزھراء کی کتب</p>
-          </div>
-
-          <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto flex-wrap">
-            <button
-              onClick={() => setShowCartModal(true)}
-              className="relative flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition shadow-sm font-medium"
-            >
-              <ShoppingCart size={18} />
-              ٹوکری
-              {cartCount > 0 && (
-                <span className="absolute -top-2 -left-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                  {cartCount}
-                </span>
-              )}
-            </button>
-
-            <label className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition shadow-sm cursor-pointer font-medium">
-              <FileSpreadsheet size={18} />
-              {importing ? "درآمد ہو رہا ہے..." : "Excel سے درآمد کریں"}
-              <input type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelImport} disabled={importing} className="hidden" />
-            </label>
-
-            <button
-              onClick={handleDownloadPDF}
-              className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition shadow-sm font-medium"
-            >
-              <FileDown size={18} />
-              PDF ڈاؤن لوڈ کریں
-            </button>
-
-            <button
-              onClick={() => handlePrintLabels(filteredBooks)}
-              className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition shadow-sm font-medium"
-            >
-              <Printer size={18} />
-              لیبلز پرنٹ کریں
-            </button>
-
-            <button
-              onClick={() => {
-                setEditingId(null);
-                setNewTitle("");
-                setNewAuthor("");
-                setNewCategory("");
-                setNewPrice("");
-                setNewWeight("");
-                setNewStock("");
-                setNewCostPrice("");
-                setNewSlug("");
-                setImageFile(null);
-                setImagePreview(null);
-                setExistingImageUrl(null);
-                setSaveError(null);
-                setShowModal(true);
-              }}
-              className="rounded-xl px-5 py-3 bg-emerald-700 text-white hover:bg-emerald-800 transition shadow-sm w-full md:w-auto"
-            >
-              + کتاب شامل کریں
-            </button>
-          </div>
-        </div>
-
-        {importResult && (
-          <div className="mt-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-sm px-4 py-2">
-            {importResult}
-          </div>
+      <div className="flex flex-1">
+        {mobileMenuOpen && (
+          <div onClick={() => setMobileMenuOpen(false)} className="fixed inset-0 bg-black/50 z-40 md:hidden" />
         )}
 
-        <div className="mt-8 flex flex-col md:flex-row gap-3">
-          <input
-            type="text"
-            placeholder="کتاب تلاش کریں..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 rounded-xl border border-gray-200 p-4 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
-          />
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="rounded-xl border border-gray-200 p-4 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition md:w-56"
-          >
-            <option value="">تمام زمرے</option>
-            {existingCategories.map((cat) => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
-          <select
-            value={filterAuthor}
-            onChange={(e) => setFilterAuthor(e.target.value)}
-            className="rounded-xl border border-gray-200 p-4 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition md:w-56"
-          >
-            <option value="">تمام مصنفین</option>
-            {existingAuthors.map((author) => (
-              <option key={author} value={author}>{author}</option>
-            ))}
-          </select>
-
-          <button
-            onClick={() => setShowWishlistOnly((v) => !v)}
-            className={`flex items-center justify-center gap-2 rounded-xl border px-5 py-4 transition font-medium ${
-              showWishlistOnly
-                ? "bg-rose-50 border-rose-300 text-rose-600"
-                : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
-            }`}
-          >
-            <Heart size={18} className={showWishlistOnly ? "fill-rose-500" : ""} />
-            پسندیدہ
-          </button>
-        </div>
-
-        {hasActiveFilters && (
-          <div className="mt-4 flex items-center gap-2 flex-wrap">
-            <span className="text-sm text-gray-500">{filteredBooks.length} نتائج ملے</span>
-            <button
-              onClick={() => {
-                setSearch("");
-                setFilterCategory("");
-                setFilterAuthor("");
-                setShowWishlistOnly(false);
-              }}
-              className="text-sm text-emerald-700 hover:text-emerald-900 underline"
-            >
-              فلٹرز صاف کریں
-            </button>
-          </div>
-        )}
-        </div>
-
-        <div className="px-5 md:px-10">
-        {!loaded ? (
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="w-full rounded-2xl border border-gray-200 bg-white p-6 animate-pulse">
-                <div className="h-40 w-full rounded-xl bg-gray-200" />
-                <div className="h-5 w-3/4 bg-gray-200 rounded mt-5 mx-auto" />
-                <div className="h-4 w-1/2 bg-gray-200 rounded mt-3 mx-auto" />
-                <div className="h-8 w-full bg-gray-200 rounded-lg mt-5" />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-            {filteredBooks.length === 0 && (
-              <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
-                <span className="text-6xl mb-4">📖</span>
-                <p className="text-gray-500 text-lg">کوئی کتاب نہیں ملی</p>
-                <p className="text-gray-400 text-sm mt-1">کوئی مختلف نام تلاش کریں یا نئی کتاب شامل کریں</p>
-              </div>
-            )}
-
-            {filteredBooks.map((book) => {
-              const ratingInfo = getBookRating(book.title);
-              const stockInfo = getStockStatus(book.stock ?? 0);
-              const outOfStock = (book.stock ?? 0) <= 0;
-              const inCart = cart.find((item) => item.id === book.id);
-              const isWished = wishlist.includes(book.id);
-              const isSelected = selectedIds.includes(book.id);
-
-              return (
-                <div
-                  key={book.id}
-                  className={`relative w-full rounded-2xl border bg-white p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center ${
-                    isSelected ? "border-emerald-400 ring-2 ring-emerald-200" : "border-gray-200"
-                  }`}
-                >
-                  <button
-                    onClick={() => toggleSelect(book.id)}
-                    className="absolute top-3 right-3 z-10 bg-white/90 rounded-md p-1 shadow-sm text-emerald-700"
-                    title="منتخب کریں"
-                  >
-                    {isSelected ? <CheckSquare size={20} /> : <Square size={20} />}
-                  </button>
-
-                  <button
-                    onClick={() => toggleWishlist(book.id)}
-                    className={`absolute top-3 left-3 z-10 rounded-full p-1.5 shadow-sm transition ${
-                      isWished ? "bg-rose-50 text-rose-500" : "bg-white/90 text-gray-400 hover:text-rose-500"
-                    }`}
-                    title="پسندیدہ"
-                  >
-                    <Heart size={18} className={isWished ? "fill-rose-500" : ""} />
-                  </button>
-
-                  <div
-                    onClick={() => book.image_url && setZoomedImage(book.image_url)}
-                    className={`relative w-full aspect-[3/4] rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center border border-amber-200 overflow-hidden ${
-                      book.image_url ? "cursor-pointer" : ""
-                    }`}
-                  >
-                    {book.image_url ? (
-                      <Image
-                        src={book.image_url}
-                        alt={book.title}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                      />
-                    ) : (
-                      <span className="text-6xl">📚</span>
-                    )}
-                  </div>
-
-                  <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${stockInfo.color}`}>
-                    {stockInfo.icon === "in" && <PackageCheck size={13} />}
-                    {stockInfo.icon === "low" && <PackageMinus size={13} />}
-                    {stockInfo.icon === "out" && <PackageX size={13} />}
-                    {stockInfo.label}
-                    {(book.stock ?? 0) > 0 && ` (${book.stock})`}
-                  </div>
-
-                  <h3 className="mt-3 text-xl font-bold text-gray-800 line-clamp-2">{book.title}</h3>
-                  <p className="mt-2 text-gray-500 text-sm">{book.author}</p>
-
-                  {ratingInfo && (
-                    <div className="mt-2 flex items-center gap-1">
-                      <Star size={15} className="fill-amber-400 text-amber-400" />
-                      <span className="text-sm font-bold text-gray-700">{ratingInfo.avg}</span>
-                      <span className="text-xs text-gray-400">({ratingInfo.count} ریویوز)</span>
-                    </div>
-                  )}
-
-                  <p className="mt-3 inline-block rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-sm font-medium text-emerald-700">
-                    {book.category}
-                  </p>
-
-                  {book.price ? (
-                    <div className="mt-3 inline-flex items-baseline gap-1 rounded-xl bg-gradient-to-r from-emerald-50 to-emerald-100/50 border border-emerald-200 px-4 py-1.5 shadow-sm">
-                      <span className="text-xs font-medium text-emerald-600">Rs</span>
-                      <span className="text-2xl font-extrabold text-emerald-700 tracking-tight">
-                        {Number(book.price).toLocaleString()}
-                      </span>
-                    </div>
-                  ) : (
-                    <p className="mt-3 text-sm text-gray-400 italic">قیمت درج نہیں</p>
-                  )}
-
-                  {inCart ? (
-                    <div className="mt-4 w-full flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
-                      <button
-                        onClick={() => updateCartQuantity(book.id, -1)}
-                        className="w-7 h-7 rounded-md bg-white text-emerald-700 flex items-center justify-center hover:bg-emerald-100"
-                      >
-                        <Minus size={14} />
-                      </button>
-                      <span className="font-bold text-emerald-800">{inCart.quantity} ٹوکری میں</span>
-                      <button
-                        onClick={() => updateCartQuantity(book.id, 1)}
-                        disabled={inCart.quantity >= (book.stock ?? 0)}
-                        className="w-7 h-7 rounded-md bg-white text-emerald-700 flex items-center justify-center hover:bg-emerald-100 disabled:opacity-40"
-                      >
-                        <Plus size={14} />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => addToCart(book)}
-                      disabled={outOfStock}
-                      className="mt-4 w-full flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-white hover:bg-amber-600 transition font-medium disabled:bg-gray-300 disabled:cursor-not-allowed"
-                    >
-                      <ShoppingCart size={16} />
-                      {outOfStock ? "سٹاک ختم" : "ٹوکری میں ڈالیں"}
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => handleReviewClick(book.title)}
-                    className="mt-2 w-full flex items-center justify-center gap-2 rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200 transition font-medium text-sm"
-                  >
-                    <MessageSquarePlus size={15} />
-                    ریویو دیں
-                  </button>
-
-                  <div className="mt-2 w-full flex gap-2">
-                    <Link
-                      href={`/books/${book.slug || encodeURIComponent(book.title)}`}
-                      className="flex-1 rounded-lg bg-emerald-700 px-4 py-2 text-white hover:bg-emerald-800 transition text-center"
-                    >
-                      تفصیل دیکھیں
-                    </Link>
-                    <button
-                      onClick={() => handleEditClick(book)}
-                      className="rounded-lg bg-amber-50 px-3 py-2 text-amber-700 hover:bg-amber-100 transition"
-                    >
-                      ترمیم
-                    </button>
-                    <button
-                      onClick={() => setConfirmDeleteId(book.id)}
-                      className="rounded-lg bg-red-50 px-3 py-2 text-red-600 hover:bg-red-100 transition"
-                    >
-                      حذف کریں
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-                </div>
-      </section>
-
-      {selectedIds.length > 0 && (
-        <div className="fixed bottom-0 inset-x-0 md:inset-x-auto md:right-64 md:left-0 bg-white border-t border-gray-200 shadow-2xl z-40 p-4">
-          <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center gap-3">
-            <span className="font-bold text-gray-800 whitespace-nowrap">{selectedIds.length} کتابیں منتخب</span>
-
-            <select
-              value={bulkCategory}
-              onChange={(e) => setBulkCategory(e.target.value)}
-              className="rounded-xl border border-gray-200 p-2.5 bg-white flex-1 w-full md:w-auto"
-            >
-              <option value="">زمرہ تبدیل کریں...</option>
-              {existingCategories.map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-            <button
-              onClick={handleBulkCategoryChange}
-              disabled={!bulkCategory || bulkProcessing}
-              className="flex items-center gap-2 rounded-xl px-4 py-2.5 bg-emerald-700 text-white hover:bg-emerald-800 transition disabled:opacity-50 whitespace-nowrap"
-            >
-              <Tags size={16} /> لاگو کریں
-            </button>
-
-            <button
-              onClick={() => handlePrintLabels(books.filter((b) => selectedIds.includes(b.id)))}
-              className="flex items-center gap-2 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-700 hover:bg-gray-200 transition whitespace-nowrap"
-            >
-              <Printer size={16} /> لیبلز پرنٹ کریں
-            </button>
-
-            <button
-              onClick={() => setConfirmBulkDelete(true)}
-              disabled={bulkProcessing}
-              className="flex items-center gap-2 rounded-xl px-4 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 transition whitespace-nowrap"
-            >
-              <Trash2 size={16} /> حذف کریں
-            </button>
-
-            <button
-              onClick={clearSelection}
-              className="text-sm text-gray-500 hover:text-gray-700 underline whitespace-nowrap"
-            >
-              منتخب ہٹائیں
-            </button>
-          </div>
-        </div>
-      )}
-
-      {confirmBulkDelete && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
-            <span className="text-5xl">⚠️</span>
-            <h3 className="text-lg font-bold text-gray-800 mt-4">
-              کیا آپ واقعی {selectedIds.length} کتابیں حذف کرنا چاہتے ہیں؟
-            </h3>
-            <p className="text-gray-500 text-sm mt-2">یہ عمل واپس نہیں ہو سکتا۔</p>
-            <div className="mt-6 flex gap-3">
-              <button
-                onClick={handleBulkDeleteConfirmed}
-                disabled={bulkProcessing}
-                className="flex-1 rounded-xl bg-red-600 text-white py-3 hover:bg-red-700 transition disabled:opacity-60"
-              >
-                {bulkProcessing ? "حذف ہو رہا ہے..." : "ہاں، حذف کریں"}
-              </button>
-              <button
-                onClick={() => setConfirmBulkDelete(false)}
-                className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
-              >
-                منسوخ کریں
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {confirmDeleteId !== null && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
-            <span className="text-5xl">⚠️</span>
-            <h3 className="text-lg font-bold text-gray-800 mt-4">کیا آپ واقعی یہ کتاب حذف کرنا چاہتے ہیں؟</h3>
-            <p className="text-gray-500 text-sm mt-2">یہ عمل واپس نہیں ہو سکتا۔</p>
-            <div className="mt-6 flex gap-3">
-              <button
-                onClick={() => handleDeleteBook(confirmDeleteId)}
-                className="flex-1 rounded-xl bg-red-600 text-white py-3 hover:bg-red-700 transition"
-              >
-                ہاں، حذف کریں
-              </button>
-              <button
-                onClick={() => setConfirmDeleteId(null)}
-                className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
-              >
-                منسوخ کریں
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {zoomedImage && (
-        <div
-          onClick={() => setZoomedImage(null)}
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-[70] p-4 cursor-zoom-out"
+        {/* سائیڈ بار مینو */}
+        <aside
+          className={`w-64 min-h-screen md:h-screen md:sticky md:top-0 md:overflow-y-auto bg-blue-400 p-6 flex flex-col fixed inset-y-0 right-0 z-50 flex-shrink-0 transform transition-transform duration-300 ${
+            mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
+          }`}
         >
-          <button
-            onClick={() => setZoomedImage(null)}
-            className="absolute top-4 left-4 text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition"
-          >
-            <X size={24} />
-          </button>
-          <img
-            src={zoomedImage}
-            alt="بڑی تصویر"
-            className="w-full max-w-2xl max-h-[90vh] object-contain rounded-lg"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
-      {showImageEditor && editingImageSrc && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl text-center">
-            <h3 className="text-lg font-bold text-gray-800">تصویر درست کریں</h3>
-            <p className="text-xs text-gray-400 mt-1">فریم کو گھسیٹ کر کاٹنے کی جگہ منتخب کریں</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-md">
+                <BookOpen className="text-white" size={20} />
+              </div>
+              <h1 className="text-lg font-bold text-white">مكتبہ الزھراء</h1>
+            </div>
+            <button onClick={() => setMobileMenuOpen(false)} className="md:hidden text-white/80 hover:text-white">
+              <X size={22} />
+            </button>
+          </div>
 
-            <div
-  className="mt-4 relative overflow-hidden rounded-xl bg-gray-900 h-72 select-none"
-  onMouseMove={(e) => onDragMove(e, e.currentTarget)}
-  onMouseUp={endDrag}
-  onMouseLeave={endDrag}
-  onTouchMove={(e) => onDragMove(e, e.currentTarget)}
-  onTouchEnd={endDrag}
-  onTouchCancel={endDrag}
->
-              <img
-                src={editingImageSrc}
-                alt="edit preview"
-                style={{ transform: `rotate(${rotationDegrees}deg)` }}
-                className="absolute inset-0 w-full h-full object-contain transition-transform pointer-events-none"
-              />
-              <div
-                className="absolute border-2 border-emerald-400 bg-emerald-400/10 cursor-move"
-                style={{
-                  left: `${cropBox.x}%`,
-                  top: `${cropBox.y}%`,
-                  width: `${cropBox.w}%`,
-                  height: `${cropBox.h}%`,
-                }}
-                onMouseDown={(e) => startDrag(e, "move", e.currentTarget.parentElement as HTMLDivElement)}
-                onTouchStart={(e) => startDrag(e, "move", e.currentTarget.parentElement as HTMLDivElement)}
-              >
-                <div className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-nwse-resize"
-                  onMouseDown={(e) => startDrag(e, "tl", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
-                  onTouchStart={(e) => startDrag(e, "tl", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
-                <div className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-nesw-resize"
-                  onMouseDown={(e) => startDrag(e, "tr", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
-                  onTouchStart={(e) => startDrag(e, "tr", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
-                <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-nesw-resize"
-                  onMouseDown={(e) => startDrag(e, "bl", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
-                  onTouchStart={(e) => startDrag(e, "bl", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
-                <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-nwse-resize"
-                  onMouseDown={(e) => startDrag(e, "br", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
-                  onTouchStart={(e) => startDrag(e, "br", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
+          <nav className="mt-10 space-y-1.5 flex-1">
+            <p className="text-white/50 text-xs font-medium px-3 mb-2">مینو</p>
+            <Link href="/" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+              <LayoutDashboard size={19} /> ڈیش بورڈ
+            </Link>
+            <Link href="/books" className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500 text-white font-medium shadow-md">
+              <BookOpen size={19} /> کتب
+            </Link>
+            <Link href="/authors" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+              <PenLine size={19} /> مصنفین
+            </Link>
+            <Link href="/categories" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+              <FolderTree size={19} /> زمرے
+            </Link>
+            <Link href="/orders" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+              <ShoppingCart size={19} /> آرڈرز
+            </Link>
+            <Link href="/customers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+              <Users size={19} /> کسٹمرز
+            </Link>
+            <Link href="/invoices" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+              <Receipt size={19} /> رسیدیں
+            </Link>
+            <Link href="/suppliers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+              <Truck size={19} /> سپلائرز
+            </Link>
+            <Link href="/loyalty" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+              <Gift size={19} /> لائلٹی پوائنٹس
+            </Link>
+            <Link href="/coupons" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+              <Ticket size={19} /> کوپنز
+            </Link>
+            <Link href="/returns" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+              <RotateCcw size={19} /> واپسی/خراب
+            </Link>
+            <Link href="/reviews" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+              <Star size={19} /> ریویوز
+            </Link>
+            <Link href="/low-stock" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+              <PackageMinus size={19} /> کم سٹاک
+            </Link>
+            <Link href="/expenses" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
+              <Wallet size={19} /> اخراجات
+            </Link>
+          </nav>
 
-                <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-ns-resize"
-                  onMouseDown={(e) => startDrag(e, "t", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
-                  onTouchStart={(e) => startDrag(e, "t", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
-                <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-ns-resize"
-                  onMouseDown={(e) => startDrag(e, "b", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
-                  onTouchStart={(e) => startDrag(e, "b", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
-                <div className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-ew-resize"
-                  onMouseDown={(e) => startDrag(e, "l", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
-                  onTouchStart={(e) => startDrag(e, "l", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
-                <div className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-ew-resize"
-                  onMouseDown={(e) => startDrag(e, "r", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
-                  onTouchStart={(e) => startDrag(e, "r", e.currentTarget.parentElement?.parentElement as HTMLDivElement)} />
+          <div className="border-t border-white/20 pt-4 space-y-3">
+            <button
+              onClick={() => {
+                document.cookie = "maktaba-auth=; path=/; max-age=0";
+                window.location.href = "/login";
+              }}
+              className="flex items-center gap-3 p-3 rounded-xl w-full text-white/80 hover:bg-white/[0.15] hover:text-white transition"
+            >
+              <LogOut size={19} /> لاگ آؤٹ
+            </button>
+            <p className="text-white/50 text-xs text-center">مكتبہ الزھراء © 2026</p>
+          </div>
+        </aside>
+
+        {/* الگ سائیڈ فلٹر پینل (درخواست کردہ ڈرائر) */}
+        {showFilterSidebar && (
+          <div className="fixed inset-0 z-50 flex">
+            <div className="fixed inset-0 bg-black/40" onClick={() => setShowFilterSidebar(false)} />
+            <div className="relative w-80 bg-white min-h-full p-6 shadow-2xl flex flex-col z-10 overflow-y-auto">
+              <div className="flex items-center justify-between pb-4 border-b border-gray-200">
+                <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                  <Filter size={18} /> کسٹم فلٹرز
+                </h3>
+                <button onClick={() => setShowFilterSidebar(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="mt-6 space-y-5 flex-1">
+                {/* 2. قیمت فلٹر (Price From/To) */}
+                <div>
+                  <label className="text-sm font-semibold text-gray-700 mb-2 block">قیمت حد (Price Filter)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      placeholder="کم سے کم"
+                      value={filterPriceFrom}
+                      onChange={(e) => setFilterPriceFrom(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 p-2.5 text-sm bg-white"
+                    />
+                    <span className="text-gray-400">-</span>
+                    <input
+                      type="number"
+                      placeholder="زیادہ سے زیادہ"
+                      value={filterPriceTo}
+                      onChange={(e) => setFilterPriceTo(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 p-2.5 text-sm bg-white"
+                    />
+                  </div>
+                </div>
+
+                {/* 3. زبان (Language) فلٹر */}
+                <div>
+                  <label className="text-sm font-semibold text-gray-700 mb-2 block">زبان (Language)</label>
+                  <select
+                    value={filterLanguage}
+                    onChange={(e) => setFilterLanguage(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 p-3 bg-white text-sm"
+                  >
+                    <option value="">تمام زبانیں</option>
+                    <option value="اردو">اردو</option>
+                    <option value="عربی">عربی</option>
+                    <option value="انگلش">English</option>
+                    <option value="فارسی">فارسی</option>
+                    {existingLanguages.map(
+                      (lang) =>
+                        !["اردو", "عربی", "انگلش", "فارسی"].includes(lang) && (
+                          <option key={lang} value={lang}>{lang}</option>
+                        )
+                    )}
+                  </select>
+                </div>
+
+                {/* 4. "صرف سٹاک میں موجود" چیک باکس */}
+                <div className="pt-2">
+                  <label className="flex items-center gap-3 text-sm font-medium text-gray-700 cursor-pointer bg-emerald-50/50 border border-emerald-100 p-3 rounded-xl">
+                    <input
+                      type="checkbox"
+                      checked={inStockOnly}
+                      onChange={(e) => setInStockOnly(e.target.checked)}
+                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                    />
+                    "صرف سٹاک میں موجود" کتب
+                  </label>
+                </div>
+              </div>
+
+              {/* Apply/Clear بٹنز */}
+              <div className="pt-6 border-t border-gray-200 flex gap-2">
+                <button
+                  onClick={() => setShowFilterSidebar(false)}
+                  className="flex-1 rounded-xl bg-emerald-700 text-white py-2.5 font-medium hover:bg-emerald-800 transition text-sm"
+                >
+                  Apply (لاگو کریں)
+                </button>
+                <button
+                  onClick={resetAllFilters}
+                  className="rounded-xl border border-gray-200 bg-gray-50 text-gray-700 px-4 py-2.5 font-medium hover:bg-gray-100 transition text-sm"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <section className="flex-1 min-w-0 pb-28">
+          <div className="md:sticky md:top-0 md:z-30 bg-gray-50 p-5 md:p-10 md:pb-0">
+            <div className="flex items-center justify-between md:hidden mb-4">
+              <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm">
+                <Menu size={22} />
+              </button>
+              <h1 className="text-lg font-bold text-emerald-800">مكتبہ الزھراء</h1>
+            </div>
+
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-900">ہماری کتب</h2>
+                <p className="mt-2 text-gray-500">مكتبہ الزھراء کی کتب</p>
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto flex-wrap">
+                <button
+                  onClick={() => setShowCartModal(true)}
+                  className="relative flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition shadow-sm font-medium"
+                >
+                  <ShoppingCart size={18} />
+                  ٹوکری
+                  {cartCount > 0 && (
+                    <span className="absolute -top-2 -left-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                      {cartCount}
+                    </span>
+                  )}
+                </button>
+
+                <label className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition shadow-sm cursor-pointer font-medium">
+                  <FileSpreadsheet size={18} />
+                  {importing ? "درآمد ہو رہا ہے..." : "Excel سے درآمد کریں"}
+                  <input type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelImport} disabled={importing} className="hidden" />
+                </label>
+
+                <button
+                  onClick={handleDownloadPDF}
+                  className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition shadow-sm font-medium"
+                >
+                  <FileDown size={18} />
+                  PDF ڈاؤن لوڈ کریں
+                </button>
+
+                <button
+                  onClick={() => handlePrintLabels(filteredBooks)}
+                  className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition shadow-sm font-medium"
+                >
+                  <Printer size={18} />
+                  لیبلز پرنٹ کریں
+                </button>
+
+                <button
+                  onClick={() => {
+                    setEditingId(null);
+                    setNewTitle("");
+                    setNewAuthor("");
+                    setNewCategory("");
+                    setNewLanguage("اردو");
+                    setNewPrice("");
+                    setNewWeight("");
+                    setNewStock("");
+                    setNewCostPrice("");
+                    setNewSlug("");
+                    setImageFile(null);
+                    setImagePreview(null);
+                    setExistingImageUrl(null);
+                    setSaveError(null);
+                    setShowModal(true);
+                  }}
+                  className="rounded-xl px-5 py-3 bg-emerald-700 text-white hover:bg-emerald-800 transition shadow-sm w-full md:w-auto"
+                >
+                  + کتاب شامل کریں
+                </button>
               </div>
             </div>
 
-            <div className="mt-4 flex justify-center gap-3">
-              <button
-                onClick={() => rotateImage(-90)}
-                className="flex items-center gap-2 rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200 transition text-sm"
-              >
-                <RotateCcw size={16} /> بائیں گھمائیں
-              </button>
-              <button
-                onClick={() => rotateImage(90)}
-                className="flex items-center gap-2 rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200 transition text-sm"
-              >
-                <RotateCw size={16} /> دائیں گھمائیں
-              </button>
-              <button
-                onClick={() => setCropBox({ x: 0, y: 0, w: 100, h: 100 })}
-                className="rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200 transition text-sm"
-              >
-                پوری تصویر
-              </button>
-            </div>
-
-            <div className="mt-6 flex gap-3">
-              <button
-                onClick={handleConfirmImageEdit}
-                className="flex-1 rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition"
-              >
-                تصدیق کریں
-              </button>
-              <button
-                onClick={() => {
-                  setShowImageEditor(false);
-                  setEditingImageSrc(null);
-                  setCropBox({ x: 10, y: 10, w: 80, h: 80 });
-                }}
-                className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
-              >
-                منسوخ کریں
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-gray-800">{editingId ? "کتاب میں ترمیم کریں" : "نئی کتاب شامل کریں"}</h3>
-
-            {saveError && (
-              <div className="mt-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2">
-                {saveError}
+            {importResult && (
+              <div className="mt-3 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-sm px-4 py-2">
+                {importResult}
               </div>
             )}
 
-            <label className="mt-5 block">
-              <span className="text-sm text-gray-600">کتاب کی تصویر (اختیاری)</span>
-              {imagePreview && (
-                <div className="mt-2 relative h-32 w-full">
-                  <Image src={imagePreview} alt="preview" fill className="rounded-lg object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setImagePreview(null);
-                      setImageFile(null);
-                      setExistingImageUrl(null);
-                    }}
-                    className="absolute top-2 left-2 bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center shadow-md hover:bg-red-600 transition"
-                    title="تصویر ہٹائیں"
-                  >
-                    <X size={16} />
-                  </button>
+            {/* فلٹرز سیکشن */}
+            <div className="mt-8 flex flex-col md:flex-row gap-3">
+              <input
+                type="text"
+                placeholder="کتاب تلاش کریں..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="flex-1 rounded-xl border border-gray-200 p-4 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition"
+              />
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                className="rounded-xl border border-gray-200 p-4 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition md:w-48"
+              >
+                <option value="">تمام زمرے</option>
+                {existingCategories.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              <select
+                value={filterAuthor}
+                onChange={(e) => setFilterAuthor(e.target.value)}
+                className="rounded-xl border border-gray-200 p-4 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition md:w-48"
+              >
+                <option value="">تمام مصنفین</option>
+                {existingAuthors.map((author) => (
+                  <option key={author} value={author}>{author}</option>
+                ))}
+              </select>
+
+              {/* الگ سائیڈ پینل کھولنے والا بٹن */}
+              <button
+                onClick={() => setShowFilterSidebar(true)}
+                className="flex items-center justify-center gap-2 rounded-xl border bg-white border-gray-200 text-gray-700 px-5 py-4 hover:bg-gray-50 transition font-medium"
+              >
+                <Filter size={18} />
+                مزید فلٹرز
+              </button>
+
+              <button
+                onClick={() => setShowWishlistOnly((v) => !v)}
+                className={`flex items-center justify-center gap-2 rounded-xl border px-5 py-4 transition font-medium ${
+                  showWishlistOnly
+                    ? "bg-rose-50 border-rose-300 text-rose-600"
+                    : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                <Heart size={18} className={showWishlistOnly ? "fill-rose-500" : ""} />
+                پسندیدہ
+              </button>
+            </div>
+
+            {hasActiveFilters && (
+              <div className="mt-4 flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-gray-500">{filteredBooks.length} نتائج ملے</span>
+                <button
+                  onClick={resetAllFilters}
+                  className="text-sm text-emerald-700 hover:text-emerald-900 underline"
+                >
+                  تمام فلٹرز صاف کریں
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="px-5 md:px-10">
+            {!loaded ? (
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="w-full rounded-2xl border border-gray-200 bg-white p-6 animate-pulse">
+                    <div className="h-40 w-full rounded-xl bg-gray-200" />
+                    <div className="h-5 w-3/4 bg-gray-200 rounded mt-5 mx-auto" />
+                    <div className="h-4 w-1/2 bg-gray-200 rounded mt-3 mx-auto" />
+                    <div className="h-8 w-full bg-gray-200 rounded-lg mt-5" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+                {filteredBooks.length === 0 && (
+                  <div className="col-span-full flex flex-col items-center justify-center py-16 text-center">
+                    <span className="text-6xl mb-4">📖</span>
+                    <p className="text-gray-500 text-lg">کوئی کتاب نہیں ملی</p>
+                    <p className="text-gray-400 text-sm mt-1">کوئی مختلف نام تلاش کریں یا نئی کتاب شامل کریں</p>
+                  </div>
+                )}
+
+                {filteredBooks.map((book) => {
+                  const ratingInfo = getBookRating(book.title);
+                  const stockInfo = getStockStatus(book.stock ?? 0);
+                  const outOfStock = (book.stock ?? 0) <= 0;
+                  const inCart = cart.find((item) => item.id === book.id);
+                  const isWished = wishlist.includes(book.id);
+                  const isSelected = selectedIds.includes(book.id);
+
+                  return (
+                    <div
+                      key={book.id}
+                      className={`relative w-full rounded-2xl border bg-white p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col items-center text-center ${
+                        isSelected ? "border-emerald-400 ring-2 ring-emerald-200" : "border-gray-200"
+                      }`}
+                    >
+                      <button
+                        onClick={() => toggleSelect(book.id)}
+                        className="absolute top-3 right-3 z-10 bg-white/90 rounded-md p-1 shadow-sm text-emerald-700"
+                        title="منتخب کریں"
+                      >
+                        {isSelected ? <CheckSquare size={20} /> : <Square size={20} />}
+                      </button>
+
+                      <button
+                        onClick={() => toggleWishlist(book.id)}
+                        className={`absolute top-3 left-3 z-10 rounded-full p-1.5 shadow-sm transition ${
+                          isWished ? "bg-rose-50 text-rose-500" : "bg-white/90 text-gray-400 hover:text-rose-500"
+                        }`}
+                        title="پسندیدہ"
+                      >
+                        <Heart size={18} className={isWished ? "fill-rose-500" : ""} />
+                      </button>
+
+                      <div
+                        onClick={() => book.image_url && setZoomedImage(book.image_url)}
+                        className={`relative w-full aspect-[3/4] rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center border border-amber-200 overflow-hidden ${
+                          book.image_url ? "cursor-pointer" : ""
+                        }`}
+                      >
+                        {book.image_url ? (
+                          <Image
+                            src={book.image_url}
+                            alt={book.title}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          />
+                        ) : (
+                          <span className="text-6xl">📚</span>
+                        )}
+                      </div>
+
+                      <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${stockInfo.color}`}>
+                        {stockInfo.icon === "in" && <PackageCheck size={13} />}
+                        {stockInfo.icon === "low" && <PackageMinus size={13} />}
+                        {stockInfo.icon === "out" && <PackageX size={13} />}
+                        {stockInfo.label}
+                        {(book.stock ?? 0) > 0 && ` (${book.stock})`}
+                      </div>
+
+                      <h3 className="mt-3 text-xl font-bold text-gray-800 line-clamp-2">{book.title}</h3>
+                      <p className="mt-2 text-gray-500 text-sm">{book.author}</p>
+
+                      {ratingInfo && (
+                        <div className="mt-2 flex items-center gap-1">
+                          <Star size={15} className="fill-amber-400 text-amber-400" />
+                          <span className="text-sm font-bold text-gray-700">{ratingInfo.avg}</span>
+                          <span className="text-xs text-gray-400">({ratingInfo.count} ریویوز)</span>
+                        </div>
+                      )}
+
+                      <div className="mt-3 flex items-center justify-center gap-2 flex-wrap">
+                        <span className="rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-medium text-emerald-700">
+                          {book.category}
+                        </span>
+                        <span className="rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-xs font-medium text-blue-700">
+                          {book.language || "اردو"}
+                        </span>
+                      </div>
+
+                      {book.price ? (
+                        <div className="mt-3 inline-flex items-baseline gap-1 rounded-xl bg-gradient-to-r from-emerald-50 to-emerald-100/50 border border-emerald-200 px-4 py-1.5 shadow-sm">
+                          <span className="text-xs font-medium text-emerald-600">Rs</span>
+                          <span className="text-2xl font-extrabold text-emerald-700 tracking-tight">
+                            {Number(book.price).toLocaleString()}
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-sm text-gray-400 italic">قیمت درج نہیں</p>
+                      )}
+
+                      {inCart ? (
+                        <div className="mt-4 w-full flex items-center justify-between rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
+                          <button
+                            onClick={() => updateCartQuantity(book.id, -1)}
+                            className="w-7 h-7 rounded-md bg-white text-emerald-700 flex items-center justify-center hover:bg-emerald-100"
+                          >
+                            <Minus size={14} />
+                          </button>
+                          <span className="font-bold text-emerald-800">{inCart.quantity} ٹوکری میں</span>
+                          <button
+                            onClick={() => updateCartQuantity(book.id, 1)}
+                            disabled={inCart.quantity >= (book.stock ?? 0)}
+                            className="w-7 h-7 rounded-md bg-white text-emerald-700 flex items-center justify-center hover:bg-emerald-100 disabled:opacity-40"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => addToCart(book)}
+                          disabled={outOfStock}
+                          className="mt-4 w-full flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-white hover:bg-amber-600 transition font-medium disabled:bg-gray-300 disabled:cursor-not-allowed"
+                        >
+                          <ShoppingCart size={16} />
+                          {outOfStock ? "سٹاک ختم" : "ٹوکری میں ڈالیں"}
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => handleReviewClick(book.title)}
+                        className="mt-2 w-full flex items-center justify-center gap-2 rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200 transition font-medium text-sm"
+                      >
+                        <MessageSquarePlus size={15} />
+                        ریویو دیں
+                      </button>
+
+                      <div className="mt-2 w-full flex gap-2">
+                        <Link
+                          href={`/books/${book.slug || encodeURIComponent(book.title)}`}
+                          className="flex-1 rounded-lg bg-emerald-700 px-4 py-2 text-white hover:bg-emerald-800 transition text-center"
+                        >
+                          تفصیل دیکھیں
+                        </Link>
+                        <button
+                          onClick={() => handleEditClick(book)}
+                          className="rounded-lg bg-amber-50 px-3 py-2 text-amber-700 hover:bg-amber-100 transition"
+                        >
+                          ترمیم
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteId(book.id)}
+                          className="rounded-lg bg-red-50 px-3 py-2 text-red-600 hover:bg-red-100 transition"
+                        >
+                          حذف کریں
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* 5. فوٹر (دفتر کا پتہ اور واٹس ایپ رابطہ) */}
+          <footer className="mt-20 border-t border-gray-200 bg-white text-gray-700 pt-10 pb-8 px-5 md:px-10">
+            <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div>
+                <h3 className="text-lg font-bold text-emerald-800 mb-3 flex items-center gap-2">
+                  <BookOpen size={20} /> مكتبہ الزھراء
+                </h3>
+                <p className="text-sm text-gray-500 leading-relaxed">
+                  آن لائن اسلامک بک سٹور جہاں تمام دینی، علمی و ادبی کتب مناسب قیمت پر دستیاب ہیں۔
+                </p>
+              </div>
+
+              <div>
+                <h4 className="text-base font-bold text-gray-800 mb-3">دفتر کا پتہ</h4>
+                <p className="text-sm text-gray-600 flex items-start gap-2">
+                  <MapPin size={18} className="text-emerald-700 flex-shrink-0 mt-0.5" />
+                  مکتبہ الزہراء، بالمقابل جامعہ مسجد، مین بازار، پاکستان
+                </p>
+              </div>
+
+              <div>
+                <h4 className="text-base font-bold text-gray-800 mb-3">رابطہ کی تفصیلات</h4>
+                <div className="space-y-2 text-sm text-gray-600">
+                  <p className="flex items-center gap-2">
+                    <Phone size={16} className="text-emerald-700" /> 0305-5232889
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <MessageCircle size={16} className="text-emerald-500" /> WhatsApp: 0305-5232889
+                  </p>
+                  <p className="flex items-center gap-2">
+                    <Globe size={16} className="text-emerald-700" /> www.maktabaalzahra.com
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 border-t border-gray-100 pt-4 text-center text-xs text-gray-400">
+              © 2026 مكتبہ الزھراء. جملہ حقوق محفوظ ہیں۔
+            </div>
+          </footer>
+        </section>
+
+        {/* بلک ایکشن بار */}
+        {selectedIds.length > 0 && (
+          <div className="fixed bottom-0 inset-x-0 md:inset-x-auto md:right-64 md:left-0 bg-white border-t border-gray-200 shadow-2xl z-40 p-4">
+            <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center gap-3">
+              <span className="font-bold text-gray-800 whitespace-nowrap">{selectedIds.length} کتابیں منتخب</span>
+
+              <select
+                value={bulkCategory}
+                onChange={(e) => setBulkCategory(e.target.value)}
+                className="rounded-xl border border-gray-200 p-2.5 bg-white flex-1 w-full md:w-auto"
+              >
+                <option value="">زمرہ تبدیل کریں...</option>
+                {existingCategories.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleBulkCategoryChange}
+                disabled={!bulkCategory || bulkProcessing}
+                className="flex items-center gap-2 rounded-xl px-4 py-2.5 bg-emerald-700 text-white hover:bg-emerald-800 transition disabled:opacity-50 whitespace-nowrap"
+              >
+                <Tags size={16} /> لاگو کریں
+              </button>
+
+              <button
+                onClick={() => handlePrintLabels(books.filter((b) => selectedIds.includes(b.id)))}
+                className="flex items-center gap-2 rounded-xl px-4 py-2.5 bg-gray-100 text-gray-700 hover:bg-gray-200 transition whitespace-nowrap"
+              >
+                <Printer size={16} /> لیبلز پرنٹ کریں
+              </button>
+
+              <button
+                onClick={() => setConfirmBulkDelete(true)}
+                disabled={bulkProcessing}
+                className="flex items-center gap-2 rounded-xl px-4 py-2.5 bg-red-50 text-red-600 hover:bg-red-100 transition whitespace-nowrap"
+              >
+                <Trash2 size={16} /> حذف کریں
+              </button>
+
+              <button
+                onClick={clearSelection}
+                className="text-sm text-gray-500 hover:text-gray-700 underline whitespace-nowrap"
+              >
+                منتخب ہٹائیں
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* بلک ڈیلیٹ کنفکرمیشن */}
+        {confirmBulkDelete && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
+              <span className="text-5xl">⚠️</span>
+              <h3 className="text-lg font-bold text-gray-800 mt-4">
+                کیا آپ واقعی {selectedIds.length} کتابیں حذف کرنا چاہتے ہیں؟
+              </h3>
+              <p className="text-gray-500 text-sm mt-2">یہ عمل واپس نہیں ہو سکتا۔</p>
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={handleBulkDeleteConfirmed}
+                  disabled={bulkProcessing}
+                  className="flex-1 rounded-xl bg-red-600 text-white py-3 hover:bg-red-700 transition disabled:opacity-60"
+                >
+                  {bulkProcessing ? "حذف ہو رہا ہے..." : "ہاں، حذف کریں"}
+                </button>
+                <button
+                  onClick={() => setConfirmBulkDelete(false)}
+                  className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
+                >
+                  منسوخ کریں
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* سمیپل ڈیلیٹ کنفرمشین */}
+        {confirmDeleteId !== null && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
+              <span className="text-5xl">⚠️</span>
+              <h3 className="text-lg font-bold text-gray-800 mt-4">کیا آپ واقعی یہ کتاب حذف کرنا چاہتے ہیں؟</h3>
+              <p className="text-gray-500 text-sm mt-2">یہ عمل واپس نہیں ہو سکتا۔</p>
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={() => handleDeleteBook(confirmDeleteId)}
+                  className="flex-1 rounded-xl bg-red-600 text-white py-3 hover:bg-red-700 transition"
+                >
+                  ہاں، حذف کریں
+                </button>
+                <button
+                  onClick={() => setConfirmDeleteId(null)}
+                  className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
+                >
+                  منسوخ کریں
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* تصاوِر زوم موڈل */}
+        {zoomedImage && (
+          <div
+            onClick={() => setZoomedImage(null)}
+            className="fixed inset-0 bg-black/80 flex items-center justify-center z-[70] p-4 cursor-zoom-out"
+          >
+            <button
+              onClick={() => setZoomedImage(null)}
+              className="absolute top-4 left-4 text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition"
+            >
+              <X size={24} />
+            </button>
+            <img
+              src={zoomedImage}
+              alt="بڑی تصویر"
+              className="w-full max-w-2xl max-h-[90vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
+
+        {/* امیج ایڈیٹر */}
+        {showImageEditor && editingImageSrc && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl text-center">
+              <h3 className="text-lg font-bold text-gray-800">تصویر درست کریں</h3>
+              <p className="text-xs text-gray-400 mt-1">فریم کو گھسیٹ کر کاٹنے کی جگہ منتخب کریں</p>
+
+              <div
+                className="mt-4 relative overflow-hidden rounded-xl bg-gray-900 h-72 select-none"
+                onMouseMove={(e) => onDragMove(e, e.currentTarget)}
+                onMouseUp={endDrag}
+                onMouseLeave={endDrag}
+                onTouchMove={(e) => onDragMove(e, e.currentTarget)}
+                onTouchEnd={endDrag}
+                onTouchCancel={endDrag}
+              >
+                <img
+                  src={editingImageSrc}
+                  alt="edit preview"
+                  style={{ transform: `rotate(${rotationDegrees}deg)` }}
+                  className="absolute inset-0 w-full h-full object-contain transition-transform pointer-events-none"
+                />
+                <div
+                  className="absolute border-2 border-emerald-400 bg-emerald-400/10 cursor-move"
+                  style={{
+                    left: `${cropBox.x}%`,
+                    top: `${cropBox.y}%`,
+                    width: `${cropBox.w}%`,
+                    height: `${cropBox.h}%`,
+                  }}
+                  onMouseDown={(e) => startDrag(e, "move", e.currentTarget.parentElement as HTMLDivElement)}
+                  onTouchStart={(e) => startDrag(e, "move", e.currentTarget.parentElement as HTMLDivElement)}
+                >
+                  <div
+                    className="absolute -top-1.5 -left-1.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-nwse-resize"
+                    onMouseDown={(e) => startDrag(e, "tl", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
+                    onTouchStart={(e) => startDrag(e, "tl", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
+                  />
+                  <div
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-nesw-resize"
+                    onMouseDown={(e) => startDrag(e, "tr", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
+                    onTouchStart={(e) => startDrag(e, "tr", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
+                  />
+                  <div
+                    className="absolute -bottom-1.5 -left-1.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-nesw-resize"
+                    onMouseDown={(e) => startDrag(e, "bl", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
+                    onTouchStart={(e) => startDrag(e, "bl", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
+                  />
+                  <div
+                    className="absolute -bottom-1.5 -right-1.5 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white cursor-nwse-resize"
+                    onMouseDown={(e) => startDrag(e, "br", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
+                    onTouchStart={(e) => startDrag(e, "br", e.currentTarget.parentElement?.parentElement as HTMLDivElement)}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 flex justify-center gap-3">
+                <button
+                  onClick={() => rotateImage(-90)}
+                  className="flex items-center gap-2 rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200 transition text-sm"
+                >
+                  <RotateCcw size={16} /> بائیں گھمائیں
+                </button>
+                <button
+                  onClick={() => rotateImage(90)}
+                  className="flex items-center gap-2 rounded-lg bg-gray-100 px-4 py-2 text-gray-700 hover:bg-gray-200 transition text-sm"
+                >
+                  <RotateCw size={16} /> دائیں گھمائیں
+                </button>
+              </div>
+
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={handleConfirmImageEdit}
+                  className="flex-1 rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition"
+                >
+                  تصدیق کریں
+                </button>
+                <button
+                  onClick={() => {
+                    setShowImageEditor(false);
+                    setEditingImageSrc(null);
+                  }}
+                  className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
+                >
+                  منسوخ کریں
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* کتاب شامل یا ترمیم کریں موڈل */}
+        {showModal && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
+              <h3 className="text-xl font-bold text-gray-800">{editingId ? "کتاب میں ترمیم کریں" : "نئی کتاب شامل کریں"}</h3>
+
+              {saveError && (
+                <div className="mt-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2">
+                  {saveError}
                 </div>
               )}
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-emerald-400 transition cursor-pointer relative text-gray-500">
-                  <Upload size={20} />
-                  <span className="text-xs">گیلری سے منتخب کریں</span>
-                  <input type="file" accept="image/*" onChange={handleImageSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
-                </label>
-                <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-emerald-400 transition cursor-pointer relative text-gray-500">
-                  <Upload size={20} />
-                  <span className="text-xs">کیمرہ سے تصویر لیں</span>
-                  <input type="file" accept="image/*" capture="environment" onChange={handleImageSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
-                </label>
-              </div>
-              {compressing && <span className="text-xs text-gray-400 mt-1 block">تصویر کا سائز کم کیا جا رہا ہے...</span>}
-            </label>
 
-            <input
-              type="text"
-              placeholder="کتاب کا نام"
-              value={newTitle}
-              onChange={(e) => {
-                setNewTitle(e.target.value);
-                if (!editingId) setNewSlug(generateSlugFromTitle(e.target.value));
-              }}
-              className="mt-5 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-            />
-
-            <label className="mt-3 block">
-              <span className="text-xs text-gray-500">ویب ایڈریس (URL) — چاہیں تو تبدیل کریں</span>
-              <input
-                type="text"
-                placeholder="book-name-in-roman"
-                value={newSlug}
-                onChange={(e) => setNewSlug(e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""))}
-                dir="ltr"
-                className="mt-1 w-full rounded-xl border border-gray-200 p-3 text-left focus:outline-none focus:ring-2 focus:ring-emerald-600"
-              />
-              <span className="text-[11px] text-gray-400">اگر یہ ایڈریس پہلے سے استعمال ہو رہا ہو تو خود بخود ایک نمبر لگا دیا جائے گا۔</span>
-            </label>
-
-            <input
-              type="text"
-              placeholder="مصنف / ناشر"
-              value={newAuthor}
-              onChange={(e) => setNewAuthor(e.target.value)}
-              className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-            />
-
-            <div className="mt-3 flex gap-3">
-              <label className="flex-1 block">
-                <span className="text-xs text-gray-500">قیمت (روپے)</span>
-                <input
-                  type="number"
-                  placeholder="مثلاً 500"
-                  value={newPrice}
-                  onChange={(e) => setNewPrice(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                />
-              </label>
-              <label className="flex-1 block">
-                <span className="text-xs text-gray-500">وزن (کلوگرام)</span>
-                <input
-                  type="number"
-                  step="0.1"
-                  placeholder="مثلاً 0.5"
-                  value={newWeight}
-                  onChange={(e) => setNewWeight(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                />
-              </label>
-            </div>
-
-            <label className="mt-3 block">
-              <span className="text-xs text-gray-500">سٹاک میں تعداد</span>
-              <input
-                type="number"
-                placeholder="مثلاً 10"
-                value={newStock}
-                onChange={(e) => setNewStock(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-              />
-            </label>
-
-            <label className="mt-3 block">
-              <span className="text-xs text-gray-500">خرید قیمت (لاگت)</span>
-              <input
-                type="number"
-                placeholder="مثلاً 300"
-                value={newCostPrice}
-                onChange={(e) => setNewCostPrice(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-              />
-            </label>
-
-            <select
-              value={newCategory}
-              onChange={(e) => setNewCategory(e.target.value)}
-              className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
-            >
-              <option value="">زمرہ منتخب کریں</option>
-              {existingCategories.map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-              <option value="__new__">+ نیا زمرہ شامل کریں</option>
-            </select>
-
-            {newCategory === "__new__" && (
-              <input
-                type="text"
-                placeholder="نئے زمرے کا نام لکھیں"
-                value={customCategory}
-                onChange={(e) => setCustomCategory(e.target.value)}
-                className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                autoFocus
-              />
-            )}
-
-            <div className="mt-6 flex gap-3">
-              <button
-                onClick={handleAddBook}
-                disabled={uploading || compressing}
-                className="flex-1 rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition disabled:opacity-60"
-              >
-                {uploading ? "محفوظ ہو رہا ہے..." : editingId ? "محفوظ کریں" : "شامل کریں"}
-              </button>
-              <button
-                onClick={() => {
-                  setShowModal(false);
-                  setEditingId(null);
-                  setNewTitle("");
-                  setNewAuthor("");
-                  setNewCategory("");
-                  setCustomCategory("");
-                  setNewPrice("");
-                  setNewWeight("");
-                  setNewStock("");
-                  setNewCostPrice("");
-                  setNewSlug("");
-                  setImageFile(null);
-                  setImagePreview(null);
-                  setExistingImageUrl(null);
-                  setSaveError(null);
-                }}
-                className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
-              >
-                منسوخ کریں
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showCartModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
-            {cartSuccess ? (
-              <div className="text-center py-6">
-                <span className="text-5xl">✅</span>
-                <h3 className="text-xl font-bold text-gray-800 mt-4">آرڈر موصول ہو گیا</h3>
-                <p className="text-gray-500 mt-2">ہم جلد آپ سے رابطہ کریں گے۔ شکریہ!</p>
-                <button
-                  onClick={closeCartModal}
-                  className="mt-6 w-full rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition"
-                >
-                  ٹھیک ہے
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-gray-800">آپ کی ٹوکری</h3>
-                  <button onClick={() => setShowCartModal(false)} className="text-gray-400 hover:text-gray-600">
-                    <X size={22} />
-                  </button>
-                </div>
-
-                {cart.length === 0 ? (
-                  <div className="mt-8 flex flex-col items-center justify-center text-center py-8">
-                    <span className="text-5xl mb-3">🛒</span>
-                    <p className="text-gray-500">آپ کی ٹوکری خالی ہے</p>
+              <label className="mt-5 block">
+                <span className="text-sm text-gray-600">کتاب کی تصویر (اختیاری)</span>
+                {imagePreview && (
+                  <div className="mt-2 relative h-32 w-full">
+                    <Image src={imagePreview} alt="preview" fill className="rounded-lg object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImagePreview(null);
+                        setImageFile(null);
+                        setExistingImageUrl(null);
+                      }}
+                      className="absolute top-2 left-2 bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center shadow-md hover:bg-red-600 transition"
+                    >
+                      <X size={16} />
+                    </button>
                   </div>
-                ) : (
-                  <>
-                    <div className="mt-4 space-y-3">
-                      {cart.map((item) => (
-                        <div key={item.id} className="flex items-center justify-between rounded-xl border border-gray-200 p-3">
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-800 text-sm">{item.title}</p>
-                            <p className="text-xs text-gray-500 mt-0.5">Rs {item.price} × {item.quantity} = Rs {item.price * item.quantity}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => updateCartQuantity(item.id, -1)}
-                              className="w-7 h-7 rounded-md bg-gray-100 text-gray-700 flex items-center justify-center hover:bg-gray-200"
-                            >
-                              <Minus size={14} />
-                            </button>
-                            <span className="w-6 text-center font-bold">{item.quantity}</span>
-                            <button
-                              onClick={() => updateCartQuantity(item.id, 1)}
-                              disabled={item.quantity >= item.stock}
-                              className="w-7 h-7 rounded-md bg-gray-100 text-gray-700 flex items-center justify-center hover:bg-gray-200 disabled:opacity-40"
-                            >
-                              <Plus size={14} />
-                            </button>
-                            <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700 mr-1">
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="mt-5 rounded-xl bg-gray-50 border border-gray-200 p-4 space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">کتابوں کی مجموعی قیمت</span>
-                        <span className="font-medium text-gray-800">{cartSubtotal} روپے</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">ڈیلیوری چارجز</span>
-                        <span className="font-medium text-gray-800">{cartDeliveryCharge} روپے</span>
-                      </div>
-                      <div className="border-t border-gray-200 pt-2 flex justify-between">
-                        <span className="font-bold text-gray-800">کل بل</span>
-                        <span className="font-bold text-emerald-700 text-lg">{cartTotalBill} روپے</span>
-                      </div>
-                    </div>
-
-                    <input
-                      type="text"
-                      placeholder="آپ کا نام"
-                      value={cartName}
-                      onChange={(e) => setCartName(e.target.value)}
-                      className="mt-4 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                    />
-                    <input
-                      type="tel"
-                      placeholder="فون نمبر"
-                      value={cartPhone}
-                      onChange={(e) => setCartPhone(e.target.value)}
-                      className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                    />
-                    <textarea
-                      placeholder="مکمل پتہ"
-                      value={cartAddress}
-                      onChange={(e) => setCartAddress(e.target.value)}
-                      rows={3}
-                      className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 resize-none"
-                    />
-
-                    <div className="mt-6 space-y-3">
-                      <button
-                        onClick={handleSubmitCartOrder}
-                        disabled={cartSubmitting}
-                        className="w-full rounded-xl bg-amber-500 text-white py-3 hover:bg-amber-600 transition disabled:opacity-60"
-                      >
-                        {cartSubmitting ? "بھیجا جا رہا ہے..." : "آرڈر بھیجیں"}
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (cartName.trim() === "" || cartPhone.trim() === "") return;
-                          sendCartToWhatsApp();
-                        }}
-                        className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#25D366] text-white py-3 hover:bg-[#20BD5A] transition font-medium"
-                      >
-                        <MessageCircle size={18} />
-                        WhatsApp پر آرڈر بھیجیں
-                      </button>
-                      <button
-                        onClick={() => setShowCartModal(false)}
-                        className="w-full rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
-                      >
-                        بند کریں
-                      </button>
-                    </div>
-                  </>
                 )}
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {showReviewModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
-            {reviewSuccess ? (
-              <div className="text-center py-6">
-                <span className="text-5xl">✅</span>
-                <h3 className="text-xl font-bold text-gray-800 mt-4">ریویو موصول ہو گیا</h3>
-                <p className="text-gray-500 mt-2">آپ کا ریویو منظوری کے بعد نظر آئے گا۔ شکریہ!</p>
-                <button
-                  onClick={() => setShowReviewModal(false)}
-                  className="mt-6 w-full rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition"
-                >
-                  ٹھیک ہے
-                </button>
-              </div>
-            ) : (
-              <>
-                <h3 className="text-xl font-bold text-gray-800">ریویو دیں</h3>
-                <p className="text-gray-500 text-sm mt-1">{reviewBookTitle}</p>
-
-                <div className="mt-5">
-                  <span className="text-sm text-gray-600">ریٹنگ</span>
-                  <div className="mt-2 flex items-center gap-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button key={star} onClick={() => setReviewRating(star)} className="transition">
-                        <Star size={30} className={star <= reviewRating ? "fill-amber-400 text-amber-400" : "text-gray-300"} />
-                      </button>
-                    ))}
-                  </div>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-emerald-400 transition cursor-pointer relative text-gray-500">
+                    <Upload size={20} />
+                    <span className="text-xs">گیلری سے منتخب کریں</span>
+                    <input type="file" accept="image/*" onChange={handleImageSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
+                  </label>
+                  <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-emerald-400 transition cursor-pointer relative text-gray-500">
+                    <Upload size={20} />
+                    <span className="text-xs">کیمرہ سے تصویر لیں</span>
+                    <input type="file" accept="image/*" capture="environment" onChange={handleImageSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
+                  </label>
                 </div>
+              </label>
 
+              <input
+                type="text"
+                placeholder="کتاب کا نام"
+                value={newTitle}
+                onChange={(e) => {
+                  setNewTitle(e.target.value);
+                  if (!editingId) setNewSlug(generateSlugFromTitle(e.target.value));
+                }}
+                className="mt-5 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              />
+
+              <input
+                type="text"
+                placeholder="مصنف / ناشر"
+                value={newAuthor}
+                onChange={(e) => setNewAuthor(e.target.value)}
+                className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              />
+
+              {/* زبان سلیکشن */}
+              <select
+                value={newLanguage}
+                onChange={(e) => setNewLanguage(e.target.value)}
+                className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
+              >
+                <option value="اردو">اردو</option>
+                <option value="عربی">عربی</option>
+                <option value="انگلش">English</option>
+                <option value="فارسی">فارسی</option>
+              </select>
+
+              <div className="mt-3 flex gap-3">
+                <label className="flex-1 block">
+                  <span className="text-xs text-gray-500">قیمت (روپے)</span>
+                  <input
+                    type="number"
+                    placeholder="مثلاً 500"
+                    value={newPrice}
+                    onChange={(e) => setNewPrice(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+                </label>
+                <label className="flex-1 block">
+                  <span className="text-xs text-gray-500">وزن (کلوگرام)</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    placeholder="مثلاً 0.5"
+                    value={newWeight}
+                    onChange={(e) => setNewWeight(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-3 flex gap-3">
+                <label className="flex-1 block">
+                  <span className="text-xs text-gray-500">سٹاک میں تعداد</span>
+                  <input
+                    type="number"
+                    placeholder="مثلاً 10"
+                    value={newStock}
+                    onChange={(e) => setNewStock(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+                </label>
+                <label className="flex-1 block">
+                  <span className="text-xs text-gray-500">خرید قیمت (لاگت)</span>
+                  <input
+                    type="number"
+                    placeholder="مثلاً 300"
+                    value={newCostPrice}
+                    onChange={(e) => setNewCostPrice(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+                </label>
+              </div>
+
+              <select
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
+              >
+                <option value="">زمرہ منتخب کریں</option>
+                {existingCategories.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+                <option value="__new__">+ نیا زمرہ شامل کریں</option>
+              </select>
+
+              {newCategory === "__new__" && (
                 <input
                   type="text"
-                  placeholder="آپ کا نام"
-                  value={reviewName}
-                  onChange={(e) => setReviewName(e.target.value)}
-                  className="mt-4 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  placeholder="نئے زمرے کا نام لکھیں"
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
                 />
-                <textarea
-                  placeholder="اپنا تبصرہ لکھیں..."
-                  value={reviewComment}
-                  onChange={(e) => setReviewComment(e.target.value)}
-                  rows={4}
-                  className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 resize-none"
-                />
+              )}
 
-                <div className="mt-6 flex gap-3">
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={handleAddBook}
+                  disabled={uploading || compressing}
+                  className="flex-1 rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition disabled:opacity-60"
+                >
+                  {uploading ? "محفوظ ہو رہا ہے..." : editingId ? "محفوظ کریں" : "شامل کریں"}
+                </button>
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
+                >
+                  منسوخ کریں
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* کارٹ موڈل */}
+        {showCartModal && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+              {cartSuccess ? (
+                <div className="text-center py-6">
+                  <span className="text-5xl">✅</span>
+                  <h3 className="text-xl font-bold text-gray-800 mt-4">آرڈر موصول ہو گیا</h3>
+                  <p className="text-gray-500 mt-2">ہم جلد آپ سے رابطہ کریں گے۔ شکریہ!</p>
                   <button
-                    onClick={handleSubmitReview}
-                    disabled={reviewSubmitting}
-                    className="flex-1 rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition disabled:opacity-60"
+                    onClick={closeCartModal}
+                    className="mt-6 w-full rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition"
                   >
-                    {reviewSubmitting ? "بھیجا جا رہا ہے..." : "ریویو بھیجیں"}
-                  </button>
-                  <button
-                    onClick={() => setShowReviewModal(false)}
-                    className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
-                  >
-                    منسوخ کریں
+                    ٹھیک ہے
                   </button>
                 </div>
-              </>
-            )}
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xl font-bold text-gray-800">آپ کی ٹوکری</h3>
+                    <button onClick={() => setShowCartModal(false)} className="text-gray-400 hover:text-gray-600">
+                      <X size={22} />
+                    </button>
+                  </div>
+
+                  {cart.length === 0 ? (
+                    <div className="mt-8 flex flex-col items-center justify-center text-center py-8">
+                      <span className="text-5xl mb-3">🛒</span>
+                      <p className="text-gray-500">آپ کی ٹوکری خالی ہے</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mt-4 space-y-3 max-h-48 overflow-y-auto pr-1">
+                        {cart.map((item) => (
+                          <div key={item.id} className="flex items-center justify-between rounded-xl border border-gray-200 p-3">
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-800 text-sm">{item.title}</p>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                Rs {item.price} × {item.quantity} = Rs {item.price * item.quantity}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => updateCartQuantity(item.id, -1)}
+                                className="w-7 h-7 rounded-md bg-gray-100 text-gray-700 flex items-center justify-center hover:bg-gray-200"
+                              >
+                                <Minus size={14} />
+                              </button>
+                              <span className="w-6 text-center font-bold text-sm">{item.quantity}</span>
+                              <button
+                                onClick={() => updateCartQuantity(item.id, 1)}
+                                disabled={item.quantity >= item.stock}
+                                className="w-7 h-7 rounded-md bg-gray-100 text-gray-700 flex items-center justify-center hover:bg-gray-200 disabled:opacity-40"
+                              >
+                                <Plus size={14} />
+                              </button>
+                              <button
+                                onClick={() => removeFromCart(item.id)}
+                                className="w-7 h-7 rounded-md bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 mr-1"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-4 rounded-xl bg-gray-50 p-4 space-y-2 text-sm border border-gray-100">
+                        <div className="flex justify-between text-gray-600">
+                          <span>کتابوں کی مجموعی قیمت:</span>
+                          <span>Rs {cartSubtotal}</span>
+                        </div>
+                        <div className="flex justify-between text-gray-600">
+                          <span>ڈیلیوری چارجز ({cartTotalWeight.toFixed(1)} kg):</span>
+                          <span>Rs {cartDeliveryCharge}</span>
+                        </div>
+                        <div className="border-t border-gray-200 pt-2 flex justify-between font-bold text-gray-900 text-base">
+                          <span>کل بل:</span>
+                          <span className="text-emerald-700">Rs {cartTotalBill}</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 space-y-3">
+                        <input
+                          type="text"
+                          placeholder="آپ کا نام *"
+                          value={cartName}
+                          onChange={(e) => setCartName(e.target.value)}
+                          className="w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                        />
+                        <input
+                          type="text"
+                          placeholder="فون نمبر *"
+                          value={cartPhone}
+                          onChange={(e) => setCartPhone(e.target.value)}
+                          className="w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                        />
+                        <textarea
+                          placeholder="مکمل پتہ"
+                          value={cartAddress}
+                          onChange={(e) => setCartAddress(e.target.value)}
+                          className="w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 h-20"
+                        />
+                      </div>
+
+                      <div className="mt-6 flex flex-col gap-2">
+                        <button
+                          onClick={handleSubmitCartOrder}
+                          disabled={cartSubmitting || !cartName.trim() || !cartPhone.trim()}
+                          className="w-full rounded-xl bg-emerald-700 text-white py-3 font-medium hover:bg-emerald-800 transition disabled:opacity-50"
+                        >
+                          {cartSubmitting ? "آرڈر بھیجا جا رہا ہے..." : "آرڈر کنفرم کریں"}
+                        </button>
+                        <button
+                          onClick={sendCartToWhatsApp}
+                          disabled={!cartName.trim() || !cartPhone.trim()}
+                          className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-500 text-white py-3 font-medium hover:bg-emerald-600 transition disabled:opacity-50"
+                        >
+                          <MessageCircle size={18} /> WhatsApp کے ذریعے آرڈر کریں
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* ریویو موڈل */}
+        {showReviewModal && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-md shadow-xl">
+              {reviewSuccess ? (
+                <div className="text-center py-6">
+                  <span className="text-5xl">⭐</span>
+                  <h3 className="text-xl font-bold text-gray-800 mt-4">ریویو دینے کا شکریہ!</h3>
+                  <p className="text-gray-500 mt-2">آپ کا ریویو ایڈمن کی منظوری کے بعد ظاہر ہو جائے گا۔</p>
+                  <button
+                    onClick={() => setShowReviewModal(false)}
+                    className="mt-6 w-full rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition"
+                  >
+                    ٹھیک ہے
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xl font-bold text-gray-800">کتاب کا ریویو دیں</h3>
+                    <button onClick={() => setShowReviewModal(false)} className="text-gray-400 hover:text-gray-600">
+                      <X size={22} />
+                    </button>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-1">
+                    کتاب: <span className="font-bold text-gray-700">{reviewBookTitle}</span>
+                  </p>
+
+                  <div className="mt-4 space-y-3">
+                    <input
+                      type="text"
+                      placeholder="آپ کا نام *"
+                      value={reviewName}
+                      onChange={(e) => setReviewName(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">ریٹنگ کا انتخاب کریں:</label>
+                      <div className="flex items-center gap-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setReviewRating(star)}
+                            className="p-1 transition transform hover:scale-110"
+                          >
+                            <Star
+                              size={26}
+                              className={star <= reviewRating ? "fill-amber-400 text-amber-400" : "text-gray-300"}
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <textarea
+                      placeholder="اپنی رائے لکھیں *"
+                      value={reviewComment}
+                      onChange={(e) => setReviewComment(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 h-24"
+                    />
+                  </div>
+
+                  <div className="mt-6 flex gap-3">
+                    <button
+                      onClick={handleSubmitReview}
+                      disabled={reviewSubmitting || !reviewName.trim() || !reviewComment.trim()}
+                      className="flex-1 rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition disabled:opacity-50"
+                    >
+                      {reviewSubmitting ? "جمع ہو رہا ہے..." : "ریویو جمع کریں"}
+                    </button>
+                    <button
+                      onClick={() => setShowReviewModal(false)}
+                      className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
+                    >
+                      منسوخ کریں
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </main>
   );
 }

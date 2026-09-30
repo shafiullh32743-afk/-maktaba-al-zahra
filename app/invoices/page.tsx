@@ -24,6 +24,10 @@ import {
   Trash2,
   Printer,
   Search,
+  FileText,
+  TrendingUp,
+  AlertCircle,
+  Eye,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -63,6 +67,14 @@ interface Invoice {
   customers?: { name: string; phone?: string };
 }
 
+interface LineItem {
+  book_id: number;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  books?: { title: string };
+}
+
 function generateInvoiceNumber(): string {
   const now = new Date();
   const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(
@@ -79,6 +91,24 @@ function statusLabel(status: string) {
     return { label: "جزوی ادائیگی", color: "bg-amber-50 text-amber-700 border-amber-200" };
   return { label: "غیر ادا شدہ", color: "bg-red-50 text-red-700 border-red-200" };
 }
+
+// shared print/preview styling
+const invoiceStyles = `
+  body { font-family: Arial, "Noto Nastaliq Urdu", sans-serif; padding: 24px; direction: rtl; color: #111827; background:#f8fafc; }
+  .invoice-wrapper { max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+  .header { text-align: center; background: linear-gradient(135deg, #047857, #059669); padding: 26px 16px; color: white; }
+  .header h1 { margin: 0; font-size: 22px; }
+  .header p { margin: 4px 0 0; font-size: 13px; opacity: 0.9; }
+  .info-box { margin: 20px 24px 0; border: 1px solid #e5e7eb; background: #f9fafb; padding: 14px; border-radius: 10px; font-size: 14px; }
+  .info-box p { margin: 4px 0; }
+  table.items { width: calc(100% - 48px); border-collapse: collapse; margin: 16px 24px; font-size: 14px; }
+  table.items th { background: #ecfdf5; color: #047857; padding: 8px; border: 1px solid #e5e7eb; }
+  table.items td { padding: 8px; border: 1px solid #e5e7eb; }
+  .totals { margin: 8px 24px 24px; padding: 16px; background: #f9fafb; border-radius: 10px; font-size: 14px; }
+  .totals div { display: flex; justify-content: space-between; padding: 4px 0; }
+  .totals .grand { border-top: 2px solid #047857; font-weight: bold; font-size: 16px; color: #047857; padding-top: 8px; margin-top: 4px; }
+  .totals .balance { color: #dc2626; font-weight: bold; }
+`;
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -108,8 +138,12 @@ export default function InvoicesPage() {
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
+  // NEW: preview modal state
+  const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
+  const [previewItems, setPreviewItems] = useState<LineItem[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
   const fetchData = async () => {
-    // Join customers table to fetch customer name directly
     const { data: invoicesData } = await supabase
       .from("invoices")
       .select("*, customers(name, phone)")
@@ -144,7 +178,6 @@ export default function InvoicesPage() {
     return "عام کسٹمر (واک ان)";
   };
 
-  // Handle Book Item Additions
   const handleAddItem = () => {
     if (!currentBookId) return;
     const book = books.find((b) => b.id === parseInt(currentBookId));
@@ -190,7 +223,6 @@ export default function InvoicesPage() {
     setSelectedItems(selectedItems.filter((_, i) => i !== index));
   };
 
-  // Calculate Subtotal (Either from selected items or manual input)
   const itemsSubtotal = selectedItems.reduce((sum, item) => sum + item.total_price, 0);
   const effectiveSubtotal = selectedItems.length > 0 ? itemsSubtotal : parseFloat(manualSubtotal) || 0;
   const computedTotal = Math.max(0, effectiveSubtotal - (parseFloat(discountAmount) || 0));
@@ -209,6 +241,10 @@ export default function InvoicesPage() {
   const totalOutstanding = invoices
     .filter((i) => i.payment_status !== "paid")
     .reduce((sum, i) => sum + (i.total_amount - i.amount_paid), 0);
+
+  // NEW: additional summary stats
+  const totalRevenue = invoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+  const totalBillsCount = invoices.length;
 
   const resetForm = () => {
     setSelectedCustomerId("");
@@ -268,7 +304,6 @@ export default function InvoicesPage() {
         throw new Error(invErr?.message || "محفوظ نہیں ہو سکا");
       }
 
-      // If items were selected, save items & deduct stock
       if (selectedItems.length > 0) {
         for (const item of selectedItems) {
           await supabase.from("invoice_items").insert({
@@ -313,81 +348,79 @@ export default function InvoicesPage() {
     fetchData();
   };
 
-  const handlePrintInvoice = async (invoice: Invoice) => {
+  // NEW: shared HTML builder used by both the print window and the on-screen preview
+  const buildInvoiceHtml = (invoice: Invoice, items: LineItem[]) => {
     const customerName = getCustomerName(invoice);
+    const balance = invoice.total_amount - invoice.amount_paid;
 
-    // Fetch line items if available
-    const { data: lineItems } = await supabase
+    const itemsRows = items
+      .map(
+        (it, i) => `
+        <tr style="background:${i % 2 === 0 ? "#f9fafb" : "#ffffff"};">
+          <td>${it.books?.title || "کتاب"}</td>
+          <td style="text-align:center">${it.quantity}</td>
+          <td style="text-align:left">Rs ${Number(it.unit_price).toLocaleString()}</td>
+          <td style="text-align:left">Rs ${Number(it.total_price).toLocaleString()}</td>
+        </tr>`
+      )
+      .join("");
+
+    return `
+      <div class="invoice-wrapper">
+        <div class="header">
+          <h1>مكتبہ الزھراء</h1>
+          <p>بل نمبر: ${invoice.invoice_number}</p>
+        </div>
+        <div class="info-box">
+          <p><strong>کسٹمر کا نام:</strong> ${customerName}</p>
+          <p><strong>تاریخ:</strong> ${new Date(invoice.created_at).toLocaleDateString("ur-PK")}</p>
+          ${invoice.due_date ? `<p><strong>آخری تاریخ ادائیگی:</strong> ${invoice.due_date}</p>` : ""}
+        </div>
+        ${
+          items.length > 0
+            ? `<table class="items">
+                <thead>
+                  <tr>
+                    <th style="text-align:right">تفصیل کتب</th>
+                    <th style="text-align:center">تعداد</th>
+                    <th style="text-align:left">قیمت</th>
+                    <th style="text-align:left">کل</th>
+                  </tr>
+                </thead>
+                <tbody>${itemsRows}</tbody>
+              </table>`
+            : ""
+        }
+        <div class="totals">
+          <div><span>ذیلی مجموعہ</span><span>Rs ${Number(invoice.subtotal).toLocaleString()}</span></div>
+          <div><span>رعایت</span><span>Rs ${Number(invoice.discount_amount).toLocaleString()}</span></div>
+          <div class="grand"><span>کل رقم</span><span>Rs ${Number(invoice.total_amount).toLocaleString()}</span></div>
+          <div><span>ادا شدہ</span><span>Rs ${Number(invoice.amount_paid).toLocaleString()}</span></div>
+          ${balance > 0 ? `<div class="balance"><span>باقی رقم</span><span>Rs ${balance.toLocaleString()}</span></div>` : ""}
+        </div>
+      </div>`;
+  };
+
+  const fetchLineItems = async (invoiceId: number): Promise<LineItem[]> => {
+    const { data } = await supabase
       .from("invoice_items")
       .select("*, books(title)")
-      .eq("invoice_id", invoice.id);
+      .eq("invoice_id", invoiceId);
+    return (data as LineItem[]) || [];
+  };
 
-    let itemsTableRows = "";
-    if (lineItems && lineItems.length > 0) {
-      itemsTableRows = lineItems
-        .map(
-          (it: any) => `
-          <tr>
-            <td style="padding: 8px; border: 1px solid #ddd;">${it.books?.title || "کتاب"}</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align:center">${it.quantity}</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align:left">Rs ${it.unit_price}</td>
-            <td style="padding: 8px; border: 1px solid #ddd; text-align:left">Rs ${it.total_price}</td>
-          </tr>`
-        )
-        .join("");
-    }
-
+  const handlePrintInvoice = async (invoice: Invoice) => {
+    const items = await fetchLineItems(invoice.id);
     const html = `
       <html dir="rtl" lang="ur">
         <head>
           <meta charset="UTF-8" />
           <title>${invoice.invoice_number}</title>
-          <style>
-            body { font-family: Arial, "Noto Nastaliq Urdu", sans-serif; padding: 24px; direction: rtl; color: #111827; }
-            h1 { text-align: center; color: #047857; margin-bottom: 4px; }
-            p.sub { text-align: center; color: #4b5563; margin-top: 0; }
-            .info-box { border: 1px solid #e5e7eb; background: #f9fafb; padding: 12px; border-radius: 8px; margin-bottom: 16px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 14px; }
-            th { background: #047857; color: #ffffff; padding: 8px; border: 1px solid #047857; }
-            .total-table td { border: 1px solid #ddd; padding: 8px; }
-            .total-row td { font-weight: bold; background: #ecfdf5; font-size: 16px; color: #065f46; }
+          <style>${invoiceStyles}
+            @media print { body { background: white; } .invoice-wrapper { box-shadow: none; } }
           </style>
         </head>
-        <body>
-          <h1>مكتبہ الزھراء</h1>
-          <p class="sub">بل نمبر: ${invoice.invoice_number}</p>
-          <hr style="border: 0; border-top: 1px solid #eee; margin-bottom: 16px;" />
-          
-          <div class="info-box">
-            <p style="margin: 4px 0;"><strong>کسٹمر کا نام:</strong> ${customerName}</p>
-            <p style="margin: 4px 0;"><strong>تاریخ:</strong> ${new Date(invoice.created_at).toLocaleDateString("ur-PK")}</p>
-          </div>
-
-          ${
-            itemsTableRows
-              ? `
-            <table>
-              <thead>
-                <tr>
-                  <th style="text-align:right">تفصیل کتب</th>
-                  <th style="text-align:center">تعداد</th>
-                  <th style="text-align:left">قیمت</th>
-                  <th style="text-align:left">کل</th>
-                </tr>
-              </thead>
-              <tbody>${itemsTableRows}</tbody>
-            </table>`
-              : ""
-          }
-
-          <table class="total-table" style="margin-top: 20px;">
-            <tr><td>ذیلی مجموعہ</td><td style="text-align:left">Rs ${Number(invoice.subtotal).toLocaleString()}</td></tr>
-            <tr><td>رعایت</td><td style="text-align:left">Rs ${Number(invoice.discount_amount).toLocaleString()}</td></tr>
-            <tr class="total-row"><td>کل رقم</td><td style="text-align:left">Rs ${Number(invoice.total_amount).toLocaleString()}</td></tr>
-            <tr><td>ادا شدہ</td><td style="text-align:left">Rs ${Number(invoice.amount_paid).toLocaleString()}</td></tr>
-            <tr><td>باقی رقم</td><td style="text-align:left">Rs ${(invoice.total_amount - invoice.amount_paid).toLocaleString()}</td></tr>
-          </table>
-        </body>
+        <body>${buildInvoiceHtml(invoice, items)}</body>
       </html>`;
 
     const printWindow = window.open("", "_blank");
@@ -399,9 +432,17 @@ export default function InvoicesPage() {
     }
   };
 
+  // NEW: open the on-screen preview (fetches items first)
+  const handlePreviewInvoice = async (invoice: Invoice) => {
+    setPreviewLoading(true);
+    setPreviewInvoice(invoice);
+    const items = await fetchLineItems(invoice.id);
+    setPreviewItems(items);
+    setPreviewLoading(false);
+  };
+
   return (
     <main dir="ltr" className="min-h-screen flex bg-gray-50 font-sans">
-      {/* Mobile Backdrop */}
       {mobileMenuOpen && (
         <div
           onClick={() => setMobileMenuOpen(false)}
@@ -409,7 +450,6 @@ export default function InvoicesPage() {
         />
       )}
 
-      {/* Complete Sidebar Navigation Links */}
       <aside
         className={`w-64 min-h-screen bg-blue-400 p-6 flex flex-col fixed md:h-screen md:sticky md:top-0 md:overflow-y-auto inset-y-0 right-0 z-50 flex-shrink-0 transform transition-transform duration-300 ${
           mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
@@ -432,88 +472,46 @@ export default function InvoicesPage() {
 
         <nav className="mt-8 space-y-1 flex-1">
           <p className="text-white/50 text-xs font-medium px-3 mb-2">مینو</p>
-          <Link
-            href="/"
-            className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm"
-          >
+          <Link href="/" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
             <LayoutDashboard size={18} /> ڈیش بورڈ
           </Link>
-          <Link
-            href="/books"
-            className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm"
-          >
+          <Link href="/books" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
             <BookOpen size={18} /> کتب
           </Link>
-          <Link
-            href="/authors"
-            className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm"
-          >
+          <Link href="/authors" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
             <PenLine size={18} /> مصنفین
           </Link>
-          <Link
-            href="/categories"
-            className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm"
-          >
+          <Link href="/categories" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
             <FolderTree size={18} /> زمرے
           </Link>
-          <Link
-            href="/orders"
-            className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm"
-          >
+          <Link href="/orders" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
             <ShoppingCart size={18} /> آرڈرز
           </Link>
-          <Link
-            href="/customers"
-            className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm"
-          >
+          <Link href="/customers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
             <Users size={18} /> کسٹمرز
           </Link>
-          <Link
-            href="/invoices"
-            className="flex items-center gap-3 p-3 rounded-xl bg-emerald-600 text-white font-medium shadow-md text-sm"
-          >
+          <Link href="/invoices" className="flex items-center gap-3 p-3 rounded-xl bg-emerald-600 text-white font-medium shadow-md text-sm">
             <Receipt size={18} /> بلز
           </Link>
-          <Link
-            href="/suppliers"
-            className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm"
-          >
+          <Link href="/suppliers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
             <Truck size={18} /> سپلائرز
           </Link>
-          <Link
-            href="/loyalty"
-            className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm"
-          >
+          <Link href="/loyalty" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
             <Gift size={18} /> لائلٹی پوائنٹس
           </Link>
-          <Link
-            href="/coupons"
-            className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm"
-          >
+          <Link href="/coupons" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
             <Ticket size={18} /> کوپنز
           </Link>
-          <Link
-            href="/returns"
-            className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm"
-          >
+          <Link href="/returns" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
             <RotateCcw size={18} /> واپسی/خراب
           </Link>
-          <Link
-            href="/reviews"
-            className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm"
-          >
+          <Link href="/reviews" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
             <Star size={18} /> ریویوز
           </Link>
-          <Link
-            href="/low-stock"
-            className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm"
-          >
+          <Link href="/low-stock" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
             <PackageMinus size={18} /> کم سٹاک
           </Link>
-          <Link
-            href="/expenses"
-            className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm"
-          >
+          <Link href="/expenses" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
             <Wallet size={18} /> اخراجات
           </Link>
         </nav>
@@ -532,7 +530,6 @@ export default function InvoicesPage() {
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <section className="flex-1 min-w-0 p-4 md:p-10 pb-28">
         <div className="flex items-center justify-between md:hidden mb-4">
           <button
@@ -559,12 +556,38 @@ export default function InvoicesPage() {
           </button>
         </div>
 
-        <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-5">
-          <p className="text-sm text-red-700 font-medium">کل باقی رقم (غیر ادا شدہ بلز)</p>
-          <p className="text-2xl md:text-3xl font-extrabold text-red-800 mt-1">
-            Rs {totalOutstanding.toLocaleString()}
-          </p>
-        </div>
+        {/* NEW: summary stat cards */}
+        {loaded && (
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm flex items-center gap-4">
+              <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center flex-shrink-0">
+                <FileText size={22} />
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">کل بلز</p>
+                <p className="text-xl font-bold text-gray-800">{totalBillsCount}</p>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm flex items-center gap-4">
+              <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center flex-shrink-0">
+                <TrendingUp size={22} />
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">مجموعی آمدنی</p>
+                <p className="text-xl font-bold text-gray-800">Rs {totalRevenue.toLocaleString()}</p>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-5 shadow-sm flex items-center gap-4">
+              <div className="w-11 h-11 rounded-xl bg-red-100 text-red-700 flex items-center justify-center flex-shrink-0">
+                <AlertCircle size={22} />
+              </div>
+              <div>
+                <p className="text-xs text-red-600 font-medium">باقی رقم (غیر ادا شدہ)</p>
+                <p className="text-xl font-extrabold text-red-800">Rs {totalOutstanding.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mt-6 flex flex-col md:flex-row gap-3">
           <div className="relative flex-1">
@@ -653,6 +676,13 @@ export default function InvoicesPage() {
                         </button>
                       )}
                       <button
+                        onClick={() => handlePreviewInvoice(inv)}
+                        className="rounded-lg bg-gray-100 p-2.5 text-gray-700 hover:bg-gray-200 transition"
+                        title="پیش نظارہ دیکھیں"
+                      >
+                        <Eye size={16} />
+                      </button>
+                      <button
                         onClick={() => handlePrintInvoice(inv)}
                         className="rounded-lg bg-gray-100 p-2.5 text-gray-700 hover:bg-gray-200 transition"
                         title="پرنٹ کریں"
@@ -675,7 +705,6 @@ export default function InvoicesPage() {
         )}
       </section>
 
-      {/* Delete Confirmation Modal */}
       {confirmDeleteId !== null && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
@@ -702,7 +731,46 @@ export default function InvoicesPage() {
         </div>
       )}
 
-      {/* Create New Invoice Modal */}
+      {/* NEW: preview modal */}
+      {previewInvoice && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-50 rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto relative">
+            <button
+              onClick={() => {
+                setPreviewInvoice(null);
+                setPreviewItems([]);
+              }}
+              className="absolute top-4 left-4 z-10 bg-white/90 rounded-full p-2 shadow hover:bg-white transition"
+            >
+              <X size={18} />
+            </button>
+            <style>{invoiceStyles}</style>
+            {previewLoading ? (
+              <div className="p-10 text-center text-gray-500">لوڈ ہو رہا ہے...</div>
+            ) : (
+              <div className="p-4" dangerouslySetInnerHTML={{ __html: buildInvoiceHtml(previewInvoice, previewItems) }} />
+            )}
+            <div className="p-4 pt-0 flex gap-3">
+              <button
+                onClick={() => handlePrintInvoice(previewInvoice)}
+                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition font-medium"
+              >
+                <Printer size={18} /> پرنٹ کریں
+              </button>
+              <button
+                onClick={() => {
+                  setPreviewInvoice(null);
+                  setPreviewItems([]);
+                }}
+                className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
+              >
+                بند کریں
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 md:p-4">
           <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-lg shadow-2xl max-h-[92vh] overflow-y-auto">
@@ -725,7 +793,6 @@ export default function InvoicesPage() {
               </div>
             )}
 
-            {/* Customer Selection */}
             <div className="mt-4">
               <label className="block text-xs font-semibold text-gray-700 mb-1">
                 کسٹمر منتخب کریں (اختیاری)
@@ -763,7 +830,6 @@ export default function InvoicesPage() {
               )}
             </div>
 
-            {/* Green Book Selection Box */}
             <div className="mt-4 bg-emerald-50 border-2 border-emerald-300 p-4 rounded-xl shadow-sm w-full">
               <label className="text-xs font-bold text-emerald-900 mb-2 block">
                 📖 کتاب شامل کریں (خودکار حساب و اسٹاک)
@@ -811,7 +877,6 @@ export default function InvoicesPage() {
               </div>
             </div>
 
-            {/* Selected Items List */}
             {selectedItems.length > 0 && (
               <div className="mt-3 border border-gray-200 rounded-xl overflow-hidden">
                 <table className="w-full text-xs text-right">
@@ -847,7 +912,6 @@ export default function InvoicesPage() {
               </div>
             )}
 
-            {/* Manual Subtotal Input */}
             <div className="mt-3">
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 ذیلی مجموعہ (روپے) {selectedItems.length > 0 && "(کتابوں سے بننے والی رقم)"}
@@ -862,7 +926,6 @@ export default function InvoicesPage() {
               />
             </div>
 
-            {/* Discount */}
             <div className="mt-3">
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 رعایت / ڈسکاؤنٹ (روپے)
@@ -875,7 +938,6 @@ export default function InvoicesPage() {
               />
             </div>
 
-            {/* Total Highlight */}
             <div className="mt-3 rounded-xl bg-emerald-100 border border-emerald-300 p-3 flex justify-between items-center">
               <span className="text-xs font-bold text-emerald-900">کل قابل ادا رقم:</span>
               <span className="font-extrabold text-emerald-900 text-lg">
@@ -883,7 +945,6 @@ export default function InvoicesPage() {
               </span>
             </div>
 
-            {/* Amount Paid */}
             <div className="mt-3">
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 وصول شدہ / ادا شدہ رقم (روپے)
@@ -896,7 +957,6 @@ export default function InvoicesPage() {
               />
             </div>
 
-            {/* Due Date */}
             <div className="mt-3">
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 آخری تاریخ ادائیگی (اختیاری)
