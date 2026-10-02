@@ -870,6 +870,7 @@ ${itemsList}
             .label-author { font-size: 10px; color: #555; margin-top: 3px; }
             .label-price { font-size: 14px; color: #047857; font-weight: bold; margin-top: 5px; }
           </style>
+          <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
         </head>
         <body>
           <div class="labels-grid">${labelsHtml}</div>
@@ -943,9 +944,10 @@ ${itemsList}
       {/* اوپر کا بینر */}
       <div className="bg-emerald-800 text-white text-sm py-2 px-4 flex flex-col md:flex-row items-center justify-center gap-2 text-center">
         <span>مكتبہ الزھراء میں خوش آمدید — آن لائن اسلامک بک سٹور</span>
+          <span>نوٹ: اگر آپ كو مطلوبہ كتاب یہاں نظر نہ آئے تو واٹس ایپ پر رابطہ كركے پوچھ لیں</span>
         <span className="hidden md:inline">•</span>
         <a href="https://wa.me/923055232889" target="_blank" className="font-bold underline hover:text-emerald-200">
-          آرڈر کرنے کے لیے رابطہ کریں: 0305-5232889
+          واٹس ایپ: 03055232889
         </a>
       </div>
 
@@ -1735,12 +1737,17 @@ ${itemsList}
                   </div>
                 )}
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-emerald-400 transition cursor-pointer relative text-gray-500">
-                    <Upload size={20} />
-                    <span className="text-xs font-medium">تصویر اپلوڈ کریں</span>
-                    <input type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
-                  </label>
-                </div>
+  <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-emerald-400 transition cursor-pointer relative text-gray-500">
+    <Upload size={20} />
+    <span className="text-xs">گیلری سے منتخب کریں</span>
+    <input type="file" accept="image/*" onChange={handleImageSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
+  </label>
+  <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-emerald-400 transition cursor-pointer relative text-gray-500">
+    <Upload size={20} />
+    <span className="text-xs">کیمرہ سے تصویر لیں</span>
+    <input type="file" accept="image/*" capture="environment" onChange={handleImageSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
+  </label>
+</div>
               </label>
 
               <div className="mt-4 space-y-3">

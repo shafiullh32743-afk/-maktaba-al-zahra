@@ -45,6 +45,7 @@ export default function DashboardPage() {
   const thisMonthExpenseTotal = thisMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
   const thisMonthProfit = thisMonthRevenue - thisMonthCost - thisMonthExpenseTotal;
 
+    const totalStockValue = books.reduce((sum, b) => sum + (b.price || 0) * (b.stock || 0), 0);
   const totalBooks = books.length;
   const totalAuthors = new Set(books.map((b) => b.author)).size;
   const totalCategories = new Set(books.map((b) => b.category)).size;
@@ -198,6 +199,15 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
+
+             <div className="mt-8 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-6">
+              <p className="text-sm text-blue-700 font-medium">موجودہ سٹاک کی کل مالیت</p>
+              <p className="text-4xl font-extrabold text-blue-800 mt-1">
+                Rs {totalStockValue.toLocaleString()}
+              </p>
+              <p className="text-xs text-gray-400 mt-2">تمام کتابوں کی (قیمت × تعداد) کا مجموعہ</p>
+            </div>
+
 
             <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
               {stats.map((stat) => (
