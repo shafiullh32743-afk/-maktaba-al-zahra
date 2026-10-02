@@ -1,14 +1,34 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Users, Receipt, Truck, Gift, Ticket, RotateCcw, Star, PackageMinus, Wallet, Search } from "lucide-react";
+import {
+  LayoutDashboard,
+  BookOpen,
+  PenLine,
+  FolderTree,
+  LogOut,
+  Menu,
+  X,
+  ShoppingCart,
+  Users,
+  Receipt,
+  Truck,
+  Gift,
+  Ticket,
+  RotateCcw,
+  Star,
+  PackageMinus,
+  Wallet,
+  Search,
+} from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function AuthorsPage() {
   const [books, setBooks] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState(""); // سرچ کی سٹیٹ
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     const fetchBooks = async () => {
@@ -19,21 +39,22 @@ export default function AuthorsPage() {
     fetchBooks();
   }, []);
 
-  const authorMap: Record<string, string[]> = {};
+  // مصنف کے نام کے ساتھ ہر کتاب کا عنوان اور ID محفوظ کرنا
+  const authorMap: Record<string, { id: string | number; title: string; slug?: string }[]> = {};
   books.forEach((book) => {
     if (book.author) {
       if (!authorMap[book.author]) authorMap[book.author] = [];
-      authorMap[book.author].push(book.title);
+      authorMap[book.author].push({ id: book.id, title: book.title, slug: book.slug });
     }
   });
 
   const authors = Object.keys(authorMap);
 
-  // سرچ کی بنیاد پر مصنفین کو فلٹر کرنا (مصنف کے نام یا کتاب کے نام سے تلاش کریں)
+  // سرچ کی بنیاد پر فلٹرنگ (مصنف کا نام یا کتاب کا عنوان)
   const filteredAuthors = authors.filter((author) => {
     const matchesAuthor = author.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesBook = authorMap[author].some((title) =>
-      title.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesBook = authorMap[author].some((book) =>
+      book.title.toLowerCase().includes(searchTerm.toLowerCase())
     );
     return matchesAuthor || matchesBook;
   });
@@ -160,7 +181,7 @@ export default function AuthorsPage() {
             <p className="mt-2 text-gray-500">مصنفین اور ان کی کتب دیکھیں</p>
           </div>
 
-          {/* سرچ انپٹ بار */}
+          {/* سرچ بار */}
           <div className="relative w-full md:w-72">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
@@ -191,14 +212,16 @@ export default function AuthorsPage() {
                   <h3 className="mt-4 text-xl font-bold text-gray-800 hover:text-emerald-700 transition">{author}</h3>
                   <p className="mt-2 text-emerald-700 text-sm">{authorMap[author].length} کتابیں — سب دیکھیں</p>
                 </Link>
+                
+                {/* کتابوں کی فہرست اور براہ راست تفصیلی لنک (Title/Slug پر نیویگیشن) */}
                 <ul className="mt-3 space-y-1">
-                  {authorMap[author].map((title) => (
-                    <li key={title}>
+                  {authorMap[author].map((book) => (
+                    <li key={book.id}>
                       <Link
-                        href={`/books?author=${encodeURIComponent(author)}`}
-                        className="text-gray-500 text-sm hover:text-emerald-700 hover:underline transition"
+                        href={`/books/${encodeURIComponent(book.slug || book.title)}`}
+                        className="text-gray-500 text-sm hover:text-emerald-700 hover:underline transition block py-0.5"
                       >
-                        • {title}
+                        • {book.title}
                       </Link>
                     </li>
                   ))}

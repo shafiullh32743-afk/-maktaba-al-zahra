@@ -1566,7 +1566,7 @@ ${itemsList}
           </div>
         )}
 
-        {/* سمیپل ڈیلیٹ کنفرمشین */}
+        {/* سمپل ڈیلیٹ کنفرمیشن */}
         {confirmDeleteId !== null && (
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
@@ -1591,7 +1591,7 @@ ${itemsList}
           </div>
         )}
 
-        {/* تصاوِر زوم موڈل */}
+        {/* تصاویر زوم موڈل */}
         {zoomedImage && (
           <div
             onClick={() => setZoomedImage(null)}
@@ -1737,128 +1737,116 @@ ${itemsList}
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-emerald-400 transition cursor-pointer relative text-gray-500">
                     <Upload size={20} />
-                    <span className="text-xs">گیلری سے منتخب کریں</span>
-                    <input type="file" accept="image/*" onChange={handleImageSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
-                  </label>
-                  <label className="flex flex-col items-center justify-center gap-1.5 border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-emerald-400 transition cursor-pointer relative text-gray-500">
-                    <Upload size={20} />
-                    <span className="text-xs">کیمرہ سے تصویر لیں</span>
-                    <input type="file" accept="image/*" capture="environment" onChange={handleImageSelect} className="absolute inset-0 opacity-0 cursor-pointer" />
+                    <span className="text-xs font-medium">تصویر اپلوڈ کریں</span>
+                    <input type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
                   </label>
                 </div>
               </label>
 
-              <input
-                type="text"
-                placeholder="کتاب کا نام"
-                value={newTitle}
-                onChange={(e) => {
-                  setNewTitle(e.target.value);
-                  if (!editingId) setNewSlug(generateSlugFromTitle(e.target.value));
-                }}
-                className="mt-5 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-              />
-
-              <input
-                type="text"
-                placeholder="مصنف / ناشر"
-                value={newAuthor}
-                onChange={(e) => setNewAuthor(e.target.value)}
-                className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-              />
-
-              {/* زبان سلیکشن */}
-              <select
-                value={newLanguage}
-                onChange={(e) => setNewLanguage(e.target.value)}
-                className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
-              >
-                <option value="اردو">اردو</option>
-                <option value="عربی">عربی</option>
-                <option value="انگلش">English</option>
-                <option value="فارسی">فارسی</option>
-              </select>
-
-              <div className="mt-3 flex gap-3">
-                <label className="flex-1 block">
-                  <span className="text-xs text-gray-500">قیمت (روپے)</span>
-                  <input
-                    type="number"
-                    placeholder="مثلاً 500"
-                    value={newPrice}
-                    onChange={(e) => setNewPrice(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                  />
-                </label>
-                <label className="flex-1 block">
-                  <span className="text-xs text-gray-500">وزن (کلوگرام)</span>
-                  <input
-                    type="number"
-                    step="0.1"
-                    placeholder="مثلاً 0.5"
-                    value={newWeight}
-                    onChange={(e) => setNewWeight(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                  />
-                </label>
-              </div>
-
-              <div className="mt-3 flex gap-3">
-                <label className="flex-1 block">
-                  <span className="text-xs text-gray-500">سٹاک میں تعداد</span>
-                  <input
-                    type="number"
-                    placeholder="مثلاً 10"
-                    value={newStock}
-                    onChange={(e) => setNewStock(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                  />
-                </label>
-                <label className="flex-1 block">
-                  <span className="text-xs text-gray-500">خرید قیمت (لاگت)</span>
-                  <input
-                    type="number"
-                    placeholder="مثلاً 300"
-                    value={newCostPrice}
-                    onChange={(e) => setNewCostPrice(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                  />
-                </label>
-              </div>
-
-              <select
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
-              >
-                <option value="">زمرہ منتخب کریں</option>
-                {existingCategories.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-                <option value="__new__">+ نیا زمرہ شامل کریں</option>
-              </select>
-
-              {newCategory === "__new__" && (
+              <div className="mt-4 space-y-3">
                 <input
                   type="text"
-                  placeholder="نئے زمرے کا نام لکھیں"
-                  value={customCategory}
-                  onChange={(e) => setCustomCategory(e.target.value)}
-                  className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  placeholder="کتاب کا عنوان"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
                 />
-              )}
+
+                <input
+                  type="text"
+                  placeholder="مصنف کا نام"
+                  value={newAuthor}
+                  onChange={(e) => setNewAuthor(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                />
+
+                <select
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
+                >
+                  <option value="">زمرہ منتخب کریں</option>
+                  {existingCategories.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                  <option value="__new__">+ نیا زمرہ شامل کریں</option>
+                </select>
+
+                {newCategory === "__new__" && (
+                  <input
+                    type="text"
+                    placeholder="نیا زمرہ لکھیں"
+                    value={customCategory}
+                    onChange={(e) => setCustomCategory(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+                )}
+
+                <select
+                  value={newLanguage}
+                  onChange={(e) => setNewLanguage(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
+                >
+                  <option value="اردو">اردو</option>
+                  <option value="عربی">عربی</option>
+                  <option value="انگلش">English</option>
+                  <option value="فارسی">فارسی</option>
+                </select>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    placeholder="قیمت (Rs)"
+                    value={newPrice}
+                    onChange={(e) => setNewPrice(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+                  <input
+                    type="number"
+                    placeholder="وزن (کلو گرام)"
+                    value={newWeight}
+                    onChange={(e) => setNewWeight(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    placeholder="سٹاک تعداد"
+                    value={newStock}
+                    onChange={(e) => setNewStock(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+                  <input
+                    type="number"
+                    placeholder="خرید قیمت (Cost Price)"
+                    value={newCostPrice}
+                    onChange={(e) => setNewCostPrice(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="سلگ (Slug - اختیاری)"
+                  value={newSlug}
+                  onChange={(e) => setNewSlug(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                />
+              </div>
 
               <div className="mt-6 flex gap-3">
                 <button
                   onClick={handleAddBook}
                   disabled={uploading || compressing}
-                  className="flex-1 rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition disabled:opacity-60"
+                  className="flex-1 rounded-xl bg-emerald-700 text-white py-3 font-medium hover:bg-emerald-800 transition disabled:opacity-50"
                 >
-                  {uploading ? "محفوظ ہو رہا ہے..." : editingId ? "محفوظ کریں" : "شامل کریں"}
+                  {uploading ? "محفوظ ہو رہا ہے..." : "محفوظ کریں"}
                 </button>
                 <button
                   onClick={() => setShowModal(false)}
-                  className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
+                  className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 font-medium hover:bg-gray-200 transition"
                 >
                   منسوخ کریں
                 </button>
@@ -1867,215 +1855,244 @@ ${itemsList}
           </div>
         )}
 
-        {/* کارٹ موڈل */}
+        {/* ٹوکری / آرڈر موڈل */}
         {showCartModal && (
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-4 border-b border-gray-200">
+                <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <ShoppingCart size={22} className="text-emerald-700" /> آپ کی ٹوکری ({cartCount})
+                </h3>
+                <button onClick={closeCartModal} className="text-gray-400 hover:text-gray-600">
+                  <X size={22} />
+                </button>
+              </div>
+
               {cartSuccess ? (
-                <div className="text-center py-6">
-                  <span className="text-5xl">✅</span>
-                  <h3 className="text-xl font-bold text-gray-800 mt-4">آرڈر موصول ہو گیا</h3>
-                  <p className="text-gray-500 mt-2">ہم جلد آپ سے رابطہ کریں گے۔ شکریہ!</p>
+                <div className="py-8 text-center">
+                  <span className="text-6xl">🎉</span>
+                  <h4 className="text-2xl font-bold text-emerald-800 mt-4">آرڈر موصول ہو گیا ہے!</h4>
+                  <p className="text-gray-600 mt-2 text-sm">
+                    آپ کا آرڈر کامیابی سے سسٹم میں شامل کر دیا گیا ہے۔ واٹس ایپ پر پیغام بھیج کر تصدیق کر سکتے ہیں۔
+                  </p>
+
+                  <div className="mt-6 flex flex-col gap-3">
+                    <button
+                      onClick={sendCartToWhatsApp}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 text-white py-3.5 font-bold hover:bg-emerald-700 transition shadow-md"
+                    >
+                      <MessageCircle size={20} /> واٹس ایپ پر آرڈر بھیجیں
+                    </button>
+                    <button
+                      onClick={closeCartModal}
+                      className="w-full rounded-xl bg-gray-100 text-gray-700 py-3 font-medium hover:bg-gray-200 transition"
+                    >
+                      بند کریں
+                    </button>
+                  </div>
+                </div>
+              ) : cart.length === 0 ? (
+                <div className="py-12 text-center">
+                  <span className="text-5xl">🛒</span>
+                  <p className="text-gray-500 mt-3 font-medium">ٹوکری خالی ہے</p>
                   <button
                     onClick={closeCartModal}
-                    className="mt-6 w-full rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition"
+                    className="mt-5 rounded-xl bg-emerald-700 text-white px-6 py-2.5 text-sm font-medium hover:bg-emerald-800 transition"
                   >
-                    ٹھیک ہے
+                    کتابیں منتخب کریں
                   </button>
                 </div>
               ) : (
-                <>
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xl font-bold text-gray-800">آپ کی ٹوکری</h3>
-                    <button onClick={() => setShowCartModal(false)} className="text-gray-400 hover:text-gray-600">
-                      <X size={22} />
-                    </button>
+                <div className="mt-4 space-y-6">
+                  {/* پروڈکٹس کی فہرست */}
+                  <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                    {cart.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between gap-3 p-3 rounded-xl bg-gray-50 border border-gray-200"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-gray-800 text-sm truncate">{item.title}</h4>
+                          <p className="text-xs text-emerald-700 font-semibold mt-0.5">
+                            Rs {item.price} × {item.quantity} = Rs {item.price * item.quantity}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center border border-gray-300 rounded-lg bg-white">
+                            <button
+                              onClick={() => updateCartQuantity(item.id, -1)}
+                              className="p-1 hover:bg-gray-100 text-gray-600 rounded-r-lg"
+                            >
+                              <Minus size={14} />
+                            </button>
+                            <span className="px-2 text-xs font-bold text-gray-800">{item.quantity}</span>
+                            <button
+                              onClick={() => updateCartQuantity(item.id, 1)}
+                              disabled={item.quantity >= item.stock}
+                              className="p-1 hover:bg-gray-100 text-gray-600 rounded-l-lg disabled:opacity-30"
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+
+                          <button
+                            onClick={() => removeFromCart(item.id)}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition"
+                            title="حذف کریں"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
 
-                  {cart.length === 0 ? (
-                    <div className="mt-8 flex flex-col items-center justify-center text-center py-8">
-                      <span className="text-5xl mb-3">🛒</span>
-                      <p className="text-gray-500">آپ کی ٹوکری خالی ہے</p>
+                  {/* بل کا حساب کتاب */}
+                  <div className="rounded-xl bg-emerald-50/60 border border-emerald-100 p-4 space-y-2 text-sm">
+                    <div className="flex justify-between text-gray-600">
+                      <span>کتابوں کی قیمت:</span>
+                      <span className="font-semibold text-gray-800">Rs {cartSubtotal.toLocaleString()}</span>
                     </div>
-                  ) : (
-                    <>
-                      <div className="mt-4 space-y-3 max-h-48 overflow-y-auto pr-1">
-                        {cart.map((item) => (
-                          <div key={item.id} className="flex items-center justify-between rounded-xl border border-gray-200 p-3">
-                            <div className="flex-1">
-                              <p className="font-medium text-gray-800 text-sm">{item.title}</p>
-                              <p className="text-xs text-gray-500 mt-0.5">
-                                Rs {item.price} × {item.quantity} = Rs {item.price * item.quantity}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => updateCartQuantity(item.id, -1)}
-                                className="w-7 h-7 rounded-md bg-gray-100 text-gray-700 flex items-center justify-center hover:bg-gray-200"
-                              >
-                                <Minus size={14} />
-                              </button>
-                              <span className="w-6 text-center font-bold text-sm">{item.quantity}</span>
-                              <button
-                                onClick={() => updateCartQuantity(item.id, 1)}
-                                disabled={item.quantity >= item.stock}
-                                className="w-7 h-7 rounded-md bg-gray-100 text-gray-700 flex items-center justify-center hover:bg-gray-200 disabled:opacity-40"
-                              >
-                                <Plus size={14} />
-                              </button>
-                              <button
-                                onClick={() => removeFromCart(item.id)}
-                                className="w-7 h-7 rounded-md bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 mr-1"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span>کل وزن:</span>
+                      <span className="font-semibold text-gray-800">{cartTotalWeight} کلو</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span>ڈیلیوری چارجز:</span>
+                      <span className="font-semibold text-gray-800">Rs {cartDeliveryCharge}</span>
+                    </div>
+                    <div className="border-t border-emerald-200/80 pt-2 flex justify-between font-bold text-base text-emerald-900">
+                      <span>کل بل:</span>
+                      <span>Rs {cartTotalBill.toLocaleString()}</span>
+                    </div>
+                  </div>
 
-                      <div className="mt-4 rounded-xl bg-gray-50 p-4 space-y-2 text-sm border border-gray-100">
-                        <div className="flex justify-between text-gray-600">
-                          <span>کتابوں کی مجموعی قیمت:</span>
-                          <span>Rs {cartSubtotal}</span>
-                        </div>
-                        <div className="flex justify-between text-gray-600">
-                          <span>ڈیلیوری چارجز ({cartTotalWeight.toFixed(1)} kg):</span>
-                          <span>Rs {cartDeliveryCharge}</span>
-                        </div>
-                        <div className="border-t border-gray-200 pt-2 flex justify-between font-bold text-gray-900 text-base">
-                          <span>کل بل:</span>
-                          <span className="text-emerald-700">Rs {cartTotalBill}</span>
-                        </div>
-                      </div>
+                  {/* آرڈر فارم */}
+                  <div className="space-y-3 pt-2">
+                    <h4 className="font-bold text-gray-800 text-sm">کسٹمر کی تفصیلات:</h4>
+                    <input
+                      type="text"
+                      placeholder="آپ کا نام *"
+                      value={cartName}
+                      onChange={(e) => setCartName(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+                    <input
+                      type="tel"
+                      placeholder="فون نمبر *"
+                      value={cartPhone}
+                      onChange={(e) => setCartPhone(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+                    <textarea
+                      placeholder="مکمل پتہ (شہر، علاقہ، گلی نمبر) *"
+                      rows={2}
+                      value={cartAddress}
+                      onChange={(e) => setCartAddress(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+                  </div>
 
-                      <div className="mt-4 space-y-3">
-                        <input
-                          type="text"
-                          placeholder="آپ کا نام *"
-                          value={cartName}
-                          onChange={(e) => setCartName(e.target.value)}
-                          className="w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                        />
-                        <input
-                          type="text"
-                          placeholder="فون نمبر *"
-                          value={cartPhone}
-                          onChange={(e) => setCartPhone(e.target.value)}
-                          className="w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                        />
-                        <textarea
-                          placeholder="مکمل پتہ"
-                          value={cartAddress}
-                          onChange={(e) => setCartAddress(e.target.value)}
-                          className="w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 h-20"
-                        />
-                      </div>
-
-                      <div className="mt-6 flex flex-col gap-2">
-                        <button
-                          onClick={handleSubmitCartOrder}
-                          disabled={cartSubmitting || !cartName.trim() || !cartPhone.trim()}
-                          className="w-full rounded-xl bg-emerald-700 text-white py-3 font-medium hover:bg-emerald-800 transition disabled:opacity-50"
-                        >
-                          {cartSubmitting ? "آرڈر بھیجا جا رہا ہے..." : "آرڈر کنفرم کریں"}
-                        </button>
-                        <button
-                          onClick={sendCartToWhatsApp}
-                          disabled={!cartName.trim() || !cartPhone.trim()}
-                          className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-500 text-white py-3 font-medium hover:bg-emerald-600 transition disabled:opacity-50"
-                        >
-                          <MessageCircle size={18} /> WhatsApp کے ذریعے آرڈر کریں
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </>
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={handleSubmitCartOrder}
+                      disabled={cartSubmitting || !cartName.trim() || !cartPhone.trim()}
+                      className="flex-1 rounded-xl bg-emerald-700 text-white py-3.5 font-bold hover:bg-emerald-800 transition disabled:opacity-50"
+                    >
+                      {cartSubmitting ? "آرڈر بھیجا جا رہا ہے..." : "آرڈر مکمل کریں"}
+                    </button>
+                    <button
+                      onClick={closeCartModal}
+                      className="rounded-xl bg-gray-100 text-gray-700 px-5 py-3.5 font-medium hover:bg-gray-200 transition"
+                    >
+                      منسوخ
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </div>
         )}
 
-        {/* ریویو موڈل */}
+        {/* ریویو دینے کا موڈل */}
         {showReviewModal && (
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-md shadow-xl">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-200">
+                <h3 className="text-lg font-bold text-gray-800">ریویو دیں</h3>
+                <button onClick={() => setShowReviewModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <X size={20} />
+                </button>
+              </div>
+
               {reviewSuccess ? (
-                <div className="text-center py-6">
-                  <span className="text-5xl">⭐</span>
-                  <h3 className="text-xl font-bold text-gray-800 mt-4">ریویو دینے کا شکریہ!</h3>
-                  <p className="text-gray-500 mt-2">آپ کا ریویو ایڈمن کی منظوری کے بعد ظاہر ہو جائے گا۔</p>
+                <div className="py-8 text-center">
+                  <span className="text-5xl">👍</span>
+                  <h4 className="text-xl font-bold text-emerald-800 mt-3">شکریہ!</h4>
+                  <p className="text-gray-600 text-sm mt-1">آپ کا ریویو موصول ہو گیا ہے، منظوری کے بعد شائع کر دیا جائے گا۔</p>
                   <button
                     onClick={() => setShowReviewModal(false)}
-                    className="mt-6 w-full rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition"
+                    className="mt-6 rounded-xl bg-emerald-700 text-white px-6 py-2.5 text-sm font-medium hover:bg-emerald-800 transition"
                   >
-                    ٹھیک ہے
+                    بند کریں
                   </button>
                 </div>
               ) : (
-                <>
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xl font-bold text-gray-800">کتاب کا ریویو دیں</h3>
-                    <button onClick={() => setShowReviewModal(false)} className="text-gray-400 hover:text-gray-600">
-                      <X size={22} />
-                    </button>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-1">
-                    کتاب: <span className="font-bold text-gray-700">{reviewBookTitle}</span>
-                  </p>
+                <div className="mt-4 space-y-4">
+                  <p className="text-sm text-gray-600 font-medium">کتاب: <span className="text-emerald-800 font-bold">{reviewBookTitle}</span></p>
 
-                  <div className="mt-4 space-y-3">
-                    <input
-                      type="text"
-                      placeholder="آپ کا نام *"
-                      value={reviewName}
-                      onChange={(e) => setReviewName(e.target.value)}
-                      className="w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                    />
-
-                    <div>
-                      <label className="text-xs text-gray-500 block mb-1">ریٹنگ کا انتخاب کریں:</label>
-                      <div className="flex items-center gap-2">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <button
-                            key={star}
-                            type="button"
-                            onClick={() => setReviewRating(star)}
-                            className="p-1 transition transform hover:scale-110"
-                          >
-                            <Star
-                              size={26}
-                              className={star <= reviewRating ? "fill-amber-400 text-amber-400" : "text-gray-300"}
-                            />
-                          </button>
-                        ))}
-                      </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 block mb-1">آپ کی درجہ بندی (Rating)</label>
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setReviewRating(star)}
+                          className="p-1 hover:scale-110 transition"
+                        >
+                          <Star
+                            size={26}
+                            className={star <= reviewRating ? "fill-amber-400 text-amber-400" : "text-gray-300"}
+                          />
+                        </button>
+                      ))}
                     </div>
-
-                    <textarea
-                      placeholder="اپنی رائے لکھیں *"
-                      value={reviewComment}
-                      onChange={(e) => setReviewComment(e.target.value)}
-                      className="w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 h-24"
-                    />
                   </div>
 
-                  <div className="mt-6 flex gap-3">
+                  <input
+                    type="text"
+                    placeholder="آپ کا نام *"
+                    value={reviewName}
+                    onChange={(e) => setReviewName(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+
+                  <textarea
+                    placeholder="کتاب کے بارے میں اپنے خیالات لکھیں... *"
+                    rows={3}
+                    value={reviewComment}
+                    onChange={(e) => setReviewComment(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  />
+
+                  <div className="flex gap-3 pt-2">
                     <button
                       onClick={handleSubmitReview}
                       disabled={reviewSubmitting || !reviewName.trim() || !reviewComment.trim()}
-                      className="flex-1 rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition disabled:opacity-50"
+                      className="flex-1 rounded-xl bg-emerald-700 text-white py-3 font-medium hover:bg-emerald-800 transition disabled:opacity-50"
                     >
                       {reviewSubmitting ? "جمع ہو رہا ہے..." : "ریویو جمع کریں"}
                     </button>
                     <button
                       onClick={() => setShowReviewModal(false)}
-                      className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
+                      className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 font-medium hover:bg-gray-200 transition"
                     >
-                      منسوخ کریں
+                      منسوخ
                     </button>
                   </div>
-                </>
+                </div>
               )}
             </div>
           </div>

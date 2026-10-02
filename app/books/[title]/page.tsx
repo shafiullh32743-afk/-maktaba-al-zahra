@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   BookOpen,
@@ -27,6 +27,9 @@ import {
   PackageMinus,
   Wallet,
   LogOut,
+  Edit,
+  Save,
+  Trash2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -49,21 +52,27 @@ interface Review {
   approved: boolean;
 }
 
-const WISHLIST_KEY = "maktaba-wishlist"; // same key used on the books page
+const WISHLIST_KEY = "maktaba-wishlist";
 
 export default function BookDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const [book, setBook] = useState<Book | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [relatedBooks, setRelatedBooks] = useState<Book[]>([]); // NEW
+  const [relatedBooks, setRelatedBooks] = useState<Book[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // ایڈٹ اور اپ ڈیٹ کے لیے سٹیٹس (States)
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFormData, setEditFormData] = useState<Partial<Book>>({});
+  const [isSaving, setIsSaving] = useState(false);
+
   useEffect(() => {
     const fetchBookAndReviews = async () => {
-      const identifier = params.title as string;
+      const identifier = params.title ? decodeURIComponent(params.title as string) : "";
       if (!identifier) return;
 
       let fetchedBook: Book | null = null;
@@ -84,6 +93,13 @@ export default function BookDetailPage() {
           .limit(1);
         if (byTitle && byTitle.length > 0) {
           fetchedBook = byTitle[0] as Book;
+        } else {
+          const { data: byId } = await supabase
+            .from("books")
+            .select("*")
+            .eq("id", identifier)
+            .limit(1);
+          if (byId && byId.length > 0) fetchedBook = byId[0] as Book;
         }
       }
 
@@ -93,14 +109,14 @@ export default function BookDetailPage() {
       }
 
       setBook(fetchedBook);
+      setEditFormData(fetchedBook);
 
-      // NEW: check if this book is already in the visitor's wishlist
       try {
         const stored = localStorage.getItem(WISHLIST_KEY);
         const list: number[] = stored ? JSON.parse(stored) : [];
         setIsLiked(list.includes(Number(fetchedBook.id)));
       } catch {
-        // ignore corrupt localStorage data
+        // storage error handling
       }
 
       const { data: reviewData } = await supabase
@@ -113,7 +129,6 @@ export default function BookDetailPage() {
         setReviews(reviewData as Review[]);
       }
 
-      // NEW: fetch a few other books from the same category
       const { data: related } = await supabase
         .from("books")
         .select("*")
@@ -129,6 +144,48 @@ export default function BookDetailPage() {
     fetchBookAndReviews();
   }, [params.title]);
 
+  // کتاب کی معلومات اپ ڈیٹ کرنے کا فنکشن
+  const handleUpdateBook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!book) return;
+
+    setIsSaving(true);
+    const { error } = await supabase
+      .from("books")
+      .update({
+        title: editFormData.title,
+        author: editFormData.author,
+        category: editFormData.category,
+        price: editFormData.price,
+        image_url: editFormData.image_url,
+      })
+      .eq("id", book.id);
+
+    setIsSaving(false);
+
+    if (error) {
+      alert("تبدیلی محفوظ کرنے میں مسئلہ آیا: " + error.message);
+    } else {
+      alert("کتاب کی معلومات کامیابی سے تبدیل ہو گئی ہیں!");
+      setBook({ ...book, ...editFormData } as Book);
+      setIsEditing(false);
+    }
+  };
+
+  // کتاب ڈیلیٹ کرنے کا فنکشن
+  const handleDeleteBook = async () => {
+    if (!book) return;
+    if (confirm("کیا آپ واقعی اس کتاب کو ڈیلیٹ کرنا چاہتے ہیں؟")) {
+      const { error } = await supabase.from("books").delete().eq("id", book.id);
+      if (error) {
+        alert("کتاب ڈیلیٹ کرنے میں مسئلہ آیا: " + error.message);
+      } else {
+        alert("کتاب کامیابی سے ڈیلیٹ کر دی گئی ہے!");
+        router.push("/books");
+      }
+    }
+  };
+
   const handleWhatsAppOrder = () => {
     if (!book) return;
     const message = "Assalam o Alaikum! Main yeh kitab khareedna chahta hoon: " + book.title;
@@ -142,7 +199,6 @@ export default function BookDetailPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // NEW: toggle wishlist and persist to localStorage (same store the books page reads)
   const toggleLike = () => {
     if (!book) return;
     const bid = Number(book.id);
@@ -156,7 +212,7 @@ export default function BookDetailPage() {
       }
       localStorage.setItem(WISHLIST_KEY, JSON.stringify(list));
     } catch {
-      // storage unavailable — still flip the visual state for this session
+      // storage unavailable
     }
     setIsLiked((prev) => !prev);
   };
@@ -175,6 +231,7 @@ export default function BookDetailPage() {
         />
       )}
 
+      {/* Aside Navigation Sidebar */}
       <aside
         className={`w-72 min-h-screen md:h-screen md:sticky md:top-0 md:overflow-y-auto bg-[#4A90E2] p-6 flex flex-col fixed inset-y-0 left-0 z-50 flex-shrink-0 transform transition-transform duration-300 shadow-xl ${
           mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
@@ -218,7 +275,7 @@ export default function BookDetailPage() {
             <ShoppingCart size={20} /> آرڈرز
           </Link>
 
-            <Link href="/customers" className="flex items-center gap-3 px-4 py-3 rounded-xl text-white/90 hover:bg-white/10 transition duration-200">
+          <Link href="/customers" className="flex items-center gap-3 px-4 py-3 rounded-xl text-white/90 hover:bg-white/10 transition duration-200">
             <Users size={20} /> کسٹمرز
           </Link>
 
@@ -285,12 +342,34 @@ export default function BookDetailPage() {
         </div>
 
         <div className="w-full max-w-6xl mx-auto">
-          <Link
-            href="/books"
-            className="inline-flex items-center gap-2 text-[#4A90E2] hover:text-blue-700 font-medium transition-colors mb-6 bg-white px-4 py-2 rounded-xl border border-blue-100 shadow-sm"
-          >
-            <ArrowRight size={18} /> واپس کتب کی فہرست
-          </Link>
+          {/* Header Action Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <Link
+              href="/books"
+              className="inline-flex items-center gap-2 text-[#4A90E2] hover:text-blue-700 font-medium transition-colors bg-white px-4 py-2 rounded-xl border border-blue-100 shadow-sm"
+            >
+              <ArrowRight size={18} /> واپس کتب کی فہرست
+            </Link>
+
+            {book && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsEditing(!isEditing)}
+                  className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white font-medium px-4 py-2 rounded-xl shadow transition"
+                >
+                  <Edit size={17} />
+                  {isEditing ? "منسوخ کریں" : "کتاب تبدیل کریں"}
+                </button>
+
+                <button
+                  onClick={handleDeleteBook}
+                  className="inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white font-medium px-4 py-2 rounded-xl shadow transition"
+                >
+                  <Trash2 size={17} /> ڈیلیٹ کریں
+                </button>
+              </div>
+            )}
+          </div>
 
           {!loaded ? (
             <div className="mt-12 flex items-center gap-3 text-[#4A90E2]">
@@ -302,8 +381,84 @@ export default function BookDetailPage() {
               <span className="text-7xl mb-4 block">📖</span>
               <p className="text-gray-600 text-xl font-semibold">مطلوبہ کتاب نہیں ملی</p>
             </div>
+          ) : isEditing ? (
+            /* ایڈٹ فارم (Edit Mode) */
+            <form onSubmit={handleUpdateBook} className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 space-y-5 text-right">
+              <h2 className="text-2xl font-bold text-gray-800 mb-4 border-b pb-3">کتاب کی معلومات میں تبدیلی کریں</h2>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">کتاب کا عنوان (Title)</label>
+                <input
+                  type="text"
+                  value={editFormData.title || ""}
+                  onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                  className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">مصنف کا نام (Author)</label>
+                <input
+                  type="text"
+                  value={editFormData.author || ""}
+                  onChange={(e) => setEditFormData({ ...editFormData, author: e.target.value })}
+                  className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">زمرہ (Category)</label>
+                  <input
+                    type="text"
+                    value={editFormData.category || ""}
+                    onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
+                    className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">قیمت (Price)</label>
+                  <input
+                    type="number"
+                    value={editFormData.price || 0}
+                    onChange={(e) => setEditFormData({ ...editFormData, price: Number(e.target.value) })}
+                    className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">تصویر کا لنک (Image URL)</label>
+                <input
+                  type="text"
+                  value={editFormData.image_url || ""}
+                  onChange={(e) => setEditFormData({ ...editFormData, image_url: e.target.value })}
+                  className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4 justify-start">
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-3 rounded-xl flex items-center gap-2 shadow transition"
+                >
+                  <Save size={18} /> {isSaving ? "سیو ہو رہا ہے..." : "تبدیلی محفوظ کریں"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium px-6 py-3 rounded-xl transition"
+                >
+                  منسوخ کریں
+                </button>
+              </div>
+            </form>
           ) : (
             <>
+              {/* کتاب کا مرکزی ڈسپلے کارڈ */}
               <div className="bg-white rounded-3xl border border-gray-100 shadow-xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-0">
                 <div className="lg:col-span-7 p-8 lg:p-12 flex flex-col justify-between order-2 lg:order-1">
                   <div>
@@ -374,6 +529,7 @@ export default function BookDetailPage() {
                     </div>
                   </div>
 
+                  {/* قارئین کی رائے (Reviews) */}
                   {reviews.length > 0 && (
                     <div className="mt-10 pt-6 border-t border-gray-100">
                       <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2 justify-start">
@@ -398,6 +554,7 @@ export default function BookDetailPage() {
                   )}
                 </div>
 
+                {/* تصویر والا حصہ */}
                 <div className="lg:col-span-5 bg-gradient-to-br from-blue-50 to-blue-100/40 p-10 flex items-center justify-center border-b lg:border-b-0 lg:border-r border-blue-50 order-1 lg:order-2">
                   <div className="relative h-96 w-64 rounded-2xl overflow-hidden shadow-2xl transition-transform duration-300 hover:scale-105 border border-blue-100">
                     {book.image_url ? (
@@ -416,7 +573,7 @@ export default function BookDetailPage() {
                 </div>
               </div>
 
-              {/* NEW: related books from the same category */}
+              {/* متعلقہ کتب (Related Books) */}
               {relatedBooks.length > 0 && (
                 <div className="mt-8">
                   <h3 className="text-xl font-bold text-gray-800 mb-4 text-right">متعلقہ کتابیں</h3>
