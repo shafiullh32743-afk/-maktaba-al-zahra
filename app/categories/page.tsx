@@ -1,13 +1,16 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Users, Receipt, Truck, Gift, Ticket, RotateCcw, Star, PackageMinus, Wallet } from "lucide-react";
+import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Users, Receipt, Truck, Gift, Ticket, RotateCcw, Star, PackageMinus, Wallet, Pencil } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function CategoriesPage() {
   const [books, setBooks] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [renaming, setRenaming] = useState(false);
 
   useEffect(() => {
     const fetchBooks = async () => {
@@ -24,6 +27,20 @@ export default function CategoriesPage() {
   });
 
   const categories = Object.keys(categoryCounts);
+
+  const handleRenameCategory = async () => {
+    if (!editingCategory || newCategoryName.trim() === "") return;
+    setRenaming(true);
+    await supabase
+      .from("books")
+      .update({ category: newCategoryName.trim() })
+      .eq("category", editingCategory);
+    setRenaming(false);
+    setEditingCategory(null);
+    setNewCategoryName("");
+    const { data } = await supabase.from("books").select("*");
+    if (data) setBooks(data);
+  };
 
   return (
     <main className="min-h-screen flex bg-gray-50">
@@ -154,19 +171,60 @@ export default function CategoriesPage() {
         ) : (
           <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {categories.map((cat) => (
-              <Link
-                key={cat}
-                href={`/books?category=${encodeURIComponent(cat)}`}
-                className="block rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all"
-              >
-                <span className="text-4xl">📂</span>
-                <h3 className="mt-4 text-xl font-bold text-gray-800 hover:text-emerald-700 transition">{cat}</h3>
-                <p className="mt-2 text-emerald-700 text-sm">{categoryCounts[cat]} کتابیں — دیکھیں</p>
-              </Link>
+              <div key={cat} className="relative rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all">
+                <button
+                  onClick={() => {
+                    setEditingCategory(cat);
+                    setNewCategoryName(cat);
+                  }}
+                  className="absolute top-3 left-3 rounded-lg bg-amber-50 p-2 text-amber-700 hover:bg-amber-100 transition"
+                  title="نام تبدیل کریں"
+                >
+                  <Pencil size={16} />
+                </button>
+                <Link href={`/books?category=${encodeURIComponent(cat)}`} className="block">
+                  <span className="text-4xl">📂</span>
+                  <h3 className="mt-4 text-xl font-bold text-gray-800 hover:text-emerald-700 transition">{cat}</h3>
+                  <p className="mt-2 text-emerald-700 text-sm">{categoryCounts[cat]} کتابیں — دیکھیں</p>
+                </Link>
+              </div>
             ))}
           </div>
         )}
       </section>
+      
+      {editingCategory && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
+            <h3 className="text-lg font-bold text-gray-800">زمرے کا نام تبدیل کریں</h3>
+            <p className="text-gray-500 text-xs mt-1">
+              یہ نام تمام متعلقہ کتابوں میں بدل جائے گا
+            </p>
+            <input
+              type="text"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              className="mt-4 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              autoFocus
+            />
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={handleRenameCategory}
+                disabled={renaming}
+                className="flex-1 rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition disabled:opacity-60"
+              >
+                {renaming ? "محفوظ ہو رہا ہے..." : "محفوظ کریں"}
+              </button>
+              <button
+                onClick={() => setEditingCategory(null)}
+                className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
+              >
+                منسوخ کریں
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

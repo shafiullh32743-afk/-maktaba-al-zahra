@@ -20,6 +20,7 @@ import {
   Ticket,
   RotateCcw,
   RotateCw,
+  Pencil,
   Upload,
   MessageCircle,
   Star,
@@ -243,6 +244,9 @@ function BooksPageInner() {
   const [importResult, setImportResult] = useState<string | null>(null);
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [renamingCategory, setRenamingCategory] = useState(false);
+  const [categoryRenameValue, setCategoryRenameValue] = useState("");
+  const [showCategoryRename, setShowCategoryRename] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   const [wishlist, setWishlist] = useState<number[]>([]);
@@ -361,6 +365,19 @@ function BooksPageInner() {
   });
 
   const existingCategories = Array.from(new Set(books.map((b) => b.category)));
+
+  const handleRenameCategory = async () => {
+    if (!newCategory || newCategory === "__new__" || categoryRenameValue.trim() === "") return;
+    setRenamingCategory(true);
+    await supabase
+      .from("books")
+      .update({ category: categoryRenameValue.trim() })
+      .eq("category", newCategory);
+    setNewCategory(categoryRenameValue.trim());
+    setRenamingCategory(false);
+    setShowCategoryRename(false);
+    fetchBooks();
+  };
   const existingAuthors = Array.from(new Set(books.map((b) => b.author)));
   const existingLanguages = Array.from(new Set(books.map((b) => b.language || "اردو")));
 
@@ -1722,7 +1739,19 @@ ${itemsList}
                 <span className="text-sm text-gray-600">کتاب کی تصویر (اختیاری)</span>
                 {imagePreview && (
                   <div className="mt-2 relative h-32 w-full">
-                    <Image src={imagePreview} alt="preview" fill className="rounded-lg object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingImageSrc(imagePreview);
+                        setEditingImageFileName("image.jpg");
+                        setRotationDegrees(0);
+                        setCropBox({ x: 0, y: 0, w: 100, h: 100 });
+                        setShowImageEditor(true);
+                      }}
+                      className="absolute inset-0 w-full h-full cursor-pointer"
+                    >
+                      <Image src={imagePreview} alt="preview" fill className="rounded-lg object-cover" />
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -1730,7 +1759,7 @@ ${itemsList}
                         setImageFile(null);
                         setExistingImageUrl(null);
                       }}
-                      className="absolute top-2 left-2 bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center shadow-md hover:bg-red-600 transition"
+                      className="absolute top-2 left-2 z-10 bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center shadow-md hover:bg-red-600 transition"
                     >
                       <X size={16} />
                     </button>
@@ -1767,17 +1796,55 @@ ${itemsList}
                   className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600"
                 />
 
-                <select
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
-                >
-                  <option value="">زمرہ منتخب کریں</option>
-                  {existingCategories.map((cat) => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                  <option value="__new__">+ نیا زمرہ شامل کریں</option>
-                </select>
+                <div className="flex gap-2">
+                  <select
+                    value={newCategory}
+                    onChange={(e) => {
+                      setNewCategory(e.target.value);
+                      setCategoryRenameValue(e.target.value === "__new__" ? "" : e.target.value);
+                    }}
+                    className="flex-1 w-full rounded-xl border border-gray-200 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 bg-white"
+                  >
+                    <option value="">زمرہ منتخب کریں</option>
+                    {existingCategories.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                    <option value="__new__">+ نیا زمرہ شامل کریں</option>
+                  </select>
+                  {newCategory && newCategory !== "__new__" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCategoryRenameValue(newCategory);
+                        setShowCategoryRename(true);
+                      }}
+                      className="rounded-xl bg-amber-50 px-3 text-amber-700 hover:bg-amber-100 transition flex-shrink-0"
+                      title="اس زمرے کا نام تبدیل کریں"
+                    >
+                      <Pencil size={18} />
+                    </button>
+                  )}
+                </div>
+
+                {showCategoryRename && newCategory && newCategory !== "__new__" && (
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      type="text"
+                      value={categoryRenameValue}
+                      onChange={(e) => setCategoryRenameValue(e.target.value)}
+                      placeholder="نیا نام لکھیں"
+                      className="flex-1 rounded-xl border border-amber-300 p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRenameCategory}
+                      disabled={renamingCategory}
+                      className="rounded-xl bg-amber-600 text-white px-4 text-sm hover:bg-amber-700 transition disabled:opacity-60"
+                    >
+                      {renamingCategory ? "..." : "تبدیل کریں"}
+                    </button>
+                  </div>
+                )}
 
                 {newCategory === "__new__" && (
                   <input
