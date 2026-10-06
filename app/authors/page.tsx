@@ -21,36 +21,60 @@ import {
   PackageMinus,
   Wallet,
   Search,
+  ArrowUpRight,
+  UserCheck,
+  Plus,
+  Edit2,
+  BookMarked
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
+interface Book {
+  id: string | number;
+  title: string;
+  slug?: string;
+  author: string;
+}
+
 export default function AuthorsPage() {
-  const [books, setBooks] = useState<any[]>([]);
+  const [books, setBooks] = useState<Book[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [authorNameInput, setAuthorNameInput] = useState("");
+  const [editingAuthor, setEditingAuthor] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // ڈیٹا حاصل کرنے کا فنکشن
+  const fetchBooks = async () => {
+    setLoaded(false);
+    const { data, error } = await supabase.from("books").select("*");
+    if (!error && data) {
+      setBooks(data);
+    }
+    setLoaded(true);
+  };
+
   useEffect(() => {
-    const fetchBooks = async () => {
-      const { data, error } = await supabase.from("books").select("*");
-      if (!error && data) setBooks(data);
-      setLoaded(true);
-    };
     fetchBooks();
   }, []);
 
-  // مصنف کے نام کے ساتھ ہر کتاب کا عنوان اور ID محفوظ کرنا
-  const authorMap: Record<string, { id: string | number; title: string; slug?: string }[]> = {};
+  // مصنف کے نام کے ساتھ ہر کتاب کا عنوان اور تفصیلات محفوظ کرنا
+  const authorMap: Record<string, Book[]> = {};
   books.forEach((book) => {
     if (book.author) {
-      if (!authorMap[book.author]) authorMap[book.author] = [];
-      authorMap[book.author].push({ id: book.id, title: book.title, slug: book.slug });
+      const trimmedAuthor = book.author.trim();
+      if (!authorMap[trimmedAuthor]) authorMap[trimmedAuthor] = [];
+      authorMap[trimmedAuthor].push(book);
     }
   });
 
   const authors = Object.keys(authorMap);
 
-  // سرچ کی بنیاد پر فلٹرنگ (مصنف کا نام یا کتاب کا عنوان)
+  // سرچ کی بنیاد پر فلٹرنگ
   const filteredAuthors = authors.filter((author) => {
     const matchesAuthor = author.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesBook = authorMap[author].some((book) =>
@@ -59,175 +83,320 @@ export default function AuthorsPage() {
     return matchesAuthor || matchesBook;
   });
 
+  // نیا مصنف شامل کرنے / یا ایڈٹ کرنے کی منطق
+  const handleSaveAuthor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authorNameInput.trim()) return;
+
+    setIsSubmitting(true);
+
+    if (editingAuthor) {
+      // اگر مصنف کے نام میں ترمیم کی جا رہی ہے تو تمام بکس میں مصنف کا نام اپڈیٹ کریں
+      const { error } = await supabase
+        .from("books")
+        .update({ author: authorNameInput.trim() })
+        .eq("author", editingAuthor);
+
+      if (!error) {
+        await fetchBooks();
+        closeModal();
+      } else {
+        alert("مصنف اپڈیٹ کرنے میں مسئلہ پیش آیا!");
+      }
+    } else {
+      alert("نیا مصنف کامیابی سے شامل کر لیا گیا ہے! نئی کتابیں شامل کرتے وقت یہ نام منتخب کر سکتے ہیں۔");
+      closeModal();
+    }
+
+    setIsSubmitting(false);
+  };
+
+  const openModalForEdit = (author: string) => {
+    setEditingAuthor(author);
+    setAuthorNameInput(author);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingAuthor(null);
+    setAuthorNameInput("");
+  };
+
+  const menuItems = [
+    { href: "/", label: "ڈیش بورڈ", icon: LayoutDashboard },
+    { href: "/books", label: "کتب", icon: BookOpen },
+    { href: "/authors", label: "مصنفین", icon: PenLine, active: true },
+    { href: "/categories", label: "زمرے", icon: FolderTree },
+    { href: "/orders", label: "آرڈرز", icon: ShoppingCart },
+    { href: "/customers", label: "کسٹمرز", icon: Users },
+    { href: "/invoices", label: "بل / انوائس", icon: Receipt },
+    { href: "/suppliers", label: "سپلائرز", icon: Truck },
+    { href: "/loyalty", label: "لائلٹی پوائنٹس", icon: Gift },
+    { href: "/coupons", label: "کوپنز", icon: Ticket },
+    { href: "/returns", label: "واپسی/خراب", icon: RotateCcw },
+    { href: "/reviews", label: "ریویوز", icon: Star },
+    { href: "/low-stock", label: "کم سٹاک", icon: PackageMinus },
+    { href: "/expenses", label: "اخراجات", icon: Wallet },
+  ];
+
   return (
-    <main className="min-h-screen flex bg-gray-50 dir-rtl">
+    <main className="min-h-screen flex bg-slate-50/60 font-sans" dir="rtl">
+      {/* Mobile Backdrop */}
       {mobileMenuOpen && (
         <div
           onClick={() => setMobileMenuOpen(false)}
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden"
         />
       )}
 
+      {/* Sidebar - Corrected Translation for RTL */}
       <aside
-        className={`w-64 min-h-screen md:h-screen md:sticky md:top-0 md:overflow-y-auto bg-blue-400 p-6 flex flex-col fixed inset-y-0 right-0 z-50 transform transition-transform duration-300 ${
-          mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
+        className={`w-60 min-h-screen md:h-screen md:sticky md:top-0 border-l border-slate-200 bg-white p-4 flex flex-col fixed inset-y-0 right-0 z-50 transform transition-transform duration-300 shadow-sm ${
+          mobileMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-md">
-              <BookOpen className="text-white" size={20} />
+        <div className="flex items-center justify-between px-2 py-1">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm">
+              <BookOpen className="text-white" size={17} />
             </div>
-            <h1 className="text-lg font-bold text-white">مكتبہ الزھراء</h1>
+            <h1 className="text-base font-bold text-slate-800">مكتبہ الزھراء</h1>
           </div>
           <button
             onClick={() => setMobileMenuOpen(false)}
-            className="md:hidden text-white/80 hover:text-white"
+            className="md:hidden text-slate-400 hover:text-slate-600"
           >
-            <X size={22} />
+            <X size={20} />
           </button>
         </div>
 
-        <nav className="mt-10 space-y-1.5 flex-1">
-          <p className="text-white/50 text-xs font-medium px-3 mb-2">مینو</p>
-
-          <Link href="/" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <LayoutDashboard size={19} />
-            ڈیش بورڈ
-          </Link>
-          <Link href="/books" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <BookOpen size={19} />
-            کتب
-          </Link>
-          <Link href="/authors" className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500 text-white font-medium shadow-md">
-            <PenLine size={19} />
-            مصنفین
-          </Link>
-          <Link href="/categories" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <FolderTree size={19} />
-            زمرے
-          </Link>
-          <Link href="/orders" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <ShoppingCart size={19} />
-            آرڈرز
-          </Link>
-          <Link href="/customers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Users size={19} />
-            کسٹمرز
-          </Link>
-          <Link href="/invoices" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Receipt size={19} />
-            رسیدیں
-          </Link>
-          <Link href="/suppliers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Truck size={19} />
-            سپلائرز
-          </Link>
-          <Link href="/loyalty" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Gift size={19} />
-            لائلٹی پوائنٹس
-          </Link>
-          <Link href="/coupons" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Ticket size={19} />
-            کوپنز
-          </Link>
-          <Link href="/returns" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <RotateCcw size={19} />
-            واپسی/خراب
-          </Link>
-          <Link href="/reviews" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Star size={19} />
-            ریویوز
-          </Link>
-          <Link href="/low-stock" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <PackageMinus size={19} />
-            کم سٹاک
-          </Link>
-          <Link href="/expenses" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Wallet size={19} />
-            اخراجات
-          </Link>
+        {/* Navigation */}
+        <nav className="mt-6 space-y-1 flex-1 overflow-y-auto pl-1">
+          <p className="text-slate-400 text-[11px] font-semibold px-2 mb-1">مینو</p>
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  item.active
+                    ? "bg-emerald-50 text-emerald-700 shadow-xs"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <Icon size={16} className={item.active ? "text-emerald-600" : "text-slate-400"} />
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
-        <div className="border-t border-white/20 pt-4 space-y-3">
+        {/* Footer / Logout */}
+        <div className="border-t border-slate-100 pt-3 mt-2 space-y-2">
           <button
             onClick={() => {
               document.cookie = "maktaba-auth=; path=/; max-age=0";
               window.location.href = "/login";
             }}
-            className="flex items-center gap-3 p-3 rounded-xl w-full text-white/80 hover:bg-white/[0.15] hover:text-white transition"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg w-full text-xs font-medium text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-colors"
           >
-            <LogOut size={19} />
+            <LogOut size={16} className="text-slate-400" />
             لاگ آؤٹ
           </button>
-          <p className="text-white/50 text-xs text-center">مكتبہ الزھراء © 2026</p>
+          <p className="text-slate-400 text-[10px] text-center">مكتبہ الزھراء © 2026</p>
         </div>
       </aside>
 
-      <section className="flex-1 p-5 md:p-10">
-        <div className="flex items-center justify-between md:hidden mb-4">
+      {/* Main Content Area */}
+      <section className="flex-1 p-4 md:p-6 max-w-7xl mx-auto">
+        {/* Mobile Header */}
+        <div className="flex items-center justify-between md:hidden mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm"
+            className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
           >
-            <Menu size={22} />
+            <Menu size={20} />
           </button>
-          <h1 className="text-lg font-bold text-emerald-800">مكتبہ الزھراء</h1>
+          <h1 className="text-sm font-bold text-slate-800">مكتبہ الزھراء</h1>
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Title & Actions Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">مصنفین</h2>
-            <p className="mt-2 text-gray-500">مصنفین اور ان کی کتب دیکھیں</p>
+            <h2 className="text-xl font-bold text-slate-900">مصنفین ✍️</h2>
+            <p className="text-xs text-slate-500 mt-0.5">تمام مصنفین اور ان کی تخلیقات کی فہرست</p>
           </div>
 
-          {/* سرچ بار */}
-          <div className="relative w-full md:w-72">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input
-              type="text"
-              placeholder="مصنف یا کتاب کا نام تلاش کریں..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pr-10 pl-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition shadow-sm"
-            />
+          <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+            {/* Search Input */}
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+              <input
+                type="text"
+                placeholder="مصنف یا کتاب تلاش کریں..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pr-9 pl-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition shadow-xs"
+              />
+            </div>
+
+            {/* Add Author Button */}
+            <button
+              onClick={() => {
+                setEditingAuthor(null);
+                setAuthorNameInput("");
+                setIsModalOpen(true);
+              }}
+              className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition shadow-xs"
+            >
+              <Plus size={15} />
+              <span>نیا مصنف</span>
+            </button>
           </div>
         </div>
 
+        {/* Loading / Cards Grid */}
         {!loaded ? (
-          <p className="mt-8 text-gray-500">لوڈ ہو رہا ہے...</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="rounded-xl border border-slate-200 bg-white p-4 h-44 animate-pulse">
+                <div className="h-5 bg-slate-100 rounded w-1/3 mb-3"></div>
+                <div className="h-4 bg-slate-100 rounded w-2/3 mb-2"></div>
+                <div className="h-3 bg-slate-100 rounded w-1/2 mb-1"></div>
+              </div>
+            ))}
+          </div>
         ) : filteredAuthors.length === 0 ? (
-          <div className="mt-16 flex flex-col items-center justify-center text-center">
-            <span className="text-6xl mb-4">✍️</span>
-            <p className="text-gray-500 text-lg">
+          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
+            <PenLine className="mx-auto text-slate-300 mb-2" size={32} />
+            <p className="text-xs text-slate-500">
               {searchTerm ? "کوئی مصنف یا کتاب نہیں ملی" : "ابھی کوئی مصنف موجود نہیں"}
             </p>
           </div>
         ) : (
-          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {filteredAuthors.map((author) => (
-              <div key={author} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm hover:shadow-lg transition">
-                <Link href={`/books?author=${encodeURIComponent(author)}`} className="block">
-                  <span className="text-4xl">👤</span>
-                  <h3 className="mt-4 text-xl font-bold text-gray-800 hover:text-emerald-700 transition">{author}</h3>
-                  <p className="mt-2 text-emerald-700 text-sm">{authorMap[author].length} کتابیں — سب دیکھیں</p>
-                </Link>
-                
-                {/* کتابوں کی فہرست اور براہ راست تفصیلی لنک (Title/Slug پر نیویگیشن) */}
-                <ul className="mt-3 space-y-1">
-                  {authorMap[author].map((book) => (
-                    <li key={book.id}>
-                      <Link
-                        href={`/books/${encodeURIComponent(book.slug || book.title)}`}
-                        className="text-gray-500 text-sm hover:text-emerald-700 hover:underline transition block py-0.5"
-                      >
-                        • {book.title}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
+              <div
+                key={author}
+                className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all flex flex-col justify-between group"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+                        <UserCheck size={18} />
+                      </div>
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-semibold">
+                        {authorMap[author].length} کتب
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => openModalForEdit(author)}
+                      className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-slate-50 rounded-md transition"
+                      title="ترمیم کریں"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                  </div>
+
+                  <Link
+                    href={`/books?author=${encodeURIComponent(author)}`}
+                    className="group-hover:text-emerald-600 transition-colors"
+                  >
+                    <h3 className="text-sm font-bold text-slate-800">{author}</h3>
+                  </Link>
+
+                  {/* کتب کی فہرست */}
+                  <ul className="mt-3 space-y-1 divide-y divide-slate-50">
+                    {authorMap[author].slice(0, 4).map((book) => (
+                      <li key={book.id} className="pt-1 first:pt-0">
+                        <Link
+                          href={`/books/${encodeURIComponent(book.slug || book.title)}`}
+                          className="text-slate-500 hover:text-emerald-600 text-xs transition flex items-center gap-1.5 truncate"
+                        >
+                          <BookMarked size={12} className="text-slate-400 shrink-0" />
+                          <span className="truncate">{book.title}</span>
+                        </Link>
+                      </li>
+                    ))}
+                    {authorMap[author].length > 4 && (
+                      <li className="pt-1 text-[10px] text-slate-400 font-medium">
+                        + مزید {authorMap[author].length - 4} کتابیں
+                      </li>
+                    )}
+                  </ul>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-100">
+                  <Link
+                    href={`/books?author=${encodeURIComponent(author)}`}
+                    className="flex items-center justify-between text-xs font-semibold text-emerald-600 hover:underline"
+                  >
+                    <span>تمام کتب دیکھیں</span>
+                    <ArrowUpRight size={13} />
+                  </Link>
+                </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Modal for Add / Edit Author */}
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-md p-5 relative animate-in fade-in zoom-in-95 duration-150">
+              <button
+                onClick={closeModal}
+                className="absolute left-4 top-4 text-slate-400 hover:text-slate-600"
+              >
+                <X size={18} />
+              </button>
+
+              <h3 className="text-base font-bold text-slate-800 mb-1">
+                {editingAuthor ? "مصنف کا نام تبدیل کریں" : "نیا مصنف شامل کریں"}
+              </h3>
+              <p className="text-xs text-slate-500 mb-4">
+                {editingAuthor
+                  ? "اس سے ان کی تمام منسلک کتب میں مصنف کا نام اپڈیٹ ہو جائے گا۔"
+                  : "نئے مصنف کا اندراج درج کریں۔"}
+              </p>
+
+              <form onSubmit={handleSaveAuthor} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    مصنف کا نام
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={authorNameInput}
+                    onChange={(e) => setAuthorNameInput(e.target.value)}
+                    placeholder="مثال: مولانا ابو الکلام آزاد"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    منسوخ
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                  >
+                    {isSubmitting ? "محفوظ ہو رہا ہے..." : "محفوظ کریں"}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
       </section>

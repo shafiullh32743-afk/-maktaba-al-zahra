@@ -1,4 +1,5 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
@@ -21,7 +22,7 @@ import {
   Wallet,
   TrendingUp,
   Boxes,
-  ArrowUpRight
+  ArrowUpRight,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -84,7 +85,7 @@ export default function DashboardPage() {
     { href: "/categories", label: "زمرے", icon: FolderTree },
     { href: "/orders", label: "آرڈرز", icon: ShoppingCart },
     { href: "/customers", label: "کسٹمرز", icon: Users },
-    { href: "/invoices", label: "رسیدیں", icon: Receipt },
+    { href: "/bills", label: "بل", icon: Receipt },
     { href: "/suppliers", label: "سپلائرز", icon: Truck },
     { href: "/loyalty", label: "لائلٹی پوائنٹس", icon: Gift },
     { href: "/coupons", label: "کوپنز", icon: Ticket },
@@ -95,7 +96,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <main className="min-h-screen flex bg-slate-50/60 font-sans dir-rtl">
+    <main className="min-h-screen flex bg-slate-50/60 font-sans" dir="rtl">
       {/* Mobile Backdrop */}
       {mobileMenuOpen && (
         <div
@@ -104,9 +105,9 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Positioned on the Right side */}
       <aside
-        className={`w-60 min-h-screen md:h-screen md:sticky md:top-0 border-l border-slate-200 bg-white p-4 flex flex-col fixed inset-y-0 right-0 z-50 transform transition-transform duration-300 shadow-sm ${
+        className={`w-60 min-h-screen md:h-screen md:sticky md:top-0 border-r border-slate-200 bg-white p-4 flex flex-col fixed inset-y-0 right-0 z-50 transform transition-transform duration-300 shadow-sm ${
           mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
         }`}
       >
@@ -126,7 +127,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Navigation */}
-        <nav className="mt-6 space-y-1 flex-1 overflow-y-auto pr-1">
+        <nav className="mt-6 space-y-1 flex-1 overflow-y-auto pl-1">
           <p className="text-slate-400 text-[11px] font-semibold px-2 mb-1">مینو</p>
           {menuItems.map((item) => {
             const Icon = item.icon;
