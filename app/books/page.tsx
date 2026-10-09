@@ -1930,7 +1930,7 @@ ${itemsList}
                         setNewSlug(generateSlugFromTitle(e.target.value));
                       }
                     }}
-                    placeholder="مثلاً: بہارِ شریعت"
+                    placeholder="مثلاً: كیف عاملہم"
                     className={`w-full rounded-lg border p-2 text-xs ${darkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-200"}`}
                     autoFocus
                   />
@@ -1942,7 +1942,7 @@ ${itemsList}
                     type="text"
                     value={newAuthor}
                     onChange={(e) => setNewAuthor(e.target.value)}
-                    placeholder="مثلاً: مفتی امجد علی اعظمی"
+                    placeholder="مثلاً: صالح المنجد"
                     className={`w-full rounded-lg border p-2 text-xs ${darkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-200"}`}
                   />
                 </div>
@@ -2053,7 +2053,7 @@ ${itemsList}
                     type="text"
                     value={newSlug}
                     onChange={(e) => setNewSlug(e.target.value)}
-                    placeholder="bahar-e-shariat"
+                    placeholder="kif-aamlhum"
                     className={`w-full rounded-lg border p-2 text-xs font-mono text-[11px] ${darkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-200"}`}
                   />
                 </div>
