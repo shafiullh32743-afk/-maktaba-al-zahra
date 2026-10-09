@@ -7,19 +7,17 @@ import {
   BookOpen,
   PenLine,
   FolderTree,
-  LogOut,
-  Menu,
-  X,
+  Receipt,
+  Users,
   ShoppingCart,
+  Truck,
+  RotateCcw,
   Star,
   PackageMinus,
   Wallet,
-  Users,
-  Receipt,
-  Truck,
-  Gift,
-  Ticket,
-  RotateCcw,
+  LogOut,
+  Menu,
+  X,
   Plus,
   Trash2,
   Printer,
@@ -89,12 +87,11 @@ function statusLabel(status: string) {
     return { label: "ادا شدہ", color: "bg-emerald-50 text-emerald-700 border-emerald-200" };
   if (status === "partial")
     return { label: "جزوی ادائیگی", color: "bg-amber-50 text-amber-700 border-amber-200" };
-  return { label: "غیر ادا شدہ", color: "bg-red-50 text-red-700 border-red-200" };
+  return { label: "غیر ادا شدہ", color: "bg-rose-50 text-rose-700 border-rose-200" };
 }
 
-// shared print/preview styling
 const invoiceStyles = `
-  body { font-family: Arial, "Noto Nastaliq Urdu", sans-serif; padding: 24px; direction: rtl; color: #111827; background:#f8fafc; }
+  body { font-family: system-ui, -apple-system, sans-serif; padding: 24px; direction: rtl; color: #111827; background:#f8fafc; }
   .invoice-wrapper { max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
   .header { text-align: center; background: linear-gradient(135deg, #047857, #059669); padding: 26px 16px; color: white; }
   .header h1 { margin: 0; font-size: 22px; }
@@ -119,7 +116,6 @@ export default function InvoicesPage() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
-  // Modal & Form State
   const [showModal, setShowModal] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [walkInName, setWalkInName] = useState("");
@@ -131,19 +127,18 @@ export default function InvoicesPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Book Selection inputs for Modal
   const [currentBookId, setCurrentBookId] = useState("");
   const [bookSearch, setBookSearch] = useState("");
   const [currentQty, setCurrentQty] = useState("1");
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
-  // NEW: preview modal state
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [previewItems, setPreviewItems] = useState<LineItem[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
 
   const fetchData = async () => {
+    setLoaded(false);
     const { data: invoicesData } = await supabase
       .from("invoices")
       .select("*, customers(name, phone)")
@@ -175,7 +170,7 @@ export default function InvoicesPage() {
       if (matched) return matched.name;
     }
     if ((inv as any).walk_in_name) return (inv as any).walk_in_name;
-    return "عام کسٹمر (واک ان)";
+    return "عام گاہک (براہ راست)";
   };
 
   const handleAddItem = () => {
@@ -187,7 +182,7 @@ export default function InvoicesPage() {
     if (qty <= 0) return;
 
     if (qty > book.stock) {
-      alert(`اسٹاک میں صرف ${book.stock} کتب موجود ہیں!`);
+      alert(`دستیاب اسٹاک میں صرف ${book.stock} کتابیں موجود ہیں!`);
       return;
     }
 
@@ -196,7 +191,7 @@ export default function InvoicesPage() {
       const updated = [...selectedItems];
       const newQty = updated[existingIndex].quantity + qty;
       if (newQty > book.stock) {
-        alert(`کل تعداد اسٹاک (${book.stock}) سے زیادہ ہو رہی ہے!`);
+        alert(`کل تعداد دستیاب اسٹاک (${book.stock}) سے تجاوز کر رہی ہے!`);
         return;
       }
       updated[existingIndex].quantity = newQty;
@@ -242,7 +237,6 @@ export default function InvoicesPage() {
     .filter((i) => i.payment_status !== "paid")
     .reduce((sum, i) => sum + (i.total_amount - i.amount_paid), 0);
 
-  // NEW: additional summary stats
   const totalRevenue = invoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
   const totalBillsCount = invoices.length;
 
@@ -265,7 +259,7 @@ export default function InvoicesPage() {
 
   const handleSave = async () => {
     if (effectiveSubtotal <= 0) {
-      setSaveError("براہ کرم کتب شامل کریں یا ذیلی مجموعہ درج کریں!");
+      setSaveError("براہ کرم کتابیں شامل کریں یا فرعی مجموعہ درج کریں!");
       return;
     }
 
@@ -301,7 +295,7 @@ export default function InvoicesPage() {
         .single();
 
       if (invErr || !newInvoice) {
-        throw new Error(invErr?.message || "محفوظ نہیں ہو سکا");
+        throw new Error(invErr?.message || "محفوظ کرنے میں ناکامی ہوئی");
       }
 
       if (selectedItems.length > 0) {
@@ -329,7 +323,7 @@ export default function InvoicesPage() {
       resetForm();
       fetchData();
     } catch (err: any) {
-      setSaveError(`محفوظ نہیں ہو سکا: ${err.message}`);
+      setSaveError(`محفوظ کرنے میں ناکامی: ${err.message}`);
       setSaving(false);
     }
   };
@@ -348,7 +342,6 @@ export default function InvoicesPage() {
     fetchData();
   };
 
-  // NEW: shared HTML builder used by both the print window and the on-screen preview
   const buildInvoiceHtml = (invoice: Invoice, items: LineItem[]) => {
     const customerName = getCustomerName(invoice);
     const balance = invoice.total_amount - invoice.amount_paid;
@@ -359,8 +352,8 @@ export default function InvoicesPage() {
         <tr style="background:${i % 2 === 0 ? "#f9fafb" : "#ffffff"};">
           <td>${it.books?.title || "کتاب"}</td>
           <td style="text-align:center">${it.quantity}</td>
-          <td style="text-align:left">Rs ${Number(it.unit_price).toLocaleString()}</td>
-          <td style="text-align:left">Rs ${Number(it.total_price).toLocaleString()}</td>
+          <td style="text-align:left">${Number(it.unit_price).toLocaleString()} روپے</td>
+          <td style="text-align:left">${Number(it.total_price).toLocaleString()} روپے</td>
         </tr>`
       )
       .join("");
@@ -368,20 +361,20 @@ export default function InvoicesPage() {
     return `
       <div class="invoice-wrapper">
         <div class="header">
-          <h1>مكتبہ الزھراء</h1>
-          <p>بل نمبر: ${invoice.invoice_number}</p>
+          <h1>مكتبة الزهراء</h1>
+          <p>انوائس نمبر: ${invoice.invoice_number}</p>
         </div>
         <div class="info-box">
-          <p><strong>کسٹمر کا نام:</strong> ${customerName}</p>
+          <p><strong>گاہک کا نام:</strong> ${customerName}</p>
           <p><strong>تاریخ:</strong> ${new Date(invoice.created_at).toLocaleDateString("ur-PK")}</p>
-          ${invoice.due_date ? `<p><strong>آخری تاریخ ادائیگی:</strong> ${invoice.due_date}</p>` : ""}
+          ${invoice.due_date ? `<p><strong>آخری تاریخ:</strong> ${invoice.due_date}</p>` : ""}
         </div>
         ${
           items.length > 0
             ? `<table class="items">
                 <thead>
                   <tr>
-                    <th style="text-align:right">تفصیل کتب</th>
+                    <th style="text-align:right">کتاب کی تفصیلات</th>
                     <th style="text-align:center">تعداد</th>
                     <th style="text-align:left">قیمت</th>
                     <th style="text-align:left">کل</th>
@@ -392,11 +385,11 @@ export default function InvoicesPage() {
             : ""
         }
         <div class="totals">
-          <div><span>ذیلی مجموعہ</span><span>Rs ${Number(invoice.subtotal).toLocaleString()}</span></div>
-          <div><span>رعایت</span><span>Rs ${Number(invoice.discount_amount).toLocaleString()}</span></div>
-          <div class="grand"><span>کل رقم</span><span>Rs ${Number(invoice.total_amount).toLocaleString()}</span></div>
-          <div><span>ادا شدہ</span><span>Rs ${Number(invoice.amount_paid).toLocaleString()}</span></div>
-          ${balance > 0 ? `<div class="balance"><span>باقی رقم</span><span>Rs ${balance.toLocaleString()}</span></div>` : ""}
+          <div><span>فرعی مجموعہ</span><span>${Number(invoice.subtotal).toLocaleString()} روپے</span></div>
+          <div><span>رعایت</span><span>${Number(invoice.discount_amount).toLocaleString()} روپے</span></div>
+          <div class="grand"><span>کل واجب الادا رقم</span><span>${Number(invoice.total_amount).toLocaleString()} روپے</span></div>
+          <div><span>ادا شدہ</span><span>${Number(invoice.amount_paid).toLocaleString()} روپے</span></div>
+          ${balance > 0 ? `<div class="balance"><span>بقایا رقم</span><span>${balance.toLocaleString()} روپے</span></div>` : ""}
         </div>
       </div>`;
   };
@@ -432,7 +425,6 @@ export default function InvoicesPage() {
     }
   };
 
-  // NEW: open the on-screen preview (fetches items first)
   const handlePreviewInvoice = async (invoice: Invoice) => {
     setPreviewLoading(true);
     setPreviewInvoice(invoice);
@@ -441,189 +433,196 @@ export default function InvoicesPage() {
     setPreviewLoading(false);
   };
 
+  const menuItems = [
+    { href: "/", label: "ڈیش بورڈ", icon: LayoutDashboard },
+    { href: "/books", label: "کتب", icon: BookOpen },
+    { href: "/authors", label: "مصنفین", icon: PenLine },
+    { href: "/categories", label: "زمرے", icon: FolderTree },
+    { href: "/orders", label: "آرڈرز", icon: ShoppingCart },
+    { href: "/customers", label: "کسٹمرز", icon: Users },
+    { href: "/invoices", label: "بل / انوائس", icon: Receipt, active: true },
+    { href: "/suppliers", label: "سپلائرز", icon: Truck },
+    { href: "/returns", label: "واپسی/خراب", icon: RotateCcw },
+    { href: "/reviews", label: "ریویوز", icon: Star },
+    { href: "/low-stock", label: "کم سٹاک", icon: PackageMinus },
+    { href: "/expenses", label: "اخراجات", icon: Wallet },
+  ];
+
   return (
-    <main dir="ltr" className="min-h-screen flex bg-gray-50 font-sans">
+    <main dir="rtl" className="min-h-screen flex bg-slate-50/60 font-sans">
+      {/* Mobile Backdrop */}
       {mobileMenuOpen && (
         <div
           onClick={() => setMobileMenuOpen(false)}
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden"
         />
       )}
 
+      {/* Sidebar - تمام صفحات کے عین مطابق */}
       <aside
-        className={`w-64 min-h-screen bg-blue-400 p-6 flex flex-col fixed md:h-screen md:sticky md:top-0 md:overflow-y-auto inset-y-0 right-0 z-50 flex-shrink-0 transform transition-transform duration-300 ${
+        className={`w-60 min-h-screen md:h-screen md:sticky md:top-0 border-l border-slate-200 bg-white p-4 flex flex-col fixed inset-y-0 right-0 z-50 flex-shrink-0 transform transition-transform duration-300 shadow-sm ${
           mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
         }`}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-md">
-              <BookOpen className="text-white" size={20} />
+        <div className="flex items-center justify-between px-2 py-1">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm">
+              <BookOpen className="text-white" size={17} />
             </div>
-            <h1 className="text-lg font-bold text-white">مكتبہ الزھراء</h1>
+            <h1 className="text-base font-bold text-slate-800">مكتبہ الزھراء</h1>
           </div>
           <button
             onClick={() => setMobileMenuOpen(false)}
-            className="md:hidden text-white/80 hover:text-white"
+            className="md:hidden text-slate-400 hover:text-slate-600"
           >
-            <X size={22} />
+            <X size={20} />
           </button>
         </div>
 
-        <nav className="mt-8 space-y-1 flex-1">
-          <p className="text-white/50 text-xs font-medium px-3 mb-2">مینو</p>
-          <Link href="/" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
-            <LayoutDashboard size={18} /> ڈیش بورڈ
-          </Link>
-          <Link href="/books" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
-            <BookOpen size={18} /> کتب
-          </Link>
-          <Link href="/authors" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
-            <PenLine size={18} /> مصنفین
-          </Link>
-          <Link href="/categories" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
-            <FolderTree size={18} /> زمرے
-          </Link>
-          <Link href="/orders" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
-            <ShoppingCart size={18} /> آرڈرز
-          </Link>
-          <Link href="/customers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
-            <Users size={18} /> کسٹمرز
-          </Link>
-          <Link href="/invoices" className="flex items-center gap-3 p-3 rounded-xl bg-emerald-600 text-white font-medium shadow-md text-sm">
-            <Receipt size={18} /> بلز
-          </Link>
-          <Link href="/suppliers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
-            <Truck size={18} /> سپلائرز
-          </Link>
-          <Link href="/loyalty" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
-            <Gift size={18} /> لائلٹی پوائنٹس
-          </Link>
-          <Link href="/coupons" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
-            <Ticket size={18} /> کوپنز
-          </Link>
-          <Link href="/returns" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
-            <RotateCcw size={18} /> واپسی/خراب
-          </Link>
-          <Link href="/reviews" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
-            <Star size={18} /> ریویوز
-          </Link>
-          <Link href="/low-stock" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
-            <PackageMinus size={18} /> کم سٹاک
-          </Link>
-          <Link href="/expenses" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm">
-            <Wallet size={18} /> اخراجات
-          </Link>
+        {/* Navigation */}
+        <nav className="mt-6 space-y-1 flex-1 overflow-y-auto pl-1">
+          <p className="text-slate-400 text-[11px] font-semibold px-2 mb-1">مینو</p>
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  item.active
+                    ? "bg-emerald-50 text-emerald-700 shadow-xs"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <Icon size={16} className={item.active ? "text-emerald-600" : "text-slate-400"} />
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
-        <div className="border-t border-white/20 pt-4 space-y-2">
+        {/* Footer / Logout */}
+        <div className="border-t border-slate-100 pt-3 mt-2 space-y-2">
           <button
             onClick={() => {
               document.cookie = "maktaba-auth=; path=/; max-age=0";
               window.location.href = "/login";
             }}
-            className="flex items-center gap-3 p-3 rounded-xl w-full text-white/80 hover:bg-white/[0.15] hover:text-white transition text-sm"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg w-full text-xs font-medium text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-colors"
           >
-            <LogOut size={18} /> لاگ آؤٹ
+            <LogOut size={16} className="text-slate-400" />
+            لاگ آؤٹ
           </button>
-          <p className="text-white/50 text-xs text-center">مكتبہ الزھراء © 2026</p>
+          <p className="text-slate-400 text-[10px] text-center">مكتبہ الزھراء © 2026</p>
         </div>
       </aside>
 
-      <section className="flex-1 min-w-0 p-4 md:p-10 pb-28">
-        <div className="flex items-center justify-between md:hidden mb-4">
+      {/* Main Content Area */}
+      <section className="flex-1 p-4 md:p-6 max-w-7xl mx-auto">
+        {/* Mobile Header */}
+        <div className="flex items-center justify-between md:hidden mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm"
+            className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
           >
-            <Menu size={22} />
+            <Menu size={20} />
           </button>
-          <h1 className="text-lg font-bold text-emerald-800">مكتبہ الزھراء</h1>
+          <h1 className="text-sm font-bold text-slate-800">مكتبہ الزھراء</h1>
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Title & Actions Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">بلز</h2>
-            <p className="mt-1 text-gray-500 text-sm">کل {invoices.length} بلز</p>
+            <h2 className="text-xl font-bold text-slate-900">بل / انوائس 📄</h2>
+            <p className="text-xs text-slate-500 mt-0.5">کل {invoices.length} انوائسز کا ریکارڈ</p>
           </div>
 
           <button
             onClick={openAddModal}
-            className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-emerald-700 text-white hover:bg-emerald-800 transition shadow-sm w-full md:w-auto font-medium text-sm"
+            className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition shadow-xs"
           >
-            <Plus size={18} />
-            نیا بل بنائیں
+            <Plus size={15} />
+            <span>نئی انوائس بنائیں</span>
           </button>
         </div>
 
-        {/* NEW: summary stat cards */}
+        {/* Statistics Cards */}
         {loaded && (
-          <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm flex items-center gap-4">
-              <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center flex-shrink-0">
-                <FileText size={22} />
+          <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                <FileText size={18} />
               </div>
               <div>
-                <p className="text-xs text-gray-400">کل بلز</p>
-                <p className="text-xl font-bold text-gray-800">{totalBillsCount}</p>
+                <p className="text-[11px] text-slate-400 font-medium">کل انوائسز</p>
+                <p className="text-base font-bold text-slate-800">{totalBillsCount}</p>
               </div>
             </div>
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm flex items-center gap-4">
-              <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center flex-shrink-0">
-                <TrendingUp size={22} />
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                <TrendingUp size={18} />
               </div>
               <div>
-                <p className="text-xs text-gray-400">مجموعی آمدنی</p>
-                <p className="text-xl font-bold text-gray-800">Rs {totalRevenue.toLocaleString()}</p>
+                <p className="text-[11px] text-slate-400 font-medium">کل آمدنی</p>
+                <p className="text-base font-bold text-slate-800">{totalRevenue.toLocaleString()} روپے</p>
               </div>
             </div>
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-5 shadow-sm flex items-center gap-4">
-              <div className="w-11 h-11 rounded-xl bg-red-100 text-red-700 flex items-center justify-center flex-shrink-0">
-                <AlertCircle size={22} />
+
+            <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4 shadow-xs flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0">
+                <AlertCircle size={18} />
               </div>
               <div>
-                <p className="text-xs text-red-600 font-medium">باقی رقم (غیر ادا شدہ)</p>
-                <p className="text-xl font-extrabold text-red-800">Rs {totalOutstanding.toLocaleString()}</p>
+                <p className="text-[11px] text-rose-600 font-semibold">بقایا رقم (غیر ادا شدہ)</p>
+                <p className="text-base font-bold text-rose-700">{totalOutstanding.toLocaleString()} روپے</p>
               </div>
             </div>
           </div>
         )}
 
-        <div className="mt-6 flex flex-col md:flex-row gap-3">
+        {/* Search & Filter Bar */}
+        <div className="mb-6 flex flex-col sm:flex-row gap-2.5">
           <div className="relative flex-1">
             <Search
-              size={18}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"
+              size={15}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400"
             />
             <input
               type="text"
-              placeholder="بل نمبر یا کسٹمر کا نام تلاش کریں..."
+              placeholder="انوائس نمبر یا گاہک کے نام سے تلاش کریں..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 p-3 pr-11 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 text-sm transition"
+              className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pr-9 pl-3 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition shadow-xs"
             />
           </div>
+
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="rounded-xl border border-gray-200 p-3 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 text-sm transition md:w-56"
+            className="rounded-lg border border-slate-200 bg-white p-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition sm:w-48"
           >
-            <option value="">تمام حالتیں</option>
+            <option value="">تمام حالات</option>
             <option value="unpaid">غیر ادا شدہ</option>
             <option value="partial">جزوی ادائیگی</option>
             <option value="paid">ادا شدہ</option>
           </select>
         </div>
 
+        {/* Invoices List / Cards Grid */}
         {!loaded ? (
-          <p className="mt-8 text-gray-500 text-center">لوڈ ہو رہا ہے...</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="h-36 rounded-xl border border-slate-200 bg-white p-4 animate-pulse" />
+            ))}
+          </div>
         ) : filteredInvoices.length === 0 ? (
-          <div className="mt-16 flex flex-col items-center justify-center text-center">
-            <span className="text-5xl mb-3">🧾</span>
-            <p className="text-gray-500 text-base">کوئی بل نہیں ملا</p>
+          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
+            <span className="text-4xl mb-2 block">🧾</span>
+            <p className="text-xs text-slate-500">کوئی انوائس موجود نہیں ہے</p>
           </div>
         ) : (
-          <div className="mt-6 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {filteredInvoices.map((inv) => {
               const status = statusLabel(inv.payment_status);
               const balance = inv.total_amount - inv.amount_paid;
@@ -632,71 +631,76 @@ export default function InvoicesPage() {
               return (
                 <div
                   key={inv.id}
-                  className="rounded-2xl border border-gray-200 bg-white p-4 md:p-5 shadow-sm"
+                  className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col justify-between shadow-xs hover:border-slate-300 hover:shadow-sm transition-all group"
                 >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-bold text-gray-800 text-base" dir="ltr">
-                          {inv.invoice_number}
-                        </p>
-                        <span
-                          className={`text-xs px-2.5 py-0.5 rounded-full font-medium border ${status.color}`}
-                        >
-                          {status.label}
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-xs font-bold text-slate-800" dir="ltr">
+                        {inv.invoice_number}
+                      </p>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-md font-semibold border ${status.color}`}
+                      >
+                        {status.label}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-emerald-700 font-semibold mb-1 truncate">
+                      👤 گاہک: {customerName}
+                    </p>
+
+                    <p className="text-[11px] text-slate-400">
+                      {new Date(inv.created_at).toLocaleDateString("ur-PK")}
+                      {inv.due_date && ` — آخری تاریخ: ${inv.due_date}`}
+                    </p>
+
+                    <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-xs text-slate-500">کل رقم:</span>
+                      <span className="text-sm font-bold text-slate-900">
+                        {Number(inv.total_amount).toLocaleString()} روپے
+                      </span>
+                    </div>
+
+                    {balance > 0 && (
+                      <div className="flex items-center justify-between text-[11px] mt-1">
+                        <span className="text-rose-600 font-medium">بقایا رقم:</span>
+                        <span className="font-bold text-rose-600">
+                          {balance.toLocaleString()} روپے
                         </span>
                       </div>
-                      <p className="mt-1 text-emerald-800 font-semibold text-sm">
-                        👤 کسٹمر: {customerName}
-                      </p>
-                      <p className="mt-0.5 text-gray-400 text-xs">
-                        {new Date(inv.created_at).toLocaleDateString("ur-PK")}
-                        {inv.due_date && ` — آخری تاریخ: ${inv.due_date}`}
-                      </p>
-                    </div>
+                    )}
+                  </div>
 
-                    <div className="text-right">
-                      <p className="text-xl md:text-2xl font-extrabold text-emerald-700">
-                        Rs {Number(inv.total_amount).toLocaleString()}
-                      </p>
-                      {balance > 0 && (
-                        <p className="text-xs text-red-600 font-medium">
-                          باقی: Rs {balance.toLocaleString()}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {inv.payment_status !== "paid" && (
-                        <button
-                          onClick={() => handleMarkPaid(inv)}
-                          className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-emerald-700 hover:bg-emerald-100 transition text-xs font-semibold"
-                        >
-                          ادا شدہ کریں
-                        </button>
-                      )}
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-1.5">
+                    {inv.payment_status !== "paid" && (
                       <button
-                        onClick={() => handlePreviewInvoice(inv)}
-                        className="rounded-lg bg-gray-100 p-2.5 text-gray-700 hover:bg-gray-200 transition"
-                        title="پیش نظارہ دیکھیں"
+                        onClick={() => handleMarkPaid(inv)}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 transition text-[11px] font-semibold"
                       >
-                        <Eye size={16} />
+                        ادا شدہ
                       </button>
-                      <button
-                        onClick={() => handlePrintInvoice(inv)}
-                        className="rounded-lg bg-gray-100 p-2.5 text-gray-700 hover:bg-gray-200 transition"
-                        title="پرنٹ کریں"
-                      >
-                        <Printer size={16} />
-                      </button>
-                      <button
-                        onClick={() => setConfirmDeleteId(inv.id)}
-                        className="rounded-lg bg-red-50 p-2.5 text-red-600 hover:bg-red-100 transition"
-                        title="حذف کریں"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+                    )}
+                    <button
+                      onClick={() => handlePreviewInvoice(inv)}
+                      className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-md transition"
+                      title="پیش نظارہ"
+                    >
+                      <Eye size={15} />
+                    </button>
+                    <button
+                      onClick={() => handlePrintInvoice(inv)}
+                      className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-md transition"
+                      title="پرنٹ کریں"
+                    >
+                      <Printer size={15} />
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(inv.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-50 rounded-md transition"
+                      title="حذف کریں"
+                    >
+                      <Trash2 size={15} />
+                    </button>
                   </div>
                 </div>
               );
@@ -705,288 +709,287 @@ export default function InvoicesPage() {
         )}
       </section>
 
+      {/* Delete Confirmation Modal */}
       {confirmDeleteId !== null && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
-            <span className="text-4xl">⚠️</span>
-            <h3 className="text-lg font-bold text-gray-800 mt-3">
-              کیا آپ واقعی یہ بل حذف کرنا چاہتے ہیں؟
-            </h3>
-            <p className="text-gray-500 text-xs mt-1">یہ عمل واپس نہیں ہو سکتا۔</p>
-            <div className="mt-5 flex gap-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-5 w-full max-w-sm shadow-xl text-center relative animate-in fade-in zoom-in-95 duration-150">
+            <h3 className="text-sm font-bold text-slate-800">انوائس حذف کریں؟</h3>
+            <p className="text-slate-500 text-xs mt-1.5">کیا آپ واقعی اس انوائس کو حذف کرنا چاہتے ہیں؟ اس عمل کو واپس نہیں لایا جا سکتا۔</p>
+            <div className="mt-4 flex gap-2">
               <button
                 onClick={() => handleDelete(confirmDeleteId)}
-                className="flex-1 rounded-xl bg-red-600 text-white py-2.5 hover:bg-red-700 transition font-medium text-sm"
+                className="flex-1 rounded-lg bg-rose-600 text-white py-1.5 text-xs font-semibold hover:bg-rose-700 transition"
               >
-                ہاں، حذف کریں
+                حذف کریں
               </button>
               <button
                 onClick={() => setConfirmDeleteId(null)}
-                className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-2.5 hover:bg-gray-200 transition font-medium text-sm"
+                className="flex-1 rounded-lg border border-slate-200 text-slate-600 py-1.5 text-xs font-medium hover:bg-slate-50 transition"
               >
-                منسوخ کریں
+                منسوخ
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* NEW: preview modal */}
+      {/* Preview Invoice Modal */}
       {previewInvoice && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-50 rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-xl border border-slate-200 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto relative animate-in fade-in zoom-in-95 duration-150 p-5">
             <button
               onClick={() => {
                 setPreviewInvoice(null);
                 setPreviewItems([]);
               }}
-              className="absolute top-4 left-4 z-10 bg-white/90 rounded-full p-2 shadow hover:bg-white transition"
+              className="absolute left-4 top-4 text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition"
             >
               <X size={18} />
             </button>
             <style>{invoiceStyles}</style>
             {previewLoading ? (
-              <div className="p-10 text-center text-gray-500">لوڈ ہو رہا ہے...</div>
+              <div className="p-10 text-center text-xs text-slate-400">لوڈنگ جاری ہے...</div>
             ) : (
-              <div className="p-4" dangerouslySetInnerHTML={{ __html: buildInvoiceHtml(previewInvoice, previewItems) }} />
+              <div className="p-2" dangerouslySetInnerHTML={{ __html: buildInvoiceHtml(previewInvoice, previewItems) }} />
             )}
-            <div className="p-4 pt-0 flex gap-3">
-              <button
-                onClick={() => handlePrintInvoice(previewInvoice)}
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition font-medium"
-              >
-                <Printer size={18} /> پرنٹ کریں
-              </button>
+            <div className="pt-4 border-t border-slate-100 flex gap-2 justify-end">
               <button
                 onClick={() => {
                   setPreviewInvoice(null);
                   setPreviewItems([]);
                 }}
-                className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition"
+                className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition"
               >
                 بند کریں
+              </button>
+              <button
+                onClick={() => handlePrintInvoice(previewInvoice)}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition shadow-xs"
+              >
+                <Printer size={15} />
+                <span>پرنٹ کریں</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Add Invoice Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 md:p-4">
-          <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-lg shadow-2xl max-h-[92vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-lg font-bold text-gray-800">نیا بل بنائیں</h3>
-              <button
-                onClick={() => {
-                  setShowModal(false);
-                  resetForm();
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X size={20} />
-              </button>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-5 w-full max-w-lg shadow-xl relative animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => {
+                setShowModal(false);
+                resetForm();
+              }}
+              className="absolute left-4 top-4 text-slate-400 hover:text-slate-600"
+            >
+              <X size={18} />
+            </button>
+
+            <h3 className="text-base font-bold text-slate-800 mb-4">نئی انوائس بنائیں</h3>
 
             {saveError && (
-              <div className="mt-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs p-3">
+              <div className="mb-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-xs px-3 py-2">
                 {saveError}
               </div>
             )}
 
-            <div className="mt-4">
-              <label className="block text-xs font-semibold text-gray-700 mb-1">
-                کسٹمر منتخب کریں (اختیاری)
-              </label>
-              <select
-                value={selectedCustomerId}
-                onChange={(e) => {
-                  setSelectedCustomerId(e.target.value);
-                  if (e.target.value !== "__new__") setWalkInName("");
-                }}
-                className="w-full rounded-xl border border-gray-300 p-3 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 text-sm"
-              >
-                <option value="">عام کسٹمر (نام کے بغیر / واک ان)</option>
-                <option value="__new__">+ نیا نام لکھیں</option>
-                {Array.isArray(customers) && customers.length > 0 ? (
-                  customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name ? c.name : "نام موجود نہیں"} {c.phone ? `(${c.phone})` : ""}
-                    </option>
-                  ))
-                ) : (
-                  <option disabled>کوئی کسٹمر موجود نہیں</option>
-                )}
-              </select>
-
-              {selectedCustomerId === "__new__" && (
-                <input
-                  type="text"
-                  placeholder="کسٹمر کا نام لکھیں"
-                  value={walkInName}
-                  onChange={(e) => setWalkInName(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-gray-300 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 text-sm"
-                  autoFocus
-                />
-              )}
-            </div>
-
-            <div className="mt-4 bg-emerald-50 border-2 border-emerald-300 p-4 rounded-xl shadow-sm w-full">
-              <label className="text-xs font-bold text-emerald-900 mb-2 block">
-                📖 کتاب شامل کریں (خودکار حساب و اسٹاک)
-              </label>
-              <input
-                type="text"
-                placeholder="کتاب کا نام تلاش کریں..."
-                value={bookSearch}
-                onChange={(e) => setBookSearch(e.target.value)}
-                className="mb-2 w-full rounded-lg border border-gray-300 p-2.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
-              />
-              <div className="flex flex-col sm:flex-row gap-2 w-full">
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-700 mb-1 font-semibold">گاہک منتخب کریں (اختیاری)</label>
                 <select
-                  value={currentBookId}
-                  onChange={(e) => setCurrentBookId(e.target.value)}
-                  className="flex-1 w-full rounded-lg border border-gray-300 p-2.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                  value={selectedCustomerId}
+                  onChange={(e) => {
+                    setSelectedCustomerId(e.target.value);
+                    if (e.target.value !== "__new__") setWalkInName("");
+                  }}
+                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
                 >
-                  <option value="">کتاب منتخب کریں...</option>
-                  {books
-                    .filter((b) => b.title.toLowerCase().includes(bookSearch.trim().toLowerCase()))
-                    .map((b) => (
-                      <option key={b.id} value={b.id} disabled={b.stock <= 0}>
-                        {b.title} (Rs {b.price} | اسٹاک: {b.stock})
+                  <option value="">عام گاہک (براہ راست / بغیر نام)</option>
+                  <option value="__new__">+ نیا نام شامل کریں</option>
+                  {Array.isArray(customers) && customers.length > 0 ? (
+                    customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name ? c.name : "بغیر نام"} {c.phone ? `(${c.phone})` : ""}
                       </option>
-                    ))}
+                    ))
+                  ) : (
+                    <option disabled>کوئی گاہک موجود نہیں</option>
+                  )}
                 </select>
 
-                <div className="flex gap-2 w-full sm:w-auto">
+                {selectedCustomerId === "__new__" && (
                   <input
-                    type="number"
-                    min="1"
-                    value={currentQty}
-                    onChange={(e) => setCurrentQty(e.target.value)}
-                    className="w-20 rounded-lg border border-gray-300 p-2.5 text-center text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600"
-                    placeholder="تعداد"
+                    type="text"
+                    placeholder="گاہک کا نام درج کریں"
+                    value={walkInName}
+                    onChange={(e) => setWalkInName(e.target.value)}
+                    className="mt-2 w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    autoFocus
                   />
-                  <button
-                    type="button"
-                    onClick={handleAddItem}
-                    className="flex-1 sm:flex-none bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-xs font-bold hover:bg-emerald-800 transition shadow-sm whitespace-nowrap"
+                )}
+              </div>
+
+              <div className="bg-emerald-50/60 border border-emerald-200 p-3 rounded-lg">
+                <label className="text-xs font-bold text-emerald-800 mb-1.5 block">
+                  📖 کتاب شامل کریں (خودکار حساب اور اسٹاک اپ ڈیٹ)
+                </label>
+                <input
+                  type="text"
+                  placeholder="کتاب تلاش کریں..."
+                  value={bookSearch}
+                  onChange={(e) => setBookSearch(e.target.value)}
+                  className="mb-2 w-full rounded-lg border border-slate-200 p-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select
+                    value={currentBookId}
+                    onChange={(e) => setCurrentBookId(e.target.value)}
+                    className="flex-1 rounded-lg border border-slate-200 p-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   >
-                    شامل کریں
-                  </button>
+                    <option value="">کتاب منتخب کریں...</option>
+                    {books
+                      .filter((b) => b.title.toLowerCase().includes(bookSearch.trim().toLowerCase()))
+                      .map((b) => (
+                        <option key={b.id} value={b.id} disabled={b.stock <= 0}>
+                          {b.title} ({b.price} روپے | اسٹاک: {b.stock})
+                        </option>
+                      ))}
+                  </select>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      value={currentQty}
+                      onChange={(e) => setCurrentQty(e.target.value)}
+                      className="w-16 rounded-lg border border-slate-200 p-2 text-center text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      placeholder="تعداد"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddItem}
+                      className="bg-emerald-600 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-emerald-700 transition"
+                    >
+                      شامل کریں
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {selectedItems.length > 0 && (
-              <div className="mt-3 border border-gray-200 rounded-xl overflow-hidden">
-                <table className="w-full text-xs text-right">
-                  <thead className="bg-gray-100 text-gray-700">
-                    <tr>
-                      <th className="p-2">کتاب</th>
-                      <th className="p-2 text-center">تعداد</th>
-                      <th className="p-2">قیمت</th>
-                      <th className="p-2">کل</th>
-                      <th className="p-2 text-center">حذف</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedItems.map((item, idx) => (
-                      <tr key={idx} className="border-t border-gray-100">
-                        <td className="p-2 font-medium">{item.title}</td>
-                        <td className="p-2 text-center">{item.quantity}</td>
-                        <td className="p-2">Rs {item.unit_price}</td>
-                        <td className="p-2 font-bold text-emerald-700">Rs {item.total_price}</td>
-                        <td className="p-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveItem(idx)}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
+              {selectedItems.length > 0 && (
+                <div className="border border-slate-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-xs text-right">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="p-2">کتاب</th>
+                        <th className="p-2 text-center">تعداد</th>
+                        <th className="p-2">قیمت</th>
+                        <th className="p-2">کل</th>
+                        <th className="p-2 text-center">حذف</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {selectedItems.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="p-2 font-medium">{item.title}</td>
+                          <td className="p-2 text-center">{item.quantity}</td>
+                          <td className="p-2">{item.unit_price} روپے</td>
+                          <td className="p-2 font-bold text-emerald-700">{item.total_price} روپے</td>
+                          <td className="p-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(idx)}
+                              className="text-rose-500 hover:text-rose-700 p-1"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-slate-700 mb-1 font-semibold">
+                  فرعی مجموعہ (روپے) {selectedItems.length > 0 && "(خودکار حساب)"}
+                </label>
+                <input
+                  type="number"
+                  placeholder="مثال: 1500"
+                  value={selectedItems.length > 0 ? itemsSubtotal : manualSubtotal}
+                  disabled={selectedItems.length > 0}
+                  onChange={(e) => setManualSubtotal(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 disabled:bg-slate-100 font-bold"
+                />
               </div>
-            )}
 
-            <div className="mt-3">
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                ذیلی مجموعہ (روپے) {selectedItems.length > 0 && "(کتابوں سے بننے والی رقم)"}
-              </label>
-              <input
-                type="number"
-                placeholder="مثلاً 1500"
-                value={selectedItems.length > 0 ? itemsSubtotal : manualSubtotal}
-                disabled={selectedItems.length > 0}
-                onChange={(e) => setManualSubtotal(e.target.value)}
-                className="w-full rounded-xl border border-gray-300 p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-600 disabled:bg-gray-100 text-sm font-bold"
-              />
+              <div>
+                <label className="block text-slate-700 mb-1 font-semibold">
+                  رعایت / ڈسکاؤنٹ (روپے)
+                </label>
+                <input
+                  type="number"
+                  value={discountAmount}
+                  onChange={(e) => setDiscountAmount(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2.5 flex justify-between items-center">
+                <span className="text-xs font-bold text-emerald-800">کل واجب الادا رقم:</span>
+                <span className="font-extrabold text-emerald-800 text-base">
+                  {computedTotal.toLocaleString()} روپے
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 mb-1 font-semibold">
+                  ادا شدہ رقم (روپے)
+                </label>
+                <input
+                  type="number"
+                  value={amountPaid}
+                  onChange={(e) => setAmountPaid(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 mb-1 font-semibold">
+                  آخری تاریخ (اختیاری)
+                </label>
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
             </div>
 
-            <div className="mt-3">
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                رعایت / ڈسکاؤنٹ (روپے)
-              </label>
-              <input
-                type="number"
-                value={discountAmount}
-                onChange={(e) => setDiscountAmount(e.target.value)}
-                className="w-full rounded-xl border border-gray-300 p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-600 text-sm"
-              />
-            </div>
-
-            <div className="mt-3 rounded-xl bg-emerald-100 border border-emerald-300 p-3 flex justify-between items-center">
-              <span className="text-xs font-bold text-emerald-900">کل قابل ادا رقم:</span>
-              <span className="font-extrabold text-emerald-900 text-lg">
-                Rs {computedTotal.toLocaleString()}
-              </span>
-            </div>
-
-            <div className="mt-3">
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                وصول شدہ / ادا شدہ رقم (روپے)
-              </label>
-              <input
-                type="number"
-                value={amountPaid}
-                onChange={(e) => setAmountPaid(e.target.value)}
-                className="w-full rounded-xl border border-gray-300 p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-600 text-sm"
-              />
-            </div>
-
-            <div className="mt-3">
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                آخری تاریخ ادائیگی (اختیاری)
-              </label>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="w-full rounded-xl border border-gray-300 p-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-600 text-sm"
-              />
-            </div>
-
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="flex-1 rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition disabled:opacity-60 font-bold text-sm shadow-md"
-              >
-                {saving ? "محفوظ ہو رہا ہے..." : "نیا بل بنائیں"}
-              </button>
+            <div className="mt-5 flex gap-2 justify-end">
               <button
                 type="button"
                 onClick={() => {
                   setShowModal(false);
                   resetForm();
                 }}
-                className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition font-medium text-sm"
+                className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition"
               >
-                منسوخ کریں
+                منسوخ
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition disabled:opacity-50"
+              >
+                {saving ? "محفوظ ہو رہا ہے..." : "انوائس بنائیں"}
               </button>
             </div>
           </div>

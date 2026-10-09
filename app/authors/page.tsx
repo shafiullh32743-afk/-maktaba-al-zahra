@@ -132,8 +132,6 @@ export default function AuthorsPage() {
     { href: "/customers", label: "کسٹمرز", icon: Users },
     { href: "/invoices", label: "بل / انوائس", icon: Receipt },
     { href: "/suppliers", label: "سپلائرز", icon: Truck },
-    { href: "/loyalty", label: "لائلٹی پوائنٹس", icon: Gift },
-    { href: "/coupons", label: "کوپنز", icon: Ticket },
     { href: "/returns", label: "واپسی/خراب", icon: RotateCcw },
     { href: "/reviews", label: "ریویوز", icon: Star },
     { href: "/low-stock", label: "کم سٹاک", icon: PackageMinus },

@@ -3,9 +3,23 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
-  LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart,
-  Star, PackageMinus, Wallet, Users, Receipt, Truck, Gift, Ticket, RotateCcw,
-  Plus, Trash2,
+  LayoutDashboard,
+  BookOpen,
+  PenLine,
+  FolderTree,
+  LogOut,
+  Menu,
+  X,
+  ShoppingCart,
+  Star,
+  PackageMinus,
+  Wallet,
+  Users,
+  Receipt,
+  Truck,
+  RotateCcw,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -58,7 +72,11 @@ export default function ReturnsPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const fetchData = async () => {
-    const { data: returnsData } = await supabase.from("book_returns").select("*").order("id", { ascending: false });
+    setLoaded(false);
+    const { data: returnsData } = await supabase
+      .from("book_returns")
+      .select("*")
+      .order("id", { ascending: false });
     if (returnsData) setReturns(returnsData as Return[]);
 
     const { data: booksData } = await supabase.from("books").select("id, title, stock");
@@ -113,7 +131,6 @@ export default function ReturnsPage() {
       return;
     }
 
-    // اگر کتاب دوبارہ قابل فروخت حالت میں ہے تو سٹاک میں واپس شامل کریں
     if (restoreStock) {
       const book = books.find((b) => b.id === bookId);
       if (book) {
@@ -133,88 +150,184 @@ export default function ReturnsPage() {
     fetchData();
   };
 
+  const menuItems = [
+    { href: "/", label: "ڈیش بورڈ", icon: LayoutDashboard },
+    { href: "/books", label: "کتب", icon: BookOpen },
+    { href: "/authors", label: "مصنفین", icon: PenLine },
+    { href: "/categories", label: "زمرے", icon: FolderTree },
+    { href: "/orders", label: "آرڈرز", icon: ShoppingCart },
+    { href: "/customers", label: "کسٹمرز", icon: Users },
+    { href: "/invoices", label: "بل / انوائس", icon: Receipt },
+    { href: "/suppliers", label: "سپلائرز", icon: Truck },
+    { href: "/returns", label: "واپسی/خراب", icon: RotateCcw, active: true },
+    { href: "/reviews", label: "ریویوز", icon: Star },
+    { href: "/low-stock", label: "کم سٹاک", icon: PackageMinus },
+    { href: "/expenses", label: "اخراجات", icon: Wallet },
+  ];
+
   return (
-    <main className="min-h-screen flex bg-gray-50">
+    <main dir="rtl" className="min-h-screen flex bg-slate-50/60 font-sans">
+      {/* Mobile Backdrop */}
       {mobileMenuOpen && (
-        <div onClick={() => setMobileMenuOpen(false)} className="fixed inset-0 bg-black/50 z-40 md:hidden" />
+        <div
+          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden"
+        />
       )}
 
-      <aside className={`w-64 min-h-screen md:h-screen md:sticky md:top-0 md:overflow-y-auto bg-blue-400 p-6 flex flex-col fixed inset-y-0 left-0 z-50 flex-shrink-0 transform transition-transform duration-300 ${mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"}`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-md">
-              <BookOpen className="text-white" size={20} />
+      {/* Sidebar - مصنفین والے صفحے کی طرح */}
+      <aside
+        className={`w-60 min-h-screen md:h-screen md:sticky md:top-0 border-l border-slate-200 bg-white p-4 flex flex-col fixed inset-y-0 right-0 z-50 flex-shrink-0 transform transition-transform duration-300 shadow-sm ${
+          mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
+        }`}
+      >
+        <div className="flex items-center justify-between px-2 py-1">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm">
+              <BookOpen className="text-white" size={17} />
             </div>
-            <h1 className="text-lg font-bold text-white">مكتبہ الزھراء</h1>
+            <h1 className="text-base font-bold text-slate-800">مكتبہ الزھراء</h1>
           </div>
-          <button onClick={() => setMobileMenuOpen(false)} className="md:hidden text-white/80 hover:text-white"><X size={22} /></button>
+          <button
+            onClick={() => setMobileMenuOpen(false)}
+            className="md:hidden text-slate-400 hover:text-slate-600"
+          >
+            <X size={20} />
+          </button>
         </div>
 
-        <nav className="mt-10 space-y-1.5 flex-1">
-          <p className="text-white/50 text-xs font-medium px-3 mb-2">مینو</p>
-          <Link href="/" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition"><LayoutDashboard size={19} /> ڈیش بورڈ</Link>
-          <Link href="/books" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition"><BookOpen size={19} /> کتب</Link>
-          <Link href="/authors" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition"><PenLine size={19} /> مصنفین</Link>
-          <Link href="/categories" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition"><FolderTree size={19} /> زمرے</Link>
-          <Link href="/orders" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition"><ShoppingCart size={19} /> آرڈرز</Link>
-          <Link href="/customers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition"><Users size={19} /> کسٹمرز</Link>
-          <Link href="/invoices" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition"><Receipt size={19} /> رسیدیں</Link>
-          <Link href="/suppliers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition"><Truck size={19} /> سپلائرز</Link>
-          <Link href="/loyalty" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition"><Gift size={19} /> لائلٹی پوائنٹس</Link>
-          <Link href="/coupons" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition"><Ticket size={19} /> کوپنز</Link>
-          <Link href="/returns" className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500 text-white font-medium shadow-md"><RotateCcw size={19} /> واپسی/خراب</Link>
-          <Link href="/reviews" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition"><Star size={19} /> ریویوز</Link>
-          <Link href="/low-stock" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition"><PackageMinus size={19} /> کم سٹاک</Link>
-          <Link href="/expenses" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition"><Wallet size={19} /> اخراجات</Link>
+        {/* Navigation */}
+        <nav className="mt-6 space-y-1 flex-1 overflow-y-auto pl-1">
+          <p className="text-slate-400 text-[11px] font-semibold px-2 mb-1">مینو</p>
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  item.active
+                    ? "bg-emerald-50 text-emerald-700 shadow-xs"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <Icon size={16} className={item.active ? "text-emerald-600" : "text-slate-400"} />
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
-        <div className="border-t border-white/20 pt-4 space-y-3">
-          <button onClick={() => { document.cookie = "maktaba-auth=; path=/; max-age=0"; window.location.href = "/login"; }} className="flex items-center gap-3 p-3 rounded-xl w-full text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <LogOut size={19} /> لاگ آؤٹ
+        {/* Footer / Logout */}
+        <div className="border-t border-slate-100 pt-3 mt-2 space-y-2">
+          <button
+            onClick={() => {
+              document.cookie = "maktaba-auth=; path=/; max-age=0";
+              window.location.href = "/login";
+            }}
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg w-full text-xs font-medium text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+          >
+            <LogOut size={16} className="text-slate-400" />
+            لاگ آؤٹ
           </button>
-          <p className="text-white/50 text-xs text-center">مكتبہ الزھراء © 2026</p>
+          <p className="text-slate-400 text-[10px] text-center">مكتبہ الزھراء © 2026</p>
         </div>
       </aside>
 
-      <section className="flex-1 min-w-0 p-5 md:p-10">
-        <div className="flex items-center justify-between md:hidden mb-4">
-          <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm"><Menu size={22} /></button>
-          <h1 className="text-lg font-bold text-emerald-800">مكتبہ الزھراء</h1>
+      {/* Main Content Area */}
+      <section className="flex-1 p-4 md:p-6 max-w-7xl mx-auto">
+        {/* Mobile Header */}
+        <div className="flex items-center justify-between md:hidden mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
+          >
+            <Menu size={20} />
+          </button>
+          <h1 className="text-sm font-bold text-slate-800">مكتبہ الزھراء</h1>
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {/* Title & Actions Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">واپسی / خراب کتابیں</h2>
-            <p className="mt-2 text-gray-500">خراب یا واپس شدہ کتابوں کا ریکارڈ</p>
+            <h2 className="text-xl font-bold text-slate-900">واپسی / خراب کتب 🔄</h2>
+            <p className="text-xs text-slate-500 mt-0.5">خراب یا واپس شدہ کتب کا تفصیلی ریکارڈ</p>
           </div>
-          <button onClick={() => { resetForm(); setShowModal(true); }} className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 bg-emerald-700 text-white hover:bg-emerald-800 transition shadow-sm w-full md:w-auto">
-            <Plus size={18} /> نیا ریکارڈ شامل کریں
+
+          <button
+            onClick={() => {
+              resetForm();
+              setShowModal(true);
+            }}
+            className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition shadow-xs"
+          >
+            <Plus size={15} />
+            <span>نیا ریکارڈ شامل کریں</span>
           </button>
         </div>
 
+        {/* Returns List / Cards Grid */}
         {!loaded ? (
-          <p className="mt-8 text-gray-500">لوڈ ہو رہا ہے...</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="h-32 rounded-xl border border-slate-200 bg-white p-4 animate-pulse" />
+            ))}
+          </div>
         ) : returns.length === 0 ? (
-          <div className="mt-16 flex flex-col items-center justify-center text-center">
-            <span className="text-6xl mb-4">📦</span>
-            <p className="text-gray-500 text-lg">ابھی کوئی ریکارڈ موجود نہیں</p>
+          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
+            <span className="text-4xl mb-2 block">📦</span>
+            <p className="text-xs text-slate-500">ابھی کوئی ریکارڈ موجود نہیں</p>
           </div>
         ) : (
-          <div className="mt-6 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {returns.map((r) => (
-              <div key={r.id} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div
+                key={r.id}
+                className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col justify-between shadow-xs hover:border-slate-300 hover:shadow-sm transition-all group"
+              >
                 <div>
-                  <p className="font-bold text-gray-800">{getBookTitle(r.book_id)} <span className="text-gray-400 font-normal">× {r.quantity}</span></p>
-                  <div className="mt-1 flex items-center gap-2 flex-wrap">
-                    <span className="text-xs px-2 py-1 rounded-full bg-red-50 text-red-700 font-medium">{reasonLabels[r.reason] || r.reason}</span>
-                    {r.customer_id && <span className="text-xs text-gray-500">کسٹمر: {getCustomerName(r.customer_id)}</span>}
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <h3 className="text-xs font-bold text-slate-800 line-clamp-2" title={getBookTitle(r.book_id)}>
+                      {getBookTitle(r.book_id)}
+                      <span className="text-slate-400 font-normal mr-1">× {r.quantity}</span>
+                    </h3>
+
+                    <button
+                      onClick={() => setConfirmDeleteId(r.id)}
+                      className="p-1 text-slate-400 hover:text-rose-600 hover:bg-slate-50 rounded-md transition"
+                      title="حذف کریں"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
-                  {r.condition_notes && <p className="mt-1 text-sm text-gray-500">{r.condition_notes}</p>}
-                  <p className="mt-1 text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString("ur-PK")}</p>
+
+                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-rose-50 border border-rose-100 text-rose-600 font-semibold">
+                      {reasonLabels[r.reason] || r.reason}
+                    </span>
+                    {r.customer_id && (
+                      <span className="text-[11px] text-slate-500">
+                        کسٹمر: {getCustomerName(r.customer_id)}
+                      </span>
+                    )}
+                  </div>
+
+                  {r.condition_notes && (
+                    <p className="text-xs text-slate-600 mt-1.5 leading-relaxed line-clamp-2">
+                      {r.condition_notes}
+                    </p>
+                  )}
                 </div>
-                <div className="flex items-center gap-3">
-                  {r.refund_amount ? <span className="font-bold text-red-700">Rs {Number(r.refund_amount).toLocaleString()}</span> : null}
-                  <button onClick={() => setConfirmDeleteId(r.id)} className="rounded-lg bg-red-50 px-3 py-2 text-red-600 hover:bg-red-100 transition"><Trash2 size={16} /></button>
+
+                <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-400">
+                    {new Date(r.created_at).toLocaleDateString("ur-PK")}
+                  </span>
+                  {r.refund_amount ? (
+                    <span className="font-bold text-rose-600">
+                      Rs {Number(r.refund_amount).toLocaleString()}
+                    </span>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -222,71 +335,159 @@ export default function ReturnsPage() {
         )}
       </section>
 
+      {/* Delete Confirmation Modal */}
       {confirmDeleteId !== null && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
-            <span className="text-5xl">⚠️</span>
-            <h3 className="text-lg font-bold text-gray-800 mt-4">کیا آپ واقعی یہ ریکارڈ حذف کرنا چاہتے ہیں؟</h3>
-            <div className="mt-6 flex gap-3">
-              <button onClick={() => handleDelete(confirmDeleteId)} className="flex-1 rounded-xl bg-red-600 text-white py-3 hover:bg-red-700 transition">ہاں، حذف کریں</button>
-              <button onClick={() => setConfirmDeleteId(null)} className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition">منسوخ کریں</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-5 w-full max-w-sm shadow-xl text-center relative animate-in fade-in zoom-in-95 duration-150">
+            <h3 className="text-sm font-bold text-slate-800">ریکارڈ حذف کریں؟</h3>
+            <p className="text-slate-500 text-xs mt-1.5">کیا آپ واقعی یہ ریکارڈ حذف کرنا چاہتے ہیں؟</p>
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => handleDelete(confirmDeleteId)}
+                className="flex-1 rounded-lg bg-rose-600 text-white py-1.5 text-xs font-semibold hover:bg-rose-700 transition"
+              >
+                حذف کریں
+              </button>
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="flex-1 rounded-lg border border-slate-200 text-slate-600 py-1.5 text-xs font-medium hover:bg-slate-50 transition"
+              >
+                منسوخ
+              </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Add Record Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 md:p-8 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-gray-800">نیا ریکارڈ شامل کریں</h3>
-            {saveError && <div className="mt-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2">{saveError}</div>}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-5 w-full max-w-md shadow-xl relative animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => {
+                setShowModal(false);
+                resetForm();
+              }}
+              className="absolute left-4 top-4 text-slate-400 hover:text-slate-600"
+            >
+              <X size={18} />
+            </button>
 
-            <label className="mt-5 block">
-              <span className="text-xs text-gray-500">کتاب منتخب کریں</span>
-              <select value={selectedBookId} onChange={(e) => setSelectedBookId(e.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 p-3 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600">
-                <option value="">کتاب منتخب کریں</option>
-                {books.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}
-              </select>
-            </label>
+            <h3 className="text-base font-bold text-slate-800 mb-4">نیا ریکارڈ شامل کریں</h3>
+            {saveError && (
+              <div className="mb-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-xs px-3 py-2">
+                {saveError}
+              </div>
+            )}
 
-            <label className="mt-3 block">
-              <span className="text-xs text-gray-500">کسٹمر (اختیاری)</span>
-              <select value={selectedCustomerId} onChange={(e) => setSelectedCustomerId(e.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 p-3 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600">
-                <option value="">کوئی کسٹمر منتخب نہیں</option>
-                {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </label>
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-700 mb-1 font-semibold">کتاب منتخب کریں</label>
+                <select
+                  value={selectedBookId}
+                  onChange={(e) => setSelectedBookId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
+                >
+                  <option value="">کتاب منتخب کریں</option>
+                  {books.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <label className="mt-3 block">
-              <span className="text-xs text-gray-500">تعداد</span>
-              <input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600" />
-            </label>
+              <div>
+                <label className="block text-slate-700 mb-1 font-semibold">کسٹمر (اختیاری)</label>
+                <select
+                  value={selectedCustomerId}
+                  onChange={(e) => setSelectedCustomerId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
+                >
+                  <option value="">کوئی کسٹمر منتخب نہیں</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <label className="mt-3 block">
-              <span className="text-xs text-gray-500">وجہ</span>
-              <select value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 p-3 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600">
-                <option value="damaged">خراب</option>
-                <option value="customer_return">کسٹمر کی واپسی</option>
-                <option value="defective">خرابی/نقص</option>
-                <option value="other">دیگر</option>
-              </select>
-            </label>
+              <div>
+                <label className="block text-slate-700 mb-1 font-semibold">تعداد</label>
+                <input
+                  type="number"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
 
-            <textarea placeholder="حالت کی تفصیل (اختیاری)" value={conditionNotes} onChange={(e) => setConditionNotes(e.target.value)} rows={2} className="mt-3 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600 resize-none" />
+              <div>
+                <label className="block text-slate-700 mb-1 font-semibold">وجہ</label>
+                <select
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
+                >
+                  <option value="damaged">خراب</option>
+                  <option value="customer_return">کسٹمر کی واپسی</option>
+                  <option value="defective">خرابی/نقص</option>
+                  <option value="other">دیگر</option>
+                </select>
+              </div>
 
-            <label className="mt-3 block">
-              <span className="text-xs text-gray-500">رقم واپس کی گئی (اختیاری)</span>
-              <input type="number" value={refundAmount} onChange={(e) => setRefundAmount(e.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 p-3 focus:outline-none focus:ring-2 focus:ring-emerald-600" />
-            </label>
+              <div>
+                <label className="block text-slate-700 mb-1 font-semibold">حالت کی تفصیل (اختیاری)</label>
+                <textarea
+                  placeholder="مزید تفصیل درج کریں..."
+                  value={conditionNotes}
+                  onChange={(e) => setConditionNotes(e.target.value)}
+                  rows={2}
+                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none"
+                />
+              </div>
 
-            <label className="mt-4 flex items-center gap-2">
-              <input type="checkbox" checked={restoreStock} onChange={(e) => setRestoreStock(e.target.checked)} className="w-4 h-4" />
-              <span className="text-sm text-gray-600">یہ کتاب دوبارہ قابلِ فروخت ہے (سٹاک میں شامل کریں)</span>
-            </label>
+              <div>
+                <label className="block text-slate-700 mb-1 font-semibold">رقم واپس کی گئی (اختیاری)</label>
+                <input
+                  type="number"
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
 
-            <div className="mt-6 flex gap-3">
-              <button onClick={handleSave} disabled={saving} className="flex-1 rounded-xl bg-emerald-700 text-white py-3 hover:bg-emerald-800 transition disabled:opacity-60">{saving ? "محفوظ ہو رہا ہے..." : "شامل کریں"}</button>
-              <button onClick={() => { setShowModal(false); resetForm(); }} className="flex-1 rounded-xl bg-gray-100 text-gray-700 py-3 hover:bg-gray-200 transition">منسوخ کریں</button>
+              <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={restoreStock}
+                  onChange={(e) => setRestoreStock(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500"
+                />
+                <span className="text-slate-600 text-[11px]">
+                  یہ کتاب دوبارہ قابلِ فروخت ہے (سٹاک میں شامل کریں)
+                </span>
+              </label>
+            </div>
+
+            <div className="mt-5 flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowModal(false);
+                  resetForm();
+                }}
+                className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition"
+              >
+                منسوخ
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition disabled:opacity-50"
+              >
+                {saving ? "محفوظ ہو رہا ہے..." : "شامل کریں"}
+              </button>
             </div>
           </div>
         </div>

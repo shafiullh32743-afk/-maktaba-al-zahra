@@ -1,9 +1,8 @@
 "use client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Lock, BookOpen, Eye, EyeOff, Globe } from "lucide-react";
-
-const CORRECT_PASSWORD = "zahra74234";
 
 const translations = {
   ur: {
@@ -39,18 +38,30 @@ export default function LoginPage() {
   const router = useRouter();
   const t = translations[lang];
 
-  const handleLogin = () => {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
-      if (password === CORRECT_PASSWORD) {
-        document.cookie = "maktaba-auth=true; path=/; max-age=" + 60 * 60 * 24 * 30;
+    setError("");
+
+    try {
+      // سرور اینڈ پوائنٹ پر پاس ورڈ ویری فائی کریں
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+
+      if (res.ok) {
         router.push("/");
         router.refresh();
       } else {
         setError(t.error);
-        setLoading(false);
       }
-    }, 400);
+    } catch (err) {
+      setError(t.error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -63,14 +74,16 @@ export default function LoginPage() {
       <div
         className="absolute inset-0 opacity-[0.04]"
         style={{
-          backgroundImage: "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)",
+          backgroundImage:
+            "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)",
           backgroundSize: "40px 40px",
         }}
       />
 
       <button
+        type="button"
         onClick={() => setLang(lang === "ur" ? "en" : "ur")}
-        className="absolute top-5 left-5 flex items-center gap-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm px-3 py-2 transition"
+        className="absolute top-5 ltr:left-5 rtl:right-5 flex items-center gap-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm px-3 py-2 transition z-10"
       >
         <Globe size={16} />
         {lang === "ur" ? "English" : "اردو"}
@@ -85,7 +98,10 @@ export default function LoginPage() {
           <p className="text-emerald-100/60 text-sm mt-1">{t.tagline}</p>
         </div>
 
-        <div className="bg-white/[0.06] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-8">
+        <form
+          onSubmit={handleLogin}
+          className="bg-white/[0.06] backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-8"
+        >
           <div className="flex items-center gap-2 mb-6">
             <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
               <Lock className="text-emerald-300" size={16} />
@@ -105,14 +121,13 @@ export default function LoginPage() {
                 setPassword(e.target.value);
                 setError("");
               }}
-              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-              className="w-full rounded-xl bg-white/[0.06] border border-white/10 text-white placeholder-white/30 p-3.5 pl-11 text-center focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:border-emerald-500/60 transition"
+              className="w-full rounded-xl bg-white/[0.06] border border-white/10 text-white placeholder-white/30 p-3.5 ltr:pl-11 rtl:pr-11 text-center focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:border-emerald-500/60 transition"
               autoFocus
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition"
+              className="absolute ltr:left-3 rtl:right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition"
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -125,13 +140,13 @@ export default function LoginPage() {
           )}
 
           <button
-            onClick={handleLogin}
+            type="submit"
             disabled={loading}
             className="mt-5 w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white py-3.5 font-medium shadow-lg shadow-emerald-900/30 hover:shadow-emerald-800/40 hover:from-emerald-500 hover:to-emerald-400 active:scale-[0.98] transition-all disabled:opacity-60"
           >
             {loading ? t.loading : t.button}
           </button>
-        </div>
+        </form>
 
         <p className="text-center text-white/30 text-xs mt-6">{t.footer}</p>
       </div>

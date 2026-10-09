@@ -1,7 +1,27 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, ShoppingCart, Users, Receipt, Truck, Gift, Ticket, RotateCcw, Star, Check, Trash2, PackageMinus, Wallet } from "lucide-react";
+import {
+  LayoutDashboard,
+  BookOpen,
+  PenLine,
+  FolderTree,
+  LogOut,
+  Menu,
+  X,
+  ShoppingCart,
+  Users,
+  Receipt,
+  Truck,
+  RotateCcw,
+  Star,
+  Check,
+  Trash2,
+  PackageMinus,
+  Wallet,
+  MessageSquare
+} from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function ReviewsPage() {
@@ -11,6 +31,7 @@ export default function ReviewsPage() {
   const [filter, setFilter] = useState<"pending" | "approved">("pending");
 
   const fetchReviews = async () => {
+    setLoaded(false);
     const { data, error } = await supabase
       .from("reviews")
       .select("*")
@@ -37,219 +58,223 @@ export default function ReviewsPage() {
   const approvedReviews = reviews.filter((r) => r.approved);
   const visibleReviews = filter === "pending" ? pendingReviews : approvedReviews;
 
+  const menuItems = [
+    { href: "/", label: "ڈیش بورڈ", icon: LayoutDashboard },
+    { href: "/books", label: "کتب", icon: BookOpen },
+    { href: "/authors", label: "مصنفین", icon: PenLine },
+    { href: "/categories", label: "زمرے", icon: FolderTree },
+    { href: "/orders", label: "آرڈرز", icon: ShoppingCart },
+    { href: "/customers", label: "کسٹمرز", icon: Users },
+    { href: "/invoices", label: "بل / انوائس", icon: Receipt },
+    { href: "/suppliers", label: "سپلائرز", icon: Truck },
+    { href: "/returns", label: "واپسی/خراب", icon: RotateCcw },
+    { href: "/reviews", label: "ریویوز", icon: Star, active: true, badge: pendingReviews.length },
+    { href: "/low-stock", label: "کم سٹاک", icon: PackageMinus },
+    { href: "/expenses", label: "اخراجات", icon: Wallet },
+  ];
+
   return (
-    <main className="min-h-screen flex bg-gray-50">
+    <main className="min-h-screen flex bg-slate-50/60 font-sans" dir="rtl">
+      {/* Mobile Backdrop */}
       {mobileMenuOpen && (
         <div
           onClick={() => setMobileMenuOpen(false)}
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden"
         />
       )}
 
-            <aside
-        className={`w-64 min-h-screen bg-blue-400 p-6 flex flex-col fixed md:h-screen md:sticky md:top-0 md:overflow-y-auto inset-y-0 left-0 z-50 flex-shrink-0 transform transition-transform duration-300 ${
+      {/* Sidebar - مصنفین والے صفحے کے عین مطابق */}
+      <aside
+        className={`w-60 min-h-screen md:h-screen md:sticky md:top-0 border-l border-slate-200 bg-white p-4 flex flex-col fixed inset-y-0 right-0 z-50 transform transition-transform duration-300 shadow-sm ${
           mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
         }`}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-md">
-              <BookOpen className="text-white" size={20} />
+        <div className="flex items-center justify-between px-2 py-1">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm">
+              <BookOpen className="text-white" size={17} />
             </div>
-            <h1 className="text-lg font-bold text-white">مكتبہ الزھراء</h1>
+            <h1 className="text-base font-bold text-slate-800">مكتبہ الزھراء</h1>
           </div>
           <button
             onClick={() => setMobileMenuOpen(false)}
-            className="md:hidden text-white/80 hover:text-white"
+            className="md:hidden text-slate-400 hover:text-slate-600"
           >
-            <X size={22} />
+            <X size={20} />
           </button>
         </div>
 
-        <nav className="mt-10 space-y-1.5 flex-1">
-          <p className="text-white/50 text-xs font-medium px-3 mb-2">مینو</p>
-
-          <Link href="/" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <LayoutDashboard size={19} />
-            ڈیش بورڈ
-          </Link>
-          <Link href="/books" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <BookOpen size={19} />
-            کتب
-          </Link>
-          <Link href="/authors" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <PenLine size={19} />
-            مصنفین
-          </Link>
-          <Link href="/categories" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <FolderTree size={19} />
-            زمرے
-          </Link>
-          <Link href="/orders" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <ShoppingCart size={19} />
-            آرڈرز
-          </Link>
-          <Link href="/customers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Users size={19} />
-            کسٹمرز
-          </Link>
-          <Link href="/invoices" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Receipt size={19} />
-            رسیدیں
-          </Link>
-          <Link href="/suppliers" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Truck size={19} />
-            سپلائرز
-          </Link>
-          <Link href="/loyalty" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Gift size={19} />
-            لائلٹی پوائنٹس
-          </Link>
-          <Link href="/coupons" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Ticket size={19} />
-            کوپنز
-          </Link>
-          <Link href="/returns" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <RotateCcw size={19} />
-            واپسی/خراب
-          </Link>
-          <Link href="/reviews" className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500 text-white font-medium shadow-md">
-            <Star size={19} />
-            ریویوز
-            {pendingReviews.length > 0 && (
-              <span className="mr-auto bg-white text-emerald-700 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                {pendingReviews.length}
-              </span>
-            )}
-          </Link>
-                    <Link href="/low-stock" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <PackageMinus size={19} />
-            کم سٹاک
-          </Link>
-          <Link href="/expenses" className="flex items-center gap-3 p-3 rounded-xl text-white/80 hover:bg-white/[0.15] hover:text-white transition">
-            <Wallet size={19} />
-            اخراجات
-          </Link>
+        {/* Navigation */}
+        <nav className="mt-6 space-y-1 flex-1 overflow-y-auto pl-1">
+          <p className="text-slate-400 text-[11px] font-semibold px-2 mb-1">مینو</p>
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  item.active
+                    ? "bg-emerald-50 text-emerald-700 shadow-xs"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Icon size={16} className={item.active ? "text-emerald-600" : "text-slate-400"} />
+                  <span>{item.label}</span>
+                </div>
+                {item.badge && item.badge > 0 ? (
+                  <span className="bg-emerald-600 text-white text-[10px] font-bold rounded-full px-1.5 py-0.2">
+                    {item.badge}
+                  </span>
+                ) : null}
+              </Link>
+            );
+          })}
         </nav>
 
-        <div className="border-t border-white/20 pt-4 space-y-3">
+        {/* Footer / Logout */}
+        <div className="border-t border-slate-100 pt-3 mt-2 space-y-2">
           <button
             onClick={() => {
               document.cookie = "maktaba-auth=; path=/; max-age=0";
               window.location.href = "/login";
             }}
-            className="flex items-center gap-3 p-3 rounded-xl w-full text-white/80 hover:bg-white/[0.15] hover:text-white transition"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg w-full text-xs font-medium text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-colors"
           >
-            <LogOut size={19} />
+            <LogOut size={16} className="text-slate-400" />
             لاگ آؤٹ
           </button>
-          <p className="text-white/50 text-xs text-center">مكتبہ الزھراء © 2026</p>
+          <p className="text-slate-400 text-[10px] text-center">مكتبہ الزھراء © 2026</p>
         </div>
       </aside>
 
-      <section className="flex-1 min-w-0 p-5 md:p-10">
-        <div className="flex items-center justify-between md:hidden mb-4">
+      {/* Main Content Area */}
+      <section className="flex-1 p-4 md:p-6 max-w-7xl mx-auto">
+        {/* Mobile Header */}
+        <div className="flex items-center justify-between md:hidden mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
           <button
             onClick={() => setMobileMenuOpen(true)}
-            className="p-2 rounded-lg bg-white border border-gray-200 shadow-sm"
+            className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
           >
-            <Menu size={22} />
+            <Menu size={20} />
           </button>
-          <h1 className="text-lg font-bold text-emerald-800">مكتبہ الزھراء</h1>
+          <h1 className="text-sm font-bold text-slate-800">مكتبہ الزھراء</h1>
         </div>
 
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-900">ریویوز</h2>
-        <p className="mt-2 text-gray-500">نئے ریویوز کی منظوری دیں</p>
+        {/* Title & Filter Tabs Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">ریویوز ⭐</h2>
+            <p className="text-xs text-slate-500 mt-0.5">قارئین کے تبصرے اور درجہ بندی (Rating) کی منظوری دیں</p>
+          </div>
 
-        <div className="mt-6 flex gap-2">
-          <button
-            onClick={() => setFilter("pending")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-              filter === "pending"
-                ? "bg-emerald-700 text-white"
-                : "bg-white border border-gray-200 text-gray-600"
-            }`}
-          >
-            زیر التوا ({pendingReviews.length})
-          </button>
-          <button
-            onClick={() => setFilter("approved")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-              filter === "approved"
-                ? "bg-emerald-700 text-white"
-                : "bg-white border border-gray-200 text-gray-600"
-            }`}
-          >
-            منظور شدہ ({approvedReviews.length})
-          </button>
+          <div className="flex items-center gap-2 bg-slate-200/60 p-1 rounded-xl w-fit">
+            <button
+              onClick={() => setFilter("pending")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                filter === "pending"
+                  ? "bg-white text-emerald-700 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              زیر التوا ({pendingReviews.length})
+            </button>
+            <button
+              onClick={() => setFilter("approved")}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                filter === "approved"
+                  ? "bg-white text-emerald-700 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              منظور شدہ ({approvedReviews.length})
+            </button>
+          </div>
         </div>
 
+        {/* Cards Grid / Loading */}
         {!loaded ? (
-          <p className="mt-8 text-gray-500">لوڈ ہو رہا ہے...</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="rounded-xl border border-slate-200 bg-white p-4 h-36 animate-pulse">
+                <div className="h-4 bg-slate-100 rounded w-1/2 mb-3"></div>
+                <div className="h-3 bg-slate-100 rounded w-3/4 mb-2"></div>
+                <div className="h-3 bg-slate-100 rounded w-1/3"></div>
+              </div>
+            ))}
+          </div>
         ) : visibleReviews.length === 0 ? (
-          <div className="mt-16 flex flex-col items-center justify-center text-center">
-            <span className="text-6xl mb-4">⭐</span>
-            <p className="text-gray-500 text-lg">
-              {filter === "pending" ? "کوئی نیا ریویو نہیں" : "ابھی کوئی ریویو منظور نہیں کیا گیا"}
+          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
+            <MessageSquare className="mx-auto text-slate-300 mb-2" size={32} />
+            <p className="text-xs text-slate-500">
+              {filter === "pending" ? "کوئی نیا زیر التوا ریویو نہیں ہے" : "ابھی تک کوئی ریویو منظور نہیں کیا گیا"}
             </p>
           </div>
         ) : (
-          <div className="mt-6 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {visibleReviews.map((review) => (
               <div
                 key={review.id}
-                className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+                className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all flex flex-col justify-between"
               >
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <h3 className="text-lg font-bold text-gray-800">{review.book_title}</h3>
-                  <div className="flex items-center gap-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Star
-                        key={star}
-                        size={16}
-                        className={
-                          star <= review.rating
-                            ? "fill-amber-400 text-amber-400"
-                            : "text-gray-300"
-                        }
-                      />
-                    ))}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-bold text-slate-800 truncate max-w-[170px]" title={review.book_title}>
+                      {review.book_title}
+                    </h3>
+                    <div className="flex items-center gap-0.5 dir-ltr">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          size={13}
+                          className={
+                            star <= review.rating
+                              ? "fill-amber-400 text-amber-400"
+                              : "text-slate-200"
+                          }
+                        />
+                      ))}
+                    </div>
                   </div>
+
+                  <p className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md w-fit mb-2">
+                    {review.customer_name}
+                  </p>
+
+                  <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
+                    "{review.comment}"
+                  </p>
                 </div>
 
-                <p className="mt-2 text-gray-700 font-medium text-sm">{review.customer_name}</p>
-                <p className="mt-2 text-gray-600">{review.comment}</p>
-
-                {filter === "pending" && (
-                  <div className="mt-4 flex gap-2">
-                    <button
-                      onClick={() => handleApprove(review.id)}
-                      className="flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-2 text-emerald-700 hover:bg-emerald-100 transition text-sm font-medium"
-                    >
-                      <Check size={16} />
-                      منظور کریں
-                    </button>
-                    <button
-                      onClick={() => handleReject(review.id)}
-                      className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-2 text-red-600 hover:bg-red-100 transition text-sm font-medium"
-                    >
-                      <Trash2 size={16} />
-                      مسترد کریں
-                    </button>
-                  </div>
-                )}
-
-                {filter === "approved" && (
-                  <div className="mt-4">
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                  {filter === "pending" ? (
+                    <>
+                      <button
+                        onClick={() => handleReject(review.id)}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 text-rose-600 hover:bg-rose-50 text-xs font-medium transition"
+                      >
+                        <Trash2 size={13} />
+                        مسترد
+                      </button>
+                      <button
+                        onClick={() => handleApprove(review.id)}
+                        className="flex items-center gap-1 px-3 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-semibold transition shadow-xs"
+                      >
+                        <Check size={13} />
+                        منظور کریں
+                      </button>
+                    </>
+                  ) : (
                     <button
                       onClick={() => handleReject(review.id)}
-                      className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-2 text-red-600 hover:bg-red-100 transition text-sm font-medium"
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 text-rose-600 hover:bg-rose-50 text-xs font-medium transition"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={13} />
                       حذف کریں
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             ))}
           </div>
