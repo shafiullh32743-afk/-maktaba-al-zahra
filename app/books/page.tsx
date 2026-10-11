@@ -212,6 +212,7 @@ function BooksPageInner() {
   const [inStockOnly, setInStockOnly] = useState(false);
   const [showWishlistOnly, setShowWishlistOnly] = useState(false);
   const [showFilterSidebar, setShowFilterSidebar] = useState(false);
+  const [showPdfOptions, setShowPdfOptions] = useState(false);
 
   const [books, setBooks] = useState<Book[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -961,8 +962,9 @@ ${itemsList}
     setReviewSuccess(true);
   };
 
-  const handleDownloadPDF = () => {
-    const rows = filteredBooks
+  const handleDownloadPDF = (stockOnly: boolean) => {
+    const booksForPdf = stockOnly ? filteredBooks.filter((b) => (b.stock ?? 0) > 0) : filteredBooks;
+    const rows = booksForPdf
       .map(
         (book, index) => `
         <tr>
@@ -991,7 +993,7 @@ ${itemsList}
         </head>
         <body>
           <h1>مكتبہ الزھراء</h1>
-          <p>فہرست کتب — کل ${filteredBooks.length} کتابیں</p>
+          <p>فہرست کتب — کل ${booksForPdf.length} کتابیں</p>
           <table>
             <thead>
               <tr>
@@ -1360,16 +1362,15 @@ ${itemsList}
                 <input type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelImport} disabled={importing} className="hidden" />
               </label>
 
-              <button
-                onClick={handleDownloadPDF}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 border transition text-xs font-semibold ${
-                  darkMode ? "bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                <FileDown size={15} />
-                {t.pdf}
-              </button>
-
+            <button
+  onClick={() => setShowPdfOptions(true)}
+  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 border transition text-xs font-semibold ${
+    darkMode ? "bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+  }`}
+>
+  <FileDown size={15} />
+  {t.pdf}
+</button>
               <button
                 onClick={() => handlePrintLabels(filteredBooks)}
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 border transition text-xs font-semibold ${
@@ -1776,6 +1777,45 @@ ${itemsList}
             </div>
           </div>
         )}
+
+     {showPdfOptions && (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
+      <span className="text-4xl">📄</span>
+      <h3 className="text-lg font-bold text-gray-800 mt-3">PDF میں کون سی کتابیں شامل ہوں؟</h3>
+      <p className="text-gray-500 text-sm mt-1">آپ موجودہ فلٹرز کے مطابق کتابیں منتخب کر سکتے ہیں</p>
+      
+      <div className="mt-6 flex flex-col gap-3">
+        <button
+          onClick={() => {
+            handleDownloadPDF(true);
+            setShowPdfOptions(false);
+          }}
+          className="w-full rounded-xl bg-emerald-700 text-white py-3 font-medium hover:bg-emerald-800 transition"
+        >
+          صرف سٹاک میں موجود کتابیں
+        </button>
+
+        <button
+          onClick={() => {
+            handleDownloadPDF(false);
+            setShowPdfOptions(false);
+          }}
+          className="w-full rounded-xl bg-gray-100 text-gray-700 py-3 font-medium hover:bg-gray-200 transition"
+        >
+          تمام کتابیں (سٹاک + غیر سٹاک)
+        </button>
+
+        <button
+          onClick={() => setShowPdfOptions(false)}
+          className="w-full text-sm text-gray-400 hover:text-gray-600 mt-1"
+        >
+          منسوخ کریں
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
         {/* تصاویر زوم موڈل */}
         {zoomedImage && (

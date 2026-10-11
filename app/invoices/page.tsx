@@ -34,6 +34,8 @@ interface Customer {
   name: string;
   phone?: string;
   whatsapp_number?: string;
+  address?: string;
+  email?: string;
 }
 
 interface Book {
@@ -62,7 +64,9 @@ interface Invoice {
   amount_paid: number;
   due_date: string | null;
   created_at: string;
-  customers?: { name: string; phone?: string };
+  walk_in_name?: string;
+  remarks?: string;
+  customers?: { name: string; phone?: string; address?: string; email?: string };
 }
 
 interface LineItem {
@@ -79,7 +83,7 @@ function generateInvoiceNumber(): string {
     now.getDate()
   ).padStart(2, "0")}`;
   const rand = Math.floor(1000 + Math.random() * 9000);
-  return `BILL-${stamp}-${rand}`;
+  return `${stamp}${rand}`;
 }
 
 function statusLabel(status: string) {
@@ -91,20 +95,20 @@ function statusLabel(status: string) {
 }
 
 const invoiceStyles = `
-  body { font-family: system-ui, -apple-system, sans-serif; padding: 24px; direction: rtl; color: #111827; background:#f8fafc; }
-  .invoice-wrapper { max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
-  .header { text-align: center; background: linear-gradient(135deg, #047857, #059669); padding: 26px 16px; color: white; }
-  .header h1 { margin: 0; font-size: 22px; }
-  .header p { margin: 4px 0 0; font-size: 13px; opacity: 0.9; }
-  .info-box { margin: 20px 24px 0; border: 1px solid #e5e7eb; background: #f9fafb; padding: 14px; border-radius: 10px; font-size: 14px; }
-  .info-box p { margin: 4px 0; }
-  table.items { width: calc(100% - 48px); border-collapse: collapse; margin: 16px 24px; font-size: 14px; }
-  table.items th { background: #ecfdf5; color: #047857; padding: 8px; border: 1px solid #e5e7eb; }
-  table.items td { padding: 8px; border: 1px solid #e5e7eb; }
-  .totals { margin: 8px 24px 24px; padding: 16px; background: #f9fafb; border-radius: 10px; font-size: 14px; }
-  .totals div { display: flex; justify-content: space-between; padding: 4px 0; }
-  .totals .grand { border-top: 2px solid #047857; font-weight: bold; font-size: 16px; color: #047857; padding-top: 8px; margin-top: 4px; }
-  .totals .balance { color: #dc2626; font-weight: bold; }
+  body { font-family: Arial, "Noto Nastaliq Urdu", sans-serif; padding: 16px; direction: rtl; color: #111827; background: #ffffff; }
+  .invoice-wrapper { max-width: 440px; margin: 0 auto; background: white; padding: 16px; font-size: 12px; border: 1px dashed #cbd5e1; border-radius: 8px; }
+  .header { text-align: center; border-bottom: 1px dashed #94a3b8; padding-bottom: 10px; margin-bottom: 10px; }
+  .logo-img { width: 70px; height: 70px; object-fit: contain; margin: 0 auto 6px; display: block; border-radius: 50%; }
+  .header h1 { margin: 0; font-size: 18px; font-weight: bold; color: #047857; }
+  .header p { margin: 2px 0; font-size: 11px; color: #475569; }
+  .meta-box { border-bottom: 1px dashed #94a3b8; padding-bottom: 8px; margin-bottom: 8px; font-size: 11px; }
+  .meta-box div { display: flex; justify-content: space-between; margin-bottom: 2px; }
+  table.items { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 11px; }
+  table.items th { border-bottom: 1px solid #94a3b8; padding-bottom: 4px; text-align: right; font-weight: bold; color: #334155; }
+  table.items td { padding: 4px 0; border-bottom: 1px dotted #e2e8f0; }
+  .totals-box { border-top: 1px dashed #94a3b8; padding-top: 8px; font-size: 11px; }
+  .grand-total { font-weight: bold; font-size: 14px; color: #047857; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; padding: 4px 0; margin-top: 4px; display: flex; justify-content: space-between; }
+  .footer-note { text-align: center; margin-top: 12px; font-size: 10px; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 6px; }
 `;
 
 export default function InvoicesPage() {
@@ -119,6 +123,7 @@ export default function InvoicesPage() {
   const [showModal, setShowModal] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [walkInName, setWalkInName] = useState("");
+  const [remarks, setRemarks] = useState("");
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [manualSubtotal, setManualSubtotal] = useState("");
   const [discountAmount, setDiscountAmount] = useState("0");
@@ -141,14 +146,14 @@ export default function InvoicesPage() {
     setLoaded(false);
     const { data: invoicesData } = await supabase
       .from("invoices")
-      .select("*, customers(name, phone)")
+      .select("*, customers(name, phone, address, email)")
       .order("id", { ascending: false });
 
     if (invoicesData) setInvoices(invoicesData as Invoice[]);
 
     const { data: customersData } = await supabase
       .from("customers")
-      .select("id, name, phone, whatsapp_number");
+      .select("id, name, phone, whatsapp_number, address, email");
     if (customersData) setCustomers(customersData as Customer[]);
 
     const { data: booksData } = await supabase
@@ -163,14 +168,29 @@ export default function InvoicesPage() {
     fetchData();
   }, []);
 
-  const getCustomerName = (inv: Invoice) => {
-    if (inv.customers?.name) return inv.customers.name;
-    if (inv.customer_id) {
+  const getCustomerInfo = (inv: Invoice) => {
+    let name = "CASH SALES - WALKING CUSTOMER";
+    let phone = "";
+    let address = "فیصل آباد، پاکستان";
+    let email = "";
+
+    if (inv.customers?.name) {
+      name = inv.customers.name;
+      phone = inv.customers.phone || "";
+      address = inv.customers.address || "فیصل آباد، پاکستان";
+      email = inv.customers.email || "";
+    } else if (inv.customer_id) {
       const matched = customers.find((c) => c.id === inv.customer_id);
-      if (matched) return matched.name;
+      if (matched) {
+        name = matched.name;
+        phone = matched.phone || "";
+        address = matched.address || "فیصل آباد، پاکستان";
+        email = matched.email || "";
+      }
+    } else if (inv.walk_in_name) {
+      name = inv.walk_in_name;
     }
-    if ((inv as any).walk_in_name) return (inv as any).walk_in_name;
-    return "عام گاہک (براہ راست)";
+    return { name, phone, address, email };
   };
 
   const handleAddItem = () => {
@@ -224,11 +244,11 @@ export default function InvoicesPage() {
 
   const filteredInvoices = invoices.filter((inv) => {
     const term = search.trim().toLowerCase();
-    const custName = getCustomerName(inv).toLowerCase();
+    const cust = getCustomerInfo(inv);
     const matchesSearch =
       term === "" ||
       inv.invoice_number.toLowerCase().includes(term) ||
-      custName.includes(term);
+      cust.name.toLowerCase().includes(term);
     const matchesStatus = filterStatus ? inv.payment_status === filterStatus : true;
     return matchesSearch && matchesStatus;
   });
@@ -242,6 +262,8 @@ export default function InvoicesPage() {
 
   const resetForm = () => {
     setSelectedCustomerId("");
+    setWalkInName("");
+    setRemarks("");
     setSelectedItems([]);
     setManualSubtotal("");
     setDiscountAmount("0");
@@ -279,6 +301,7 @@ export default function InvoicesPage() {
           ? parseInt(selectedCustomerId)
           : null,
       walk_in_name: selectedCustomerId === "__new__" ? walkInName.trim() || null : null,
+      remarks: remarks.trim() || null,
       subtotal: effectiveSubtotal,
       discount_amount: parseFloat(discountAmount) || 0,
       total_amount: total,
@@ -343,17 +366,20 @@ export default function InvoicesPage() {
   };
 
   const buildInvoiceHtml = (invoice: Invoice, items: LineItem[]) => {
-    const customerName = getCustomerName(invoice);
-    const balance = invoice.total_amount - invoice.amount_paid;
+    const cust = getCustomerInfo(invoice);
+    const dateObj = new Date(invoice.created_at);
+    const dateStr = dateObj.toLocaleDateString("en-GB");
+    const timeStr = dateObj.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    const totalItemsQty = items.reduce((sum, it) => sum + it.quantity, 0);
 
     const itemsRows = items
       .map(
-        (it, i) => `
-        <tr style="background:${i % 2 === 0 ? "#f9fafb" : "#ffffff"};">
-          <td>${it.books?.title || "کتاب"}</td>
-          <td style="text-align:center">${it.quantity}</td>
-          <td style="text-align:left">${Number(it.unit_price).toLocaleString()} روپے</td>
-          <td style="text-align:left">${Number(it.total_price).toLocaleString()} روپے</td>
+        (it, index) => `
+        <tr>
+          <td style="font-weight: bold; padding-top: 4px;">${index + 1}. ${it.books?.title || "کتاب"}</td>
+          <td style="text-align: center;">${it.quantity}</td>
+          <td style="text-align: left;">${Number(it.unit_price).toFixed(2)}</td>
+          <td style="text-align: left; font-weight: bold;">${Number(it.total_price).toFixed(2)}</td>
         </tr>`
       )
       .join("");
@@ -361,35 +387,66 @@ export default function InvoicesPage() {
     return `
       <div class="invoice-wrapper">
         <div class="header">
-          <h1>مكتبة الزهراء</h1>
-          <p>انوائس نمبر: ${invoice.invoice_number}</p>
+         <img src="data:image/jpeg;base64,...(یہاں آپ کے لوگو کی بیس سکسٹی اسٹرنگ آئے گی)..." alt="مکتبۃ الزہراء لوگو" class="logo-img" />
+          <h1>مكتبۃ الزھراء</h1>
+          <p>نزد جامعہ الحسنین، فیصل آباد</p>
+          <p>Phone #: 0305-5232889 | Email: maktabaalzahra32@gmail.com</p>
         </div>
-        <div class="info-box">
-          <p><strong>گاہک کا نام:</strong> ${customerName}</p>
-          <p><strong>تاریخ:</strong> ${new Date(invoice.created_at).toLocaleDateString("ur-PK")}</p>
-          ${invoice.due_date ? `<p><strong>آخری تاریخ:</strong> ${invoice.due_date}</p>` : ""}
+
+        <div class="meta-box">
+          <div>
+            <span>No. ${invoice.invoice_number}</span>
+            <span>${dateStr} ${timeStr}</span>
+          </div>
+          <div><span>M/s: ${cust.name.toUpperCase()}</span></div>
+          <div><span>Address: ${cust.address}</span></div>
+          ${cust.phone ? `<div><span>Phone: ${cust.phone}</span></div>` : ""}
+          ${cust.email ? `<div><span>Email: ${cust.email}</span></div>` : ""}
+          ${invoice.remarks ? `<div><span>Remarks: ${invoice.remarks}</span></div>` : ""}
         </div>
+
         ${
           items.length > 0
             ? `<table class="items">
                 <thead>
                   <tr>
-                    <th style="text-align:right">کتاب کی تفصیلات</th>
-                    <th style="text-align:center">تعداد</th>
-                    <th style="text-align:left">قیمت</th>
-                    <th style="text-align:left">کل</th>
+                    <th style="width: 45%;">Item Name</th>
+                    <th style="width: 15%; text-align: center;">Qty</th>
+                    <th style="width: 20%; text-align: left;">Price</th>
+                    <th style="width: 20%; text-align: left;">Total</th>
                   </tr>
                 </thead>
                 <tbody>${itemsRows}</tbody>
               </table>`
             : ""
         }
-        <div class="totals">
-          <div><span>فرعی مجموعہ</span><span>${Number(invoice.subtotal).toLocaleString()} روپے</span></div>
-          <div><span>رعایت</span><span>${Number(invoice.discount_amount).toLocaleString()} روپے</span></div>
-          <div class="grand"><span>کل واجب الادا رقم</span><span>${Number(invoice.total_amount).toLocaleString()} روپے</span></div>
-          <div><span>ادا شدہ</span><span>${Number(invoice.amount_paid).toLocaleString()} روپے</span></div>
-          ${balance > 0 ? `<div class="balance"><span>بقایا رقم</span><span>${balance.toLocaleString()} روپے</span></div>` : ""}
+
+        <div class="totals-box">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>Total items:</span>
+            <span style="font-weight: bold;">${totalItemsQty || items.length}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>Gross Total:</span>
+            <span style="font-weight: bold;">${Number(invoice.subtotal).toFixed(2)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+            <span>Disc:</span>
+            <span style="font-weight: bold;">${Number(invoice.discount_amount).toFixed(2)}</span>
+          </div>
+          <div class="grand-total">
+            <span>Net Total:</span>
+            <span>${Number(invoice.total_amount).toFixed(2)}</span>
+          </div>
+        </div>
+
+        <div style="margin-top: 14px; display: flex; justify-content: space-between; align-items: flex-end; font-size: 11px;">
+          <span style="font-weight: bold;">Shafi</span>
+          <span>Paid: ${Number(invoice.amount_paid).toFixed(2)}</span>
+        </div>
+
+        <div class="footer-note">
+          (Computer Software developed by Maktaba Al-Zahra. Ph: 0305-5232889)
         </div>
       </div>`;
   };
@@ -405,12 +462,12 @@ export default function InvoicesPage() {
   const handlePrintInvoice = async (invoice: Invoice) => {
     const items = await fetchLineItems(invoice.id);
     const html = `
-      <html dir="rtl" lang="ur">
+      <html dir="ltr" lang="en">
         <head>
           <meta charset="UTF-8" />
           <title>${invoice.invoice_number}</title>
           <style>${invoiceStyles}
-            @media print { body { background: white; } .invoice-wrapper { box-shadow: none; } }
+            @media print { body { background: white; padding: 0; } .invoice-wrapper { border: none; box-shadow: none; padding: 0; max-width: 100%; } }
           </style>
         </head>
         <body>${buildInvoiceHtml(invoice, items)}</body>
@@ -450,7 +507,6 @@ export default function InvoicesPage() {
 
   return (
     <main dir="rtl" className="min-h-screen flex bg-slate-50/60 font-sans">
-      {/* Mobile Backdrop */}
       {mobileMenuOpen && (
         <div
           onClick={() => setMobileMenuOpen(false)}
@@ -458,7 +514,6 @@ export default function InvoicesPage() {
         />
       )}
 
-      {/* Sidebar - تمام صفحات کے عین مطابق */}
       <aside
         className={`w-60 min-h-screen md:h-screen md:sticky md:top-0 border-l border-slate-200 bg-white p-4 flex flex-col fixed inset-y-0 right-0 z-50 flex-shrink-0 transform transition-transform duration-300 shadow-sm ${
           mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
@@ -479,7 +534,6 @@ export default function InvoicesPage() {
           </button>
         </div>
 
-        {/* Navigation */}
         <nav className="mt-6 space-y-1 flex-1 overflow-y-auto pl-1">
           <p className="text-slate-400 text-[11px] font-semibold px-2 mb-1">مینو</p>
           {menuItems.map((item) => {
@@ -501,7 +555,6 @@ export default function InvoicesPage() {
           })}
         </nav>
 
-        {/* Footer / Logout */}
         <div className="border-t border-slate-100 pt-3 mt-2 space-y-2">
           <button
             onClick={() => {
@@ -517,9 +570,7 @@ export default function InvoicesPage() {
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <section className="flex-1 p-4 md:p-6 max-w-7xl mx-auto">
-        {/* Mobile Header */}
         <div className="flex items-center justify-between md:hidden mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
           <button
             onClick={() => setMobileMenuOpen(true)}
@@ -530,7 +581,6 @@ export default function InvoicesPage() {
           <h1 className="text-sm font-bold text-slate-800">مكتبہ الزھراء</h1>
         </div>
 
-        {/* Title & Actions Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h2 className="text-xl font-bold text-slate-900">بل / انوائس 📄</h2>
@@ -546,7 +596,6 @@ export default function InvoicesPage() {
           </button>
         </div>
 
-        {/* Statistics Cards */}
         {loaded && (
           <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs flex items-center gap-3">
@@ -581,7 +630,6 @@ export default function InvoicesPage() {
           </div>
         )}
 
-        {/* Search & Filter Bar */}
         <div className="mb-6 flex flex-col sm:flex-row gap-2.5">
           <div className="relative flex-1">
             <Search
@@ -609,7 +657,6 @@ export default function InvoicesPage() {
           </select>
         </div>
 
-        {/* Invoices List / Cards Grid */}
         {!loaded ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -626,7 +673,7 @@ export default function InvoicesPage() {
             {filteredInvoices.map((inv) => {
               const status = statusLabel(inv.payment_status);
               const balance = inv.total_amount - inv.amount_paid;
-              const customerName = getCustomerName(inv);
+              const cust = getCustomerInfo(inv);
 
               return (
                 <div
@@ -636,7 +683,7 @@ export default function InvoicesPage() {
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <p className="text-xs font-bold text-slate-800" dir="ltr">
-                        {inv.invoice_number}
+                        #{inv.invoice_number}
                       </p>
                       <span
                         className={`text-[10px] px-2 py-0.5 rounded-md font-semibold border ${status.color}`}
@@ -646,12 +693,11 @@ export default function InvoicesPage() {
                     </div>
 
                     <p className="text-xs text-emerald-700 font-semibold mb-1 truncate">
-                      👤 گاہک: {customerName}
+                      👤 گاہک: {cust.name}
                     </p>
 
                     <p className="text-[11px] text-slate-400">
                       {new Date(inv.created_at).toLocaleDateString("ur-PK")}
-                      {inv.due_date && ` — آخری تاریخ: ${inv.due_date}`}
                     </p>
 
                     <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
@@ -709,12 +755,11 @@ export default function InvoicesPage() {
         )}
       </section>
 
-      {/* Delete Confirmation Modal */}
       {confirmDeleteId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-xl border border-slate-200 p-5 w-full max-w-sm shadow-xl text-center relative animate-in fade-in zoom-in-95 duration-150">
             <h3 className="text-sm font-bold text-slate-800">انوائس حذف کریں؟</h3>
-            <p className="text-slate-500 text-xs mt-1.5">کیا آپ واقعی اس انوائس کو حذف کرنا چاہتے ہیں؟ اس عمل کو واپس نہیں لایا جا سکتا۔</p>
+            <p className="text-slate-500 text-xs mt-1.5">کیا آپ واقعی اس انوائس کو حذف کرنا چاہتے ہیں؟</p>
             <div className="mt-4 flex gap-2">
               <button
                 onClick={() => handleDelete(confirmDeleteId)}
@@ -733,7 +778,6 @@ export default function InvoicesPage() {
         </div>
       )}
 
-      {/* Preview Invoice Modal */}
       {previewInvoice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-xl border border-slate-200 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto relative animate-in fade-in zoom-in-95 duration-150 p-5">
@@ -774,7 +818,6 @@ export default function InvoicesPage() {
         </div>
       )}
 
-      {/* Add Invoice Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
           <div className="bg-white rounded-xl border border-slate-200 p-5 w-full max-w-lg shadow-xl relative animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
@@ -807,12 +850,12 @@ export default function InvoicesPage() {
                   }}
                   className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
                 >
-                  <option value="">عام گاہک (براہ راست / بغیر نام)</option>
+                  <option value="">CASH SALES - WALKING CUSTOMER</option>
                   <option value="__new__">+ نیا نام شامل کریں</option>
                   {Array.isArray(customers) && customers.length > 0 ? (
                     customers.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name ? c.name : "بغیر نام"} {c.phone ? `(${c.phone})` : ""}
+                        {c.name} {c.phone ? `(${c.phone})` : ""}
                       </option>
                     ))
                   ) : (
@@ -830,6 +873,17 @@ export default function InvoicesPage() {
                     autoFocus
                   />
                 )}
+              </div>
+
+              <div>
+                <label className="block text-slate-700 mb-1 font-semibold">ریمارکس (Remarks)</label>
+                <input
+                  type="text"
+                  placeholder="مثال: ریفرنس یا اسپیشل نوٹ"
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
               </div>
 
               <div className="bg-emerald-50/60 border border-emerald-200 p-3 rounded-lg">
