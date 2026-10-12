@@ -14,8 +14,6 @@ import {
   Users,
   Receipt,
   Truck,
-  Gift,
-  Ticket,
   RotateCcw,
   Star,
   PackageMinus,
@@ -32,12 +30,12 @@ import { supabase } from "@/lib/supabaseClient";
 export default function DashboardPage() {
   const [darkMode, setDarkMode] = useState(false);
   const [lang, setLang] = useState<"ur" | "en">("ur");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [books, setBooks] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -78,6 +76,12 @@ export default function DashboardPage() {
   const totalAuthors = new Set(books.map((b) => b.author)).size;
   const totalCategories = new Set(books.map((b) => b.category)).size;
 
+  const handleLogout = async () => {
+    document.cookie = "maktaba-auth=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 UTC";
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  };
+
   const t = {
     ur: {
       welcomeBanner: "مكتبہ الزھراء میں خوش آمدید — آن لائن اسلامک بک سٹور",
@@ -90,10 +94,8 @@ export default function DashboardPage() {
       categories: "زمرے",
       orders: "آرڈرز",
       customers: "کسٹمرز",
-      bills: "بل",
+      bills: "بل / انوائس",
       suppliers: "سپلائرز",
-      loyalty: "لائلٹی پوائنٹس",
-      coupons: "کوپنز",
       returns: "واپسی/خراب",
       reviews: "ریویوز",
       lowStock: "کم سٹاک",
@@ -122,10 +124,8 @@ export default function DashboardPage() {
       categories: "Categories",
       orders: "Orders",
       customers: "Customers",
-      bills: "Bills",
+      bills: "Bills / Invoices",
       suppliers: "Suppliers",
-      loyalty: "Loyalty Points",
-      coupons: "Coupons",
       returns: "Returns",
       reviews: "Reviews",
       lowStock: "Low Stock",
@@ -158,10 +158,8 @@ export default function DashboardPage() {
     { href: "/categories", label: t.categories, icon: FolderTree },
     { href: "/orders", label: t.orders, icon: ShoppingCart },
     { href: "/customers", label: t.customers, icon: Users },
-    { href: "/bills", label: t.bills, icon: Receipt },
+    { href: "/invoices", label: t.bills, icon: Receipt },
     { href: "/suppliers", label: t.suppliers, icon: Truck },
-    { href: "/loyalty", label: t.loyalty, icon: Gift },
-    { href: "/coupons", label: t.coupons, icon: Ticket },
     { href: "/returns", label: t.returns, icon: RotateCcw },
     { href: "/reviews", label: t.reviews, icon: Star },
     { href: "/low-stock", label: t.lowStock, icon: PackageMinus },
@@ -185,7 +183,6 @@ export default function DashboardPage() {
           <button
             onClick={() => setDarkMode(!darkMode)}
             className="p-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white transition flex items-center gap-1 text-[11px] px-2"
-            title="Toggle Dark/Light Mode"
           >
             {darkMode ? <Sun size={14} /> : <Moon size={14} />}
             <span>{darkMode ? "Light" : "Dark"}</span>
@@ -194,7 +191,6 @@ export default function DashboardPage() {
           <button
             onClick={() => setLang(lang === "ur" ? "en" : "ur")}
             className="p-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white transition flex items-center gap-1 text-[11px] px-2 font-bold"
-            title="Switch Language"
           >
             <Globe size={14} />
             <span>{lang === "ur" ? "English" : "اردو"}</span>
@@ -213,11 +209,11 @@ export default function DashboardPage() {
 
         {/* Sidebar */}
         <aside
-          className={`w-60 min-h-screen md:h-screen md:sticky md:top-0 border-r border-l ${
+          className={`w-60 min-h-screen md:h-screen md:sticky md:top-0 border-l border-r ${
             darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
           } p-4 flex flex-col fixed inset-y-0 ${
             lang === "ur" ? "right-0" : "left-0"
-          } z-50 transform transition-transform duration-300 shadow-sm ${
+          } z-50 flex-shrink-0 transform transition-transform duration-300 shadow-sm ${
             mobileMenuOpen
               ? "translate-x-0"
               : lang === "ur"
@@ -269,13 +265,10 @@ export default function DashboardPage() {
           {/* Footer / Logout */}
           <div className={`border-t ${darkMode ? "border-slate-800" : "border-slate-100"} pt-3 mt-2 space-y-2`}>
             <button
-              onClick={() => {
-                document.cookie = "maktaba-auth=; path=/; max-age=0";
-                window.location.href = "/login";
-              }}
-              className="flex items-center gap-2.5 px-3 py-2 rounded-lg w-full text-xs font-medium text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+              onClick={handleLogout}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-lg w-full text-xs font-medium text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-colors"
             >
-              <LogOut size={16} />
+              <LogOut size={16} className="text-slate-400" />
               {t.logout}
             </button>
             <p className="text-slate-500 text-[10px] text-center">مكتبہ الزھراء © 2026</p>

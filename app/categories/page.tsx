@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
   LayoutDashboard, BookOpen, PenLine, FolderTree, LogOut, Menu, X, 
-  ShoppingCart, Users, Receipt, Truck, Gift, Ticket, RotateCcw, 
+  ShoppingCart, Users, Receipt, Truck, RotateCcw, 
   Star, PackageMinus, Wallet, Edit2, Folder, ArrowUpRight,
   Sun, Moon, Globe
 } from "lucide-react";
@@ -79,8 +79,6 @@ export default function CategoriesPage() {
       customers: "کسٹمرز",
       bills: "بل / انوائس",
       suppliers: "سپلائرز",
-      loyalty: "لائلٹی پوائنٹس",
-      coupons: "کوپنز",
       returns: "واپسی/خراب",
       reviews: "ریویوز",
       lowStock: "کم سٹاک",
@@ -111,8 +109,6 @@ export default function CategoriesPage() {
       customers: "Customers",
       bills: "Bills / Invoices",
       suppliers: "Suppliers",
-      loyalty: "Loyalty Points",
-      coupons: "Coupons",
       returns: "Returns",
       reviews: "Reviews",
       lowStock: "Low Stock",
@@ -130,8 +126,6 @@ export default function CategoriesPage() {
     { href: "/customers", label: t.customers, icon: Users },
     { href: "/invoices", label: t.bills, icon: Receipt },
     { href: "/suppliers", label: t.suppliers, icon: Truck },
-    { href: "/loyalty", label: t.loyalty, icon: Gift },
-    { href: "/coupons", label: t.coupons, icon: Ticket },
     { href: "/returns", label: t.returns, icon: RotateCcw },
     { href: "/reviews", label: t.reviews, icon: Star },
     { href: "/low-stock", label: t.lowStock, icon: PackageMinus },
