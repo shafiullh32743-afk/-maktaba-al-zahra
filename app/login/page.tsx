@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, BookOpen, Eye, EyeOff, Globe } from "lucide-react";
+import { Lock, BookOpen, Eye, EyeOff, Globe, Fingerprint } from "lucide-react";
+
+// ⚠️ یہاں اپنی مرضی کا پاس ورڈ لکھ لیں
+const CORRECT_PASSWORD = "zahra74234";
 
 const translations = {
   ur: {
@@ -15,6 +18,13 @@ const translations = {
     loading: "جانچ ہو رہی ہے...",
     button: "داخل ہوں",
     footer: "© مكتبہ الزھراء — تمام حقوق محفوظ ہیں",
+    fingerprintLogin: "فنگر پرنٹ سے لاگ اِن کریں",
+    fingerprintError: "فنگر پرنٹ تصدیق ناکام ہوئی، پاس ورڈ استعمال کریں",
+    orDivider: "یا",
+    offerTitle: "فنگر پرنٹ فعال کریں؟",
+    offerSubtitle: "اگلی بار پاس ورڈ کے بغیر، صرف فنگر پرنٹ سے لاگ اِن کریں",
+    offerYes: "جی ہاں، فعال کریں",
+    offerNo: "ابھی نہیں",
   },
   en: {
     brand: "Maktaba Al-Zahra",
@@ -26,8 +36,28 @@ const translations = {
     loading: "Checking...",
     button: "Sign In",
     footer: "© Maktaba Al-Zahra — All rights reserved",
+    fingerprintLogin: "Sign in with Fingerprint",
+    fingerprintError: "Fingerprint verification failed, use password",
+    orDivider: "or",
+    offerTitle: "Enable Fingerprint?",
+    offerSubtitle: "Next time, sign in with just your fingerprint — no password needed",
+    offerYes: "Yes, enable it",
+    offerNo: "Not now",
   },
 };
+
+const FINGERPRINT_KEY = "maktaba-fingerprint-id";
+
+function bufferToBase64(buf: ArrayBuffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+
+function base64ToBuffer(base64: string) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
@@ -38,28 +68,127 @@ export default function LoginPage() {
   const router = useRouter();
   const t = translations[lang];
 
+  const [fingerprintSupported, setFingerprintSupported] = useState(false);
+  const [fingerprintRegistered, setFingerprintRegistered] = useState(false);
+  const [showFingerprintOffer, setShowFingerprintOffer] = useState(false);
+
+  useEffect(() => {
+    const checkFingerprintSupport = async () => {
+      try {
+        if (
+          typeof window !== "undefined" &&
+          window.PublicKeyCredential &&
+          typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === "function"
+        ) {
+          const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+          setFingerprintSupported(available);
+          setFingerprintRegistered(!!localStorage.getItem(FINGERPRINT_KEY));
+        }
+      } catch {
+        setFingerprintSupported(false);
+      }
+    };
+    checkFingerprintSupport();
+  }, []);
+
+  const goHome = () => {
+    router.push("/");
+    router.refresh();
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
+    if (password === CORRECT_PASSWORD) {
+      document.cookie = "maktaba-auth=true; path=/; max-age=" + 60 * 60 * 24 * 30;
+
+      if (fingerprintSupported && !fingerprintRegistered) {
+        setLoading(false);
+        setShowFingerprintOffer(true);
+        return;
+      }
+
+      goHome();
+    } else {
+      setError(t.error);
+      setLoading(false);
+    }
+  };
+
+  const handleRegisterFingerprint = async () => {
     try {
-      // سرور اینڈ پوائنٹ پر پاس ورڈ ویری فائی کریں
-      const res = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+      const credential = (await navigator.credentials.create({
+        publicKey: {
+          challenge: crypto.getRandomValues(new Uint8Array(32)),
+          rp: { name: "مكتبہ الزھراء", id: window.location.hostname },
+          user: {
+            id: crypto.getRandomValues(new Uint8Array(16)),
+            name: "admin",
+            displayName: "Admin - مكتبہ الزھراء",
+          },
+          pubKeyCredParams: [
+            { type: "public-key", alg: -7 },
+            { type: "public-key", alg: -257 },
+          ],
+          authenticatorSelection: {
+            authenticatorAttachment: "platform",
+            userVerification: "required",
+          },
+          timeout: 60000,
+          attestation: "none",
+        },
+      })) as PublicKeyCredential;
+
+      if (credential) {
+        const credentialId = bufferToBase64(credential.rawId);
+        localStorage.setItem(FINGERPRINT_KEY, credentialId);
+        setFingerprintRegistered(true);
+      }
+    } catch {
+      // صارف نے منسوخ کر دیا یا ڈیوائس سپورٹ نہیں کرتی — کوئی بات نہیں، پاس ورڈ سے لاگ اِن ہو چکا ہے
+    } finally {
+      setShowFingerprintOffer(false);
+      goHome();
+    }
+  };
+
+  const handleSkipFingerprint = () => {
+    setShowFingerprintOffer(false);
+    goHome();
+  };
+
+  const handleFingerprintLogin = async () => {
+    setError("");
+    setLoading(true);
+
+    try {
+      const storedId = localStorage.getItem(FINGERPRINT_KEY);
+      if (!storedId) {
+        setLoading(false);
+        return;
+      }
+
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge: crypto.getRandomValues(new Uint8Array(32)),
+          allowCredentials: [
+            { id: base64ToBuffer(storedId), type: "public-key" },
+          ],
+          userVerification: "required",
+          timeout: 60000,
+        },
       });
 
-      if (res.ok) {
-        router.push("/");
-        router.refresh();
+      if (assertion) {
+        document.cookie = "maktaba-auth=true; path=/; max-age=" + 60 * 60 * 24 * 30;
+        goHome();
       } else {
-        setError(t.error);
+        setLoading(false);
       }
-    } catch (err) {
-      setError(t.error);
-    } finally {
+    } catch {
+      setError(t.fingerprintError);
       setLoading(false);
     }
   };
@@ -112,6 +241,26 @@ export default function LoginPage() {
             </div>
           </div>
 
+          {fingerprintSupported && fingerprintRegistered && (
+            <>
+              <button
+                type="button"
+                onClick={handleFingerprintLogin}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600/20 border border-emerald-500/40 text-emerald-200 py-3.5 font-medium hover:bg-emerald-600/30 transition-all disabled:opacity-60"
+              >
+                <Fingerprint size={20} />
+                {t.fingerprintLogin}
+              </button>
+
+              <div className="flex items-center gap-3 my-5">
+                <div className="flex-1 h-px bg-white/10" />
+                <span className="text-white/30 text-xs">{t.orDivider}</span>
+                <div className="flex-1 h-px bg-white/10" />
+              </div>
+            </>
+          )}
+
           <div className="relative">
             <input
               type={showPassword ? "text" : "password"}
@@ -150,6 +299,33 @@ export default function LoginPage() {
 
         <p className="text-center text-white/30 text-xs mt-6">{t.footer}</p>
       </div>
+
+      {showFingerprintOffer && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#0f2a1f] border border-white/10 rounded-2xl p-7 w-full max-w-xs text-center shadow-2xl">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-600/20 flex items-center justify-center">
+              <Fingerprint className="text-emerald-300" size={28} />
+            </div>
+            <h3 className="text-white font-bold mt-4">{t.offerTitle}</h3>
+            <p className="text-white/50 text-sm mt-2">{t.offerSubtitle}</p>
+
+            <div className="mt-6 space-y-2.5">
+              <button
+                onClick={handleRegisterFingerprint}
+                className="w-full rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white py-3 font-medium hover:from-emerald-500 hover:to-emerald-400 transition-all"
+              >
+                {t.offerYes}
+              </button>
+              <button
+                onClick={handleSkipFingerprint}
+                className="w-full rounded-xl bg-white/5 text-white/60 py-3 hover:bg-white/10 transition"
+              >
+                {t.offerNo}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
