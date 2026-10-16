@@ -98,7 +98,7 @@ const invoiceStyles = `
   body { font-family: Arial, "Noto Nastaliq Urdu", sans-serif; padding: 16px; direction: rtl; color: #111827; background: #ffffff; }
   .invoice-wrapper { max-width: 440px; margin: 0 auto; background: white; padding: 16px; font-size: 12px; border: 1px dashed #cbd5e1; border-radius: 8px; }
   .header { text-align: center; border-bottom: 1px dashed #94a3b8; padding-bottom: 10px; margin-bottom: 10px; }
-  .logo-img { width: 70px; height: 70px; object-fit: contain; margin: 0 auto 6px; display: block; border-radius: 50%; }
+  .logo-img { height: 90px; width: auto; max-width: 100%; object-fit: contain; margin: 0 auto 6px; display: block; }
   .header h1 { margin: 0; font-size: 18px; font-weight: bold; color: #047857; }
   .header p { margin: 2px 0; font-size: 11px; color: #475569; }
   .meta-box { border-bottom: 1px dashed #94a3b8; padding-bottom: 8px; margin-bottom: 8px; font-size: 11px; }
@@ -386,8 +386,9 @@ export default function InvoicesPage() {
 
     return `
       <div class="invoice-wrapper">
+      
         <div class="header">
-         <img src="data:image/jpeg;base64,...(یہاں آپ کے لوگو کی بیس سکسٹی اسٹرنگ آئے گی)..." alt="مکتبۃ الزہراء لوگو" class="logo-img" />
+        <img src="${window.location.origin}/logo.jpg" alt="مکتبۃ الزہراء لوگو" class="logo-img" />
           <h1>مكتبۃ الزھراء</h1>
           <p>نزد جامعہ الحسنین، فیصل آباد</p>
           <p>Phone #: 0305-5232889 | Email: maktabaalzahra32@gmail.com</p>
@@ -470,15 +471,13 @@ export default function InvoicesPage() {
             @media print { body { background: white; padding: 0; } .invoice-wrapper { border: none; box-shadow: none; padding: 0; max-width: 100%; } }
           </style>
         </head>
-        <body>${buildInvoiceHtml(invoice, items)}</body>
+       <body>${buildInvoiceHtml(invoice, items)}<script>window.onload = function () { window.focus(); window.print(); };</script></body>
       </html>`;
 
     const printWindow = window.open("", "_blank");
     if (printWindow) {
       printWindow.document.write(html);
       printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => printWindow.print(), 300);
     }
   };
 
