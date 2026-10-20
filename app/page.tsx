@@ -31,11 +31,17 @@ export default function DashboardPage() {
   const [darkMode, setDarkMode] = useState(false);
   const [lang, setLang] = useState<"ur" | "en">("ur");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const [books, setBooks] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    // ایڈمن کی جانچ: لاگ ان کوکی موجود ہو تو مالی اعداد و شمار نظر آئیں گے
+    setIsAdmin(/(^|;\s*)maktaba-auth=[^;]+/.test(document.cookie));
+  }, []);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -300,53 +306,55 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="space-y-5">
-              {/* Top Financial Stats Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Monthly Profit Card */}
-                <div className={`rounded-xl border p-4 shadow-xs ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-emerald-100"}`}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-slate-400">{t.monthProfit}</span>
-                    <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600">
-                      <TrendingUp size={16} />
-                    </span>
-                  </div>
-                  <p className={`text-2xl font-bold mt-1 ${thisMonthProfit >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
-                    Rs {thisMonthProfit.toLocaleString()}
-                  </p>
-                  <div className={`mt-3 pt-3 border-t grid grid-cols-3 gap-2 text-center text-xs ${darkMode ? "border-slate-800" : "border-slate-100"}`}>
-                    <div className={`p-2 rounded-lg ${darkMode ? "bg-slate-800/60" : "bg-slate-50"}`}>
-                      <p className="text-[10px] text-slate-400">{t.sales}</p>
-                      <p className={`font-semibold mt-0.5 ${darkMode ? "text-slate-200" : "text-slate-700"}`}>Rs {thisMonthRevenue.toLocaleString()}</p>
-                    </div>
-                    <div className={`p-2 rounded-lg ${darkMode ? "bg-slate-800/60" : "bg-slate-50"}`}>
-                      <p className="text-[10px] text-slate-400">{t.cost}</p>
-                      <p className={`font-semibold mt-0.5 ${darkMode ? "text-slate-200" : "text-slate-700"}`}>Rs {thisMonthCost.toLocaleString()}</p>
-                    </div>
-                    <div className={`p-2 rounded-lg ${darkMode ? "bg-slate-800/60" : "bg-slate-50"}`}>
-                      <p className="text-[10px] text-slate-400">{t.expenseLabel}</p>
-                      <p className={`font-semibold mt-0.5 ${darkMode ? "text-slate-200" : "text-slate-700"}`}>Rs {thisMonthExpenseTotal.toLocaleString()}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Total Stock Value Card */}
-                <div className={`rounded-xl border p-4 shadow-xs flex flex-col justify-between ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-blue-100"}`}>
-                  <div>
+              {/* Top Financial Stats Grid - صرف لاگ اِن ایڈمن کو نظر آئے گا */}
+              {isAdmin && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Monthly Profit Card */}
+                  <div className={`rounded-xl border p-4 shadow-xs ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-emerald-100"}`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-slate-400">{t.totalStockValue}</span>
-                      <span className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
-                        <Boxes size={16} />
+                      <span className="text-xs font-medium text-slate-400">{t.monthProfit}</span>
+                      <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600">
+                        <TrendingUp size={16} />
                       </span>
                     </div>
-                    <p className={`text-2xl font-bold mt-1 ${darkMode ? "text-white" : "text-slate-800"}`}>
-                      Rs {totalStockValue.toLocaleString()}
+                    <p className={`text-2xl font-bold mt-1 ${thisMonthProfit >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                      Rs {thisMonthProfit.toLocaleString()}
+                    </p>
+                    <div className={`mt-3 pt-3 border-t grid grid-cols-3 gap-2 text-center text-xs ${darkMode ? "border-slate-800" : "border-slate-100"}`}>
+                      <div className={`p-2 rounded-lg ${darkMode ? "bg-slate-800/60" : "bg-slate-50"}`}>
+                        <p className="text-[10px] text-slate-400">{t.sales}</p>
+                        <p className={`font-semibold mt-0.5 ${darkMode ? "text-slate-200" : "text-slate-700"}`}>Rs {thisMonthRevenue.toLocaleString()}</p>
+                      </div>
+                      <div className={`p-2 rounded-lg ${darkMode ? "bg-slate-800/60" : "bg-slate-50"}`}>
+                        <p className="text-[10px] text-slate-400">{t.cost}</p>
+                        <p className={`font-semibold mt-0.5 ${darkMode ? "text-slate-200" : "text-slate-700"}`}>Rs {thisMonthCost.toLocaleString()}</p>
+                      </div>
+                      <div className={`p-2 rounded-lg ${darkMode ? "bg-slate-800/60" : "bg-slate-50"}`}>
+                        <p className="text-[10px] text-slate-400">{t.expenseLabel}</p>
+                        <p className={`font-semibold mt-0.5 ${darkMode ? "text-slate-200" : "text-slate-700"}`}>Rs {thisMonthExpenseTotal.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Total Stock Value Card */}
+                  <div className={`rounded-xl border p-4 shadow-xs flex flex-col justify-between ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-blue-100"}`}>
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-slate-400">{t.totalStockValue}</span>
+                        <span className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
+                          <Boxes size={16} />
+                        </span>
+                      </div>
+                      <p className={`text-2xl font-bold mt-1 ${darkMode ? "text-white" : "text-slate-800"}`}>
+                        Rs {totalStockValue.toLocaleString()}
+                      </p>
+                    </div>
+                    <p className={`text-[11px] text-slate-400 mt-2 p-2 rounded-lg ${darkMode ? "bg-slate-800/50" : "bg-blue-50/50"}`}>
+                      {t.totalStockDesc}
                     </p>
                   </div>
-                  <p className={`text-[11px] text-slate-400 mt-2 p-2 rounded-lg ${darkMode ? "bg-slate-800/50" : "bg-blue-50/50"}`}>
-                    {t.totalStockDesc}
-                  </p>
                 </div>
-              </div>
+              )}
 
               {/* Quick Stat Counter Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
