@@ -185,90 +185,109 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
 
   return (
     <main className="min-h-screen flex bg-slate-50/60 font-sans" dir="rtl">
-      {mobileMenuOpen && (
+      {isAdmin && mobileMenuOpen && (
         <div
           onClick={() => setMobileMenuOpen(false)}
           className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden"
         />
       )}
 
-      {/* Sidebar - Compact & Right Positioned */}
-      <aside
-        className={`w-60 min-h-screen md:h-screen md:sticky md:top-0 border-r border-slate-200 bg-white p-4 flex flex-col fixed inset-y-0 right-0 z-50 transform transition-transform duration-300 shadow-sm ${
-          mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
-        }`}
-      >
-        <div className="flex items-center justify-between px-2 py-1">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm">
-              <BookOpen className="text-white" size={17} />
+      {/* Sidebar - صرف ایڈمن کے لیے (لاگ اِن کے بعد) */}
+      {isAdmin && (
+        <aside
+          className={`w-60 min-h-screen md:h-screen md:sticky md:top-0 border-r border-slate-200 bg-white p-4 flex flex-col fixed inset-y-0 right-0 z-50 transform transition-transform duration-300 shadow-sm ${
+            mobileMenuOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
+          }`}
+        >
+          <div className="flex items-center justify-between px-2 py-1">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm">
+                <BookOpen className="text-white" size={17} />
+              </div>
+              <h1 className="text-base font-bold text-slate-800">مكتبہ الزھراء</h1>
             </div>
-            <h1 className="text-base font-bold text-slate-800">مكتبہ الزھراء</h1>
+            <button
+              onClick={() => setMobileMenuOpen(false)}
+              className="md:hidden text-slate-400 hover:text-slate-600"
+            >
+              <X size={20} />
+            </button>
           </div>
-          <button
-            onClick={() => setMobileMenuOpen(false)}
-            className="md:hidden text-slate-400 hover:text-slate-600"
-          >
-            <X size={20} />
-          </button>
-        </div>
 
-        <nav className="mt-6 space-y-1 flex-1 overflow-y-auto pl-1">
-          <p className="text-slate-400 text-[11px] font-semibold px-2 mb-1">مینو</p>
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                  item.active
-                    ? "bg-emerald-50 text-emerald-700 shadow-xs"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                }`}
-              >
-                <Icon size={16} className={item.active ? "text-emerald-600" : "text-slate-400"} />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+          <nav className="mt-6 space-y-1 flex-1 overflow-y-auto pl-1">
+            <p className="text-slate-400 text-[11px] font-semibold px-2 mb-1">مینو</p>
+            {menuItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                    item.active
+                      ? "bg-emerald-50 text-emerald-700 shadow-xs"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  }`}
+                >
+                  <Icon size={16} className={item.active ? "text-emerald-600" : "text-slate-400"} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
 
-        <div className="border-t border-slate-100 pt-3 mt-2 space-y-2">
-          <button
-            onClick={() => {
-              document.cookie = "maktaba-auth=; path=/; max-age=0";
-              window.location.href = "/login";
-            }}
-            className="flex items-center gap-2.5 px-3 py-2 rounded-lg w-full text-xs font-medium text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-colors"
-          >
-            <LogOut size={16} className="text-slate-400" />
-            لاگ آؤٹ
-          </button>
-          <p className="text-slate-400 text-[10px] text-center">مكتبہ الزھراء © 2026</p>
-        </div>
-      </aside>
+          <div className="border-t border-slate-100 pt-3 mt-2 space-y-2">
+            <button
+              onClick={() => {
+                document.cookie = "maktaba-auth=; path=/; max-age=0";
+                window.location.href = "/login";
+              }}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-lg w-full text-xs font-medium text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-colors"
+            >
+              <LogOut size={16} className="text-slate-400" />
+              لاگ آؤٹ
+            </button>
+            <p className="text-slate-400 text-[10px] text-center">مكتبہ الزھراء © 2026</p>
+          </div>
+        </aside>
+      )}
 
       <section className="flex-1 p-4 md:p-6 max-w-7xl mx-auto">
-        {/* Mobile Header */}
-        <div className="flex items-center justify-between md:hidden mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
-          <button
-            onClick={() => setMobileMenuOpen(true)}
-            className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
-          >
-            <Menu size={20} />
-          </button>
-          <h1 className="text-sm font-bold text-slate-800">مكتبہ الزھراء</h1>
-        </div>
+        {/* Mobile Header - صرف ایڈمن کے لیے */}
+        {isAdmin && (
+          <div className="flex items-center justify-between md:hidden mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
+            >
+              <Menu size={20} />
+            </button>
+            <h1 className="text-sm font-bold text-slate-800">مكتبہ الزھراء</h1>
+          </div>
+        )}
+
+        {/* عوامی (کسٹمر) ہیڈر - لاگ اِن کے بغیر دیکھنے والوں کے لیے */}
+        {!isAdmin && (
+          <div className="flex items-center justify-between mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+            <Link href="/" className="flex items-center gap-2.5">
+              <img src="/logo.jpg" alt="مكتبہ الزھراء" className="w-8 h-8 rounded-lg object-cover shadow-sm" />
+              <h1 className="text-sm md:text-base font-bold text-slate-800">مكتبہ الزھراء</h1>
+            </Link>
+            <nav className="flex items-center gap-3 md:gap-4 text-xs font-semibold text-slate-600">
+              <Link href="/" className="hover:text-emerald-600 transition">ہوم</Link>
+              <Link href="/about" className="hover:text-emerald-600 transition">ہمارے بارے میں</Link>
+              <Link href="/contact" className="hover:text-emerald-600 transition">رابطہ</Link>
+            </nav>
+          </div>
+        )}
 
         <div className="w-full">
           {/* Action Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
             <Link
-              href="/books"
+              href={isAdmin ? "/books" : "/"}
               className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-emerald-600 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs transition"
             >
-              <ArrowRight size={15} /> واپس کتب کی فہرست
+              <ArrowRight size={15} /> {isAdmin ? "واپس کتب کی فہرست" : "ہوم پیج پر واپس جائیں"}
             </Link>
 
             {book && isAdmin && (
@@ -527,6 +546,16 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
             </>
           )}
         </div>
+
+        {/* عوامی فوٹر - صرف کسٹمرز کے لیے */}
+        {!isAdmin && (
+          <footer className="mt-10 pt-6 border-t border-slate-200 flex flex-col items-center gap-2.5">
+            <img src="/logo.jpg" alt="مكتبہ الزھراء" className="h-9 w-auto rounded-md opacity-90" />
+            <p className="text-slate-400 text-xs text-center">
+              © 2026 مكتبہ الزھراء. جملہ حقوق محفوظ ہیں۔
+            </p>
+          </footer>
+        )}
       </section>
     </main>
   );
