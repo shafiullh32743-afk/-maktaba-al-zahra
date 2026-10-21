@@ -33,6 +33,8 @@ import {
   Plus,
   Minus,
   FileDown,
+  Download,
+  Share2,
   Heart,
   CheckSquare,
   Square,
@@ -104,6 +106,120 @@ const urduToRomanMap: Record<string, string> = {
 };
 
 const WISHLIST_KEY = "maktaba-wishlist";
+const PDF_FILE_NAME = "Maktaba-Al-Zahra-Book-List.pdf";
+
+function escapeHtml(value: string): string {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// فہرست کتب کی اصل PDF فائل بناتا ہے (اردو درست دکھانے کے لیے صفحہ پہلے براؤزر میں بنتا ہے، پھر PDF میں ڈالا جاتا ہے)
+async function buildBooksPdf(list: Book[], rtl: boolean): Promise<Blob> {
+  const [{ jsPDF }, html2canvasModule] = await Promise.all([import("jspdf"), import("html2canvas")]);
+  const html2canvas = html2canvasModule.default;
+
+  try {
+    await (document as any).fonts?.ready;
+  } catch {}
+
+  const FIRST_PAGE_ROWS = 18;
+  const NEXT_PAGE_ROWS = 24;
+
+  const pages: Book[][] = [];
+  if (list.length === 0) {
+    pages.push([]);
+  } else {
+    pages.push(list.slice(0, FIRST_PAGE_ROWS));
+    for (let i = FIRST_PAGE_ROWS; i < list.length; i += NEXT_PAGE_ROWS) {
+      pages.push(list.slice(i, i + NEXT_PAGE_ROWS));
+    }
+  }
+
+  const wrapper = document.createElement("div");
+  wrapper.dir = rtl ? "rtl" : "ltr";
+  wrapper.style.cssText =
+    "position:fixed;left:-10000px;top:0;width:794px;background:#ffffff;color:#111827;padding:32px;box-sizing:border-box;font-family:'Noto Sans Arabic','Noto Nastaliq Urdu',Arial,sans-serif;";
+  document.body.appendChild(wrapper);
+
+  const pdf = new jsPDF({ unit: "mm", format: "a4" });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const dateStr = new Date().toLocaleDateString("en-GB");
+
+  const cell = "padding:6px 8px;border:1px solid #cbd5e1;font-size:13px;line-height:1.7;";
+
+  try {
+    for (let p = 0; p < pages.length; p++) {
+      const startIndex = p === 0 ? 0 : FIRST_PAGE_ROWS + (p - 1) * NEXT_PAGE_ROWS;
+
+      const rows = pages[p]
+        .map(
+          (book, idx) => `
+          <tr style="background:${idx % 2 === 0 ? "#ffffff" : "#f8fafc"};">
+            <td style="${cell}text-align:center;width:36px;">${startIndex + idx + 1}</td>
+            <td style="${cell}font-weight:bold;">${escapeHtml(book.title)}</td>
+            <td style="${cell}">${escapeHtml(book.author)}</td>
+            <td style="${cell}">${escapeHtml(book.category)}</td>
+            <td style="${cell}text-align:center;">${book.price ? Number(book.price).toLocaleString() : "-"}</td>
+            <td style="${cell}text-align:center;">${book.stock ?? "-"}</td>
+          </tr>`
+        )
+        .join("");
+
+      const header =
+        p === 0
+          ? `<div style="text-align:center;margin-bottom:14px;">
+               <div style="font-size:26px;font-weight:bold;color:#047857;">مكتبہ الزھراء</div>
+               <div style="font-size:13px;color:#475569;margin-top:4px;">فہرست کتب — کل ${list.length} کتابیں — ${dateStr}</div>
+             </div>`
+          : "";
+
+      const body =
+        list.length === 0
+          ? `<div style="text-align:center;padding:40px;color:#64748b;font-size:14px;">کوئی کتاب موجود نہیں</div>`
+          : `<table style="width:100%;border-collapse:collapse;">
+               <thead>
+                 <tr>
+                   <th style="${cell}background:#047857;color:#ffffff;">#</th>
+                   <th style="${cell}background:#047857;color:#ffffff;">کتاب کا نام</th>
+                   <th style="${cell}background:#047857;color:#ffffff;">مصنف</th>
+                   <th style="${cell}background:#047857;color:#ffffff;">زمرہ</th>
+                   <th style="${cell}background:#047857;color:#ffffff;">قیمت</th>
+                   <th style="${cell}background:#047857;color:#ffffff;">سٹاک</th>
+                 </tr>
+               </thead>
+               <tbody>${rows}</tbody>
+             </table>`;
+
+      wrapper.innerHTML = `${header}${body}
+        <div style="text-align:center;font-size:11px;color:#64748b;margin-top:14px;">صفحہ ${p + 1} / ${pages.length}</div>`;
+
+      const canvas = await html2canvas(wrapper, {
+        scale: 2,
+        backgroundColor: "#ffffff",
+        useCORS: true,
+      });
+
+      let imgW = pageW;
+      let imgH = (canvas.height * imgW) / canvas.width;
+      if (imgH > pageH) {
+        const factor = pageH / imgH;
+        imgW = imgW * factor;
+        imgH = pageH;
+      }
+
+      if (p > 0) pdf.addPage();
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", (pageW - imgW) / 2, 0, imgW, imgH);
+    }
+  } finally {
+    wrapper.remove();
+  }
+
+  return pdf.output("blob");
+}
 
 function generateSlugFromTitle(title: string): string {
   let result = "";
@@ -212,7 +328,13 @@ function BooksPageInner() {
   const [inStockOnly, setInStockOnly] = useState(false);
   const [showWishlistOnly, setShowWishlistOnly] = useState(false);
   const [showFilterSidebar, setShowFilterSidebar] = useState(false);
+
+  // PDF: ڈاؤن لوڈ / شیئر / پرنٹ
   const [showPdfOptions, setShowPdfOptions] = useState(false);
+  const [pdfStockOnly, setPdfStockOnly] = useState(true);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfPreparing, setPdfPreparing] = useState(false);
+  const [pdfMessage, setPdfMessage] = useState<string | null>(null);
 
   const [books, setBooks] = useState<Book[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -290,7 +412,7 @@ function BooksPageInner() {
       categories: "زمرے",
       orders: "آرڈرز",
       customers: "کسٹمرز",
-      invoices: "بل / انوائس",
+      invoices: "بل",
       suppliers: "سپلائرز",
       returns: "واپسی/خراب",
       reviews: "ریویوز",
@@ -506,6 +628,80 @@ function BooksPageInner() {
       matchesPriceTo
     );
   });
+
+  // PDF کھلتے ہی (یا سٹاک/تمام کا انتخاب بدلتے ہی) فائل پہلے سے تیار ہو جاتی ہے
+  // تاکہ شیئر کا بٹن دبانے پر فوراً چلے
+  const pdfBooksList = pdfStockOnly ? filteredBooks.filter((b) => (b.stock ?? 0) > 0) : filteredBooks;
+
+  useEffect(() => {
+    if (!showPdfOptions) {
+      setPdfFile(null);
+      setPdfMessage(null);
+      setPdfPreparing(false);
+      return;
+    }
+
+    let cancelled = false;
+    setPdfPreparing(true);
+    setPdfFile(null);
+    setPdfMessage(null);
+
+    const list = pdfStockOnly ? filteredBooks.filter((b) => (b.stock ?? 0) > 0) : filteredBooks;
+
+    buildBooksPdf(list, lang === "ur")
+      .then((blob) => {
+        if (!cancelled) setPdfFile(new File([blob], PDF_FILE_NAME, { type: "application/pdf" }));
+      })
+      .catch(() => {
+        if (!cancelled) setPdfMessage("PDF بنانے میں مسئلہ آیا، دوبارہ کوشش کریں");
+      })
+      .finally(() => {
+        if (!cancelled) setPdfPreparing(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showPdfOptions, pdfStockOnly]);
+
+  const downloadPdfFile = () => {
+    if (!pdfFile) return;
+    const url = URL.createObjectURL(pdfFile);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = pdfFile.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    setPdfMessage("✅ PDF ڈاؤن لوڈ ہو گئی");
+  };
+
+  const sharePdfFile = async () => {
+    if (!pdfFile) return;
+    setPdfMessage(null);
+    const nav: any = navigator;
+    try {
+      if (nav.canShare && nav.canShare({ files: [pdfFile] })) {
+        await nav.share({ files: [pdfFile], title: "مكتبہ الزھراء - فہرست کتب" });
+      } else {
+        const url = URL.createObjectURL(pdfFile);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = pdfFile.name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        setPdfMessage("اس براؤزر میں سیدھا شیئر ممکن نہیں، فائل ڈاؤن لوڈ ہو گئی ہے۔ اسے واٹس ایپ یا ای میل میں منسلک کر کے بھیج دیں۔");
+      }
+    } catch (err) {
+      if ((err as Error)?.name !== "AbortError") {
+        setPdfMessage("شیئر نہیں ہو سکا، ڈاؤن لوڈ کر کے بھیج دیں");
+      }
+    }
+  };
 
   const existingCategories = Array.from(new Set(books.map((b) => b.category)));
 
@@ -962,6 +1158,7 @@ ${itemsList}
     setReviewSuccess(true);
   };
 
+  // فہرست پرنٹ کرنے کا فنکشن
   const handleDownloadPDF = (stockOnly: boolean) => {
     const booksForPdf = stockOnly ? filteredBooks.filter((b) => (b.stock ?? 0) > 0) : filteredBooks;
     const rows = booksForPdf
@@ -969,9 +1166,9 @@ ${itemsList}
         (book, index) => `
         <tr>
           <td style="padding:8px;border:1px solid #ccc;text-align:center;">${index + 1}</td>
-          <td style="padding:8px;border:1px solid #ccc;">${book.title}</td>
-          <td style="padding:8px;border:1px solid #ccc;">${book.author}</td>
-          <td style="padding:8px;border:1px solid #ccc;">${book.category}</td>
+          <td style="padding:8px;border:1px solid #ccc;">${escapeHtml(book.title)}</td>
+          <td style="padding:8px;border:1px solid #ccc;">${escapeHtml(book.author)}</td>
+          <td style="padding:8px;border:1px solid #ccc;">${escapeHtml(book.category)}</td>
           <td style="padding:8px;border:1px solid #ccc;text-align:center;">${book.price || "-"}</td>
           <td style="padding:8px;border:1px solid #ccc;text-align:center;">${book.stock ?? "-"}</td>
         </tr>`
@@ -1362,15 +1559,16 @@ ${itemsList}
                 <input type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelImport} disabled={importing} className="hidden" />
               </label>
 
-            <button
-  onClick={() => setShowPdfOptions(true)}
-  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 border transition text-xs font-semibold ${
-    darkMode ? "bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-  }`}
->
-  <FileDown size={15} />
-  {t.pdf}
-</button>
+              <button
+                onClick={() => setShowPdfOptions(true)}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 border transition text-xs font-semibold ${
+                  darkMode ? "bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <FileDown size={15} />
+                {t.pdf}
+              </button>
+
               <button
                 onClick={() => handlePrintLabels(filteredBooks)}
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 border transition text-xs font-semibold ${
@@ -1778,44 +1976,100 @@ ${itemsList}
           </div>
         )}
 
-     {showPdfOptions && (
-  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-    <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl text-center">
-      <span className="text-4xl">📄</span>
-      <h3 className="text-lg font-bold text-gray-800 mt-3">PDF میں کون سی کتابیں شامل ہوں؟</h3>
-      <p className="text-gray-500 text-sm mt-1">آپ موجودہ فلٹرز کے مطابق کتابیں منتخب کر سکتے ہیں</p>
-      
-      <div className="mt-6 flex flex-col gap-3">
-        <button
-          onClick={() => {
-            handleDownloadPDF(true);
-            setShowPdfOptions(false);
-          }}
-          className="w-full rounded-xl bg-emerald-700 text-white py-3 font-medium hover:bg-emerald-800 transition"
-        >
-          صرف سٹاک میں موجود کتابیں
-        </button>
+        {/* PDF: ڈاؤن لوڈ / شیئر / پرنٹ */}
+        {showPdfOptions && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className={`rounded-2xl p-6 w-full max-w-sm shadow-xl text-center ${darkMode ? "bg-slate-900 text-white" : "bg-white text-gray-800"}`}>
+              <span className="text-4xl">📄</span>
+              <h3 className="text-lg font-bold mt-3">فہرست کتب (PDF)</h3>
+              <p className={`text-sm mt-1 ${darkMode ? "text-slate-400" : "text-gray-500"}`}>
+                موجودہ فلٹرز کے مطابق — {pdfBooksList.length} کتابیں
+              </p>
 
-        <button
-          onClick={() => {
-            handleDownloadPDF(false);
-            setShowPdfOptions(false);
-          }}
-          className="w-full rounded-xl bg-gray-100 text-gray-700 py-3 font-medium hover:bg-gray-200 transition"
-        >
-          تمام کتابیں (سٹاک + غیر سٹاک)
-        </button>
+              {/* کون سی کتابیں */}
+              <div className={`mt-4 grid grid-cols-2 gap-1 p-1 rounded-xl ${darkMode ? "bg-slate-800" : "bg-gray-100"}`}>
+                <button
+                  type="button"
+                  onClick={() => setPdfStockOnly(true)}
+                  className={`rounded-lg py-2 text-xs font-semibold transition ${
+                    pdfStockOnly
+                      ? "bg-emerald-700 text-white shadow-xs"
+                      : darkMode
+                      ? "text-slate-300 hover:bg-slate-700"
+                      : "text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  صرف سٹاک میں
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPdfStockOnly(false)}
+                  className={`rounded-lg py-2 text-xs font-semibold transition ${
+                    !pdfStockOnly
+                      ? "bg-emerald-700 text-white shadow-xs"
+                      : darkMode
+                      ? "text-slate-300 hover:bg-slate-700"
+                      : "text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  تمام کتابیں
+                </button>
+              </div>
 
-        <button
-          onClick={() => setShowPdfOptions(false)}
-          className="w-full text-sm text-gray-400 hover:text-gray-600 mt-1"
-        >
-          منسوخ کریں
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+              {/* حالت */}
+              <div className="mt-3 min-h-[20px] text-xs">
+                {pdfPreparing ? (
+                  <span className="text-emerald-600 animate-pulse">PDF تیار ہو رہی ہے...</span>
+                ) : pdfMessage ? (
+                  <span className={pdfMessage.startsWith("✅") ? "text-emerald-600" : "text-amber-600"}>{pdfMessage}</span>
+                ) : pdfFile ? (
+                  <span className="text-slate-400">PDF تیار ہے ({Math.max(1, Math.round(pdfFile.size / 1024))} KB)</span>
+                ) : null}
+              </div>
+
+              <div className="mt-4 flex flex-col gap-2.5">
+                <button
+                  type="button"
+                  onClick={downloadPdfFile}
+                  disabled={!pdfFile || pdfPreparing}
+                  className="w-full rounded-xl bg-emerald-700 text-white py-3 font-medium hover:bg-emerald-800 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <Download size={17} /> ڈاؤن لوڈ کریں
+                </button>
+
+                <button
+                  type="button"
+                  onClick={sharePdfFile}
+                  disabled={!pdfFile || pdfPreparing}
+                  className="w-full rounded-xl bg-blue-600 text-white py-3 font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <Share2 size={17} /> شیئر کریں
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleDownloadPDF(pdfStockOnly);
+                    setShowPdfOptions(false);
+                  }}
+                  className={`w-full rounded-xl py-3 font-medium transition flex items-center justify-center gap-2 ${
+                    darkMode ? "bg-slate-800 text-slate-200 hover:bg-slate-700" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  <Printer size={17} /> پرنٹ کریں
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowPdfOptions(false)}
+                  className="w-full text-sm text-gray-400 hover:text-gray-600 mt-1"
+                >
+                  بند کریں
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* تصاویر زوم موڈل */}
         {zoomedImage && (
