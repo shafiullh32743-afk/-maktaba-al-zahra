@@ -274,6 +274,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
             </Link>
             <nav className="flex items-center gap-3 md:gap-4 text-xs font-semibold text-slate-600">
               <Link href="/" className="hover:text-emerald-600 transition">ہوم</Link>
+              <Link href="/shop" className="hover:text-emerald-600 transition">کتب</Link>
               <Link href="/about" className="hover:text-emerald-600 transition">ہمارے بارے میں</Link>
               <Link href="/contact" className="hover:text-emerald-600 transition">رابطہ</Link>
             </nav>
@@ -284,10 +285,10 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
           {/* Action Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
             <Link
-              href={isAdmin ? "/books" : "/"}
+              href={isAdmin ? "/books" : "/shop"}
               className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-emerald-600 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs transition"
             >
-              <ArrowRight size={15} /> {isAdmin ? "واپس کتب کی فہرست" : "ہوم پیج پر واپس جائیں"}
+              <ArrowRight size={15} /> واپس کتب کی فہرست
             </Link>
 
             {book && isAdmin && (

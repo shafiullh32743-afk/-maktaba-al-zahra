@@ -152,9 +152,9 @@ export default function DashboardPage() {
   }[lang];
 
   const stats = [
-    { label: t.totalBooksLabel, value: totalBooks, icon: BookOpen, href: "/books", color: "text-emerald-600 bg-emerald-50" },
-    { label: t.authors, value: totalAuthors, icon: PenLine, href: "/authors", color: "text-blue-600 bg-blue-50" },
-    { label: t.categories, value: totalCategories, icon: FolderTree, href: "/categories", color: "text-amber-600 bg-amber-50" },
+    { label: t.totalBooksLabel, value: totalBooks, icon: BookOpen, href: isAdmin ? "/books" : "/shop", color: "text-emerald-600 bg-emerald-50" },
+    { label: t.authors, value: totalAuthors, icon: PenLine, href: isAdmin ? "/authors" : "/shop", color: "text-blue-600 bg-blue-50" },
+    { label: t.categories, value: totalCategories, icon: FolderTree, href: isAdmin ? "/categories" : "/shop", color: "text-amber-600 bg-amber-50" },
   ];
 
   const menuItems = [
@@ -387,7 +387,7 @@ export default function DashboardPage() {
               <div className={`rounded-xl border p-4 shadow-xs ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className={`text-sm font-bold ${darkMode ? "text-white" : "text-slate-800"}`}>{t.recentBooks}</h3>
-                  <Link href="/books" className="text-xs font-medium text-emerald-500 hover:underline">
+                  <Link href={isAdmin ? "/books" : "/shop"} className="text-xs font-medium text-emerald-500 hover:underline">
                     {t.viewAllBooks}
                   </Link>
                 </div>
