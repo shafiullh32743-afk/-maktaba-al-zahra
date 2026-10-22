@@ -205,15 +205,16 @@ export default function DashboardPage() {
       </div>
 
       <div className="flex flex-1">
-        {/* Mobile Backdrop */}
-        {mobileMenuOpen && (
+        {/* Mobile Backdrop - صرف ایڈمن کے لیے */}
+        {isAdmin && mobileMenuOpen && (
           <div
             onClick={() => setMobileMenuOpen(false)}
             className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 md:hidden"
           />
         )}
 
-        {/* Sidebar */}
+        {/* Sidebar - صرف لاگ اِن ایڈمن کو نظر آئے گی */}
+        {isAdmin && (
         <aside
           className={`w-60 min-h-screen md:h-screen md:sticky md:top-0 border-l border-r ${
             darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
@@ -280,19 +281,36 @@ export default function DashboardPage() {
             <p className="text-slate-500 text-[10px] text-center">مكتبہ الزھراء © 2026</p>
           </div>
         </aside>
+        )}
 
         {/* Main Content Area */}
-        <section className="flex-1 p-4 md:p-6 max-w-7xl mx-auto min-w-0">
-          {/* Mobile Header */}
-          <div className={`flex items-center justify-between md:hidden mb-4 p-3 rounded-xl border ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
-            <button
-              onClick={() => setMobileMenuOpen(true)}
-              className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
-            >
-              <Menu size={20} />
-            </button>
-            <h1 className="text-sm font-bold">مكتبہ الزھراء</h1>
-          </div>
+        <section className="flex-1 p-4 md:p-6 max-w-7xl mx-auto min-w-0 w-full">
+          {isAdmin ? (
+            /* Mobile Header - ایڈمن کے لیے مینو بٹن */
+            <div className={`flex items-center justify-between md:hidden mb-4 p-3 rounded-xl border ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
+              <button
+                onClick={() => setMobileMenuOpen(true)}
+                className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
+              >
+                <Menu size={20} />
+              </button>
+              <h1 className="text-sm font-bold">مكتبہ الزھراء</h1>
+            </div>
+          ) : (
+            /* عوامی ہیڈر - عام گاہکوں کے لیے، کوئی ایڈمن مینو نہیں */
+            <div className="flex items-center justify-between mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+              <Link href="/" className="flex items-center gap-2.5">
+                <img src="/logo.jpg" alt="مكتبہ الزھراء" className="w-8 h-8 rounded-lg object-cover shadow-sm" />
+                <h1 className="text-sm md:text-base font-bold text-slate-800">مكتبہ الزھراء</h1>
+              </Link>
+              <nav className="flex items-center gap-3 md:gap-4 text-xs font-semibold text-slate-600">
+                <Link href="/" className="hover:text-emerald-600 transition">ہوم</Link>
+                <Link href="/shop" className="hover:text-emerald-600 transition">کتب</Link>
+                <Link href="/about" className="hover:text-emerald-600 transition">ہمارے بارے میں</Link>
+                <Link href="/contact" className="hover:text-emerald-600 transition">رابطہ</Link>
+              </nav>
+            </div>
+          )}
 
           {/* Dashboard Title Header */}
           <div className="mb-6">
@@ -411,6 +429,14 @@ export default function DashboardPage() {
                 )}
               </div>
             </div>
+          )}
+
+          {/* عوامی فوٹر - صرف عام گاہکوں کو نظر آئے گا */}
+          {!isAdmin && (
+            <footer className="mt-10 border-t border-slate-200 pt-6 flex flex-col items-center gap-2">
+              <img src="/logo.jpg" alt="مكتبہ الزھراء" className="h-8 w-auto opacity-90" />
+              <p className="text-slate-400 text-xs text-center">© 2026 مكتبہ الزھراء. جملہ حقوق محفوظ ہیں۔</p>
+            </footer>
           )}
         </section>
       </div>
