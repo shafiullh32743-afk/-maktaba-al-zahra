@@ -22,6 +22,7 @@ export default function ShopPage() {
   const [loaded, setLoaded] = useState(false);
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
+  const [filterAuthor, setFilterAuthor] = useState("");
   const [cartCount, setCartCount] = useState(0);
   const [addedId, setAddedId] = useState<string | null>(null);
 
@@ -49,6 +50,7 @@ export default function ShopPage() {
   }, []);
 
   const categories = Array.from(new Set(books.map((b) => b.category).filter(Boolean)));
+  const authors = Array.from(new Set(books.map((b) => b.author).filter(Boolean))).sort();
 
   const filteredBooks = books.filter((b) => {
     const matchesSearch =
@@ -56,7 +58,8 @@ export default function ShopPage() {
       b.title.toLowerCase().includes(search.toLowerCase()) ||
       (b.author || "").toLowerCase().includes(search.toLowerCase());
     const matchesCategory = !filterCategory || b.category === filterCategory;
-    return matchesSearch && matchesCategory;
+    const matchesAuthor = !filterAuthor || b.author === filterAuthor;
+    return matchesSearch && matchesCategory && matchesAuthor;
   });
 
   const handleWhatsAppOrder = (book: Book) => {
@@ -141,6 +144,19 @@ export default function ShopPage() {
             {categories.map((cat) => (
               <option key={cat} value={cat}>
                 {cat}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={filterAuthor}
+            onChange={(e) => setFilterAuthor(e.target.value)}
+            className="rounded-xl border border-gray-200 p-3 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition md:w-56"
+          >
+            <option value="">تمام مصنفین</option>
+            {authors.map((author) => (
+              <option key={author} value={author}>
+                {author}
               </option>
             ))}
           </select>
