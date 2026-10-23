@@ -24,14 +24,17 @@ import {
   Sun,
   Moon,
   Globe,
+  ShoppingBag,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { getCartCount } from "@/lib/cart";
 
 export default function DashboardPage() {
   const [darkMode, setDarkMode] = useState(false);
   const [lang, setLang] = useState<"ur" | "en">("ur");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
 
   const [books, setBooks] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -41,6 +44,18 @@ export default function DashboardPage() {
   useEffect(() => {
     // ایڈمن کی جانچ: لاگ ان کوکی موجود ہو تو مالی اعداد و شمار نظر آئیں گے
     setIsAdmin(/(^|;\s*)maktaba-auth=[^;]+/.test(document.cookie));
+  }, []);
+
+  useEffect(() => {
+    // عام گاہکوں کے لیے ٹوکری میں موجود اشیا کی تعداد
+    const refresh = () => setCartCount(getCartCount());
+    refresh();
+    window.addEventListener("maktaba-cart-updated", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("maktaba-cart-updated", refresh);
+      window.removeEventListener("storage", refresh);
+    };
   }, []);
 
   useEffect(() => {
@@ -304,10 +319,18 @@ export default function DashboardPage() {
                 <h1 className="text-sm md:text-base font-bold text-slate-800">مكتبہ الزھراء</h1>
               </Link>
               <nav className="flex items-center gap-3 md:gap-4 text-xs font-semibold text-slate-600">
-                <Link href="/" className="hover:text-emerald-600 transition">ہوم</Link>
                 <Link href="/shop" className="hover:text-emerald-600 transition">کتب</Link>
+                <Link href="/" className="hover:text-emerald-600 transition">ہوم</Link>
                 <Link href="/about" className="hover:text-emerald-600 transition">ہمارے بارے میں</Link>
                 <Link href="/contact" className="hover:text-emerald-600 transition">رابطہ</Link>
+                <Link href="/cart" className="relative hover:text-emerald-600 transition">
+                  <ShoppingBag size={17} />
+                  {cartCount > 0 && (
+                    <span className="absolute -top-2 -left-2 bg-rose-500 text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
+                      {cartCount}
+                    </span>
+                  )}
+                </Link>
               </nav>
             </div>
           )}

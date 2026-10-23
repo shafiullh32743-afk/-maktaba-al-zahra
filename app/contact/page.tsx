@@ -1,9 +1,24 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Phone, Mail, MapPin, MessageCircle } from "lucide-react";
+import { Phone, Mail, MapPin, MessageCircle, ShoppingBag } from "lucide-react";
+import { getCartCount } from "@/lib/cart";
 
 export default function ContactPage() {
+  const [cartCount, setCartCount] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => setCartCount(getCartCount());
+    refresh();
+    window.addEventListener("maktaba-cart-updated", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("maktaba-cart-updated", refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+
   const whatsappUrl =
     "https://wa.me/923055232889?text=" +
     encodeURIComponent("السلام علیکم! مجھے مكتبہ الزھراء سے متعلق معلومات چاہییں۔");
@@ -19,17 +34,25 @@ export default function ContactPage() {
           </Link>
 
           <nav className="flex items-center gap-5 text-sm font-medium">
-            <Link href="/" className="hover:text-emerald-200 transition">
-              ہوم
-            </Link>
             <Link href="/shop" className="hover:text-emerald-200 transition">
               کتب
+            </Link>
+            <Link href="/" className="hover:text-emerald-200 transition">
+              ہوم
             </Link>
             <Link href="/about" className="hover:text-emerald-200 transition">
               ہمارے بارے میں
             </Link>
             <Link href="/contact" className="text-emerald-200">
               رابطہ
+            </Link>
+            <Link href="/cart" className="relative hover:text-emerald-200 transition">
+              <ShoppingBag size={19} />
+              {cartCount > 0 && (
+                <span className="absolute -top-2 -left-2 bg-rose-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
             </Link>
           </nav>
         </div>

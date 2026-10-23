@@ -12,9 +12,10 @@ export function middleware(request: NextRequest) {
   const isBookDetailPage = /^\/books\/[^/]+$/.test(path);
   const isShopPage = path === "/shop" || path.startsWith("/shop/");
   const isAboutOrContact = path === "/about" || path === "/contact";
+  const isCartPage = path === "/cart";
 
   // اگر ان میں سے کوئی بھی صفحہ ہو تو بغیر لاگ ان کے رسائی کی اجازت دیں
-  const isPublicPage = isHomePage || isLoginPage || isSitemap || isBookDetailPage || isShopPage || isAboutOrContact;
+  const isPublicPage = isHomePage || isLoginPage || isSitemap || isBookDetailPage || isShopPage || isAboutOrContact || isCartPage;
 
   // 2. غیر لاگ ان صارف کو غیر محفوظ صفحات سے /login پر بھیجیں
   if (!isLoggedIn && !isPublicPage) {

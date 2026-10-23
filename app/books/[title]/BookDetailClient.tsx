@@ -30,8 +30,11 @@ import {
   Edit,
   Save,
   Trash2,
+  ShoppingBag,
+  Check,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { addToCart, getCartCount } from "@/lib/cart";
 
 interface Book {
   id: string;
@@ -70,6 +73,8 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
   const [copied, setCopied] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
+  const [addedToCart, setAddedToCart] = useState(false);
 
   // ایڈٹ اور اپ ڈیٹ کے لیے سٹیٹس (States)
   const [isEditing, setIsEditing] = useState(false);
@@ -87,6 +92,32 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
       // storage error handling
     }
   }, [initialBook.id]);
+
+  useEffect(() => {
+    // عام گاہکوں کے لیے ٹوکری میں موجود اشیا کی تعداد
+    const refresh = () => setCartCount(getCartCount());
+    refresh();
+    window.addEventListener("maktaba-cart-updated", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("maktaba-cart-updated", refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+
+  const handleAddToCart = () => {
+    if (!book) return;
+    addToCart({
+      id: book.id,
+      title: book.title,
+      author: book.author,
+      price: book.price,
+      slug: book.slug,
+      image_url: book.image_url,
+    });
+    setAddedToCart(true);
+    setTimeout(() => setAddedToCart(false), 1200);
+  };
 
   // کتاب کی معلومات اپ ڈیٹ کرنے کا فنکشن
   const handleUpdateBook = async (e: React.FormEvent) => {
@@ -273,10 +304,18 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
               <h1 className="text-sm md:text-base font-bold text-slate-800">مكتبہ الزھراء</h1>
             </Link>
             <nav className="flex items-center gap-3 md:gap-4 text-xs font-semibold text-slate-600">
-              <Link href="/" className="hover:text-emerald-600 transition">ہوم</Link>
               <Link href="/shop" className="hover:text-emerald-600 transition">کتب</Link>
+              <Link href="/" className="hover:text-emerald-600 transition">ہوم</Link>
               <Link href="/about" className="hover:text-emerald-600 transition">ہمارے بارے میں</Link>
               <Link href="/contact" className="hover:text-emerald-600 transition">رابطہ</Link>
+              <Link href="/cart" className="relative hover:text-emerald-600 transition">
+                <ShoppingBag size={17} />
+                {cartCount > 0 && (
+                  <span className="absolute -top-2 -left-2 bg-rose-500 text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
+                    {cartCount}
+                  </span>
+                )}
+              </Link>
             </nav>
           </div>
         )}
@@ -290,6 +329,27 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
             >
               <ArrowRight size={15} /> واپس کتب کی فہرست
             </Link>
+
+            {book && !isAdmin && (
+              <button
+                onClick={handleAddToCart}
+                className={`inline-flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-lg shadow-xs transition ${
+                  addedToCart
+                    ? "bg-emerald-600 text-white"
+                    : "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+                }`}
+              >
+                {addedToCart ? (
+                  <>
+                    <Check size={15} /> ٹوکری میں شامل ہو گئی
+                  </>
+                ) : (
+                  <>
+                    <ShoppingBag size={15} /> ٹوکری میں شامل کریں
+                  </>
+                )}
+              </button>
+            )}
 
             {book && isAdmin && (
               <div className="flex items-center gap-2">

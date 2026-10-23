@@ -1,9 +1,24 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { BookOpen, Heart, Target, Users } from "lucide-react";
+import { BookOpen, Heart, Target, Users, ShoppingBag } from "lucide-react";
+import { getCartCount } from "@/lib/cart";
 
 export default function AboutPage() {
+  const [cartCount, setCartCount] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => setCartCount(getCartCount());
+    refresh();
+    window.addEventListener("maktaba-cart-updated", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("maktaba-cart-updated", refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+
   return (
     <main dir="rtl" className="min-h-screen bg-gray-50 font-sans">
       {/* ہیڈر */}
@@ -15,17 +30,25 @@ export default function AboutPage() {
           </Link>
 
           <nav className="flex items-center gap-5 text-sm font-medium">
-            <Link href="/" className="hover:text-emerald-200 transition">
-              ہوم
-            </Link>
             <Link href="/shop" className="hover:text-emerald-200 transition">
               کتب
+            </Link>
+            <Link href="/" className="hover:text-emerald-200 transition">
+              ہوم
             </Link>
             <Link href="/about" className="text-emerald-200">
               ہمارے بارے میں
             </Link>
             <Link href="/contact" className="hover:text-emerald-200 transition">
               رابطہ
+            </Link>
+            <Link href="/cart" className="relative hover:text-emerald-200 transition">
+              <ShoppingBag size={19} />
+              {cartCount > 0 && (
+                <span className="absolute -top-2 -left-2 bg-rose-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                  {cartCount}
+                </span>
+              )}
             </Link>
           </nav>
         </div>
