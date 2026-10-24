@@ -27,6 +27,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
+  // 4. غیر لاگ ان (عام گاہک) کو ہوم پیج کی بجائے سیدھا کتب کے صفحے پر بھیجیں
+  if (!isLoggedIn && isHomePage) {
+    return NextResponse.redirect(new URL("/shop", request.url));
+  }
+
   return NextResponse.next();
 }
 
