@@ -221,9 +221,10 @@ async function buildBooksPdf(list: Book[], rtl: boolean): Promise<Blob> {
   return pdf.output("blob");
 }
 
-function generateSlugFromTitle(title: string): string {
+function generateSlugFromTitle(title: string, author?: string): string {
+  const combined = author && author.trim() ? `${title} ${author}` : title;
   let result = "";
-  for (const ch of title) {
+  for (const ch of combined) {
     if (urduToRomanMap[ch] !== undefined) {
       result += urduToRomanMap[ch];
     } else if (/[a-zA-Z0-9\s]/.test(ch)) {
@@ -387,6 +388,7 @@ function BooksPageInner() {
 
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
+  const [regeneratingSlugs, setRegeneratingSlugs] = useState(false);
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [renamingCategory, setRenamingCategory] = useState(false);
@@ -559,7 +561,7 @@ function BooksPageInner() {
         const currentBooks = data as Book[];
         await Promise.all(
           booksWithoutSlug.map((b) => {
-            const base = generateSlugFromTitle(b.title);
+            const base = generateSlugFromTitle(b.title, b.author);
             const unique = makeUniqueSlug(base, currentBooks, b.id);
             return unique ? supabase.from("books").update({ slug: unique }).eq("id", b.id) : null;
           })
@@ -577,6 +579,50 @@ function BooksPageInner() {
   const fetchReviews = async () => {
     const { data } = await supabase.from("reviews").select("*").eq("approved", true);
     if (data) setReviews(data as Review[]);
+  };
+
+  // تمام (بشمول پرانی) کتابوں کے URL (slug) دوبارہ بنائیں تاکہ مصنف کا نام بھی اس میں شامل ہو
+  const handleRegenerateAllSlugs = async () => {
+    const confirmed = window.confirm(
+      "یہ تمام کتابوں کے URL (ویب لنک) دوبارہ بنا دے گا تاکہ ان میں مصنف کا نام بھی شامل ہو۔\n\nتوجہ: اگر پرانے لنک کہیں شیئر کیے جا چکے ہیں (واٹس ایپ، گوگل وغیرہ) تو وہ کام کرنا بند کر دیں گے۔\n\nکیا آپ یقینی طور پر جاری رکھنا چاہتے ہیں؟"
+    );
+    if (!confirmed) return;
+
+    setRegeneratingSlugs(true);
+    setImportResult(null);
+
+    try {
+      const { data, error } = await supabase.from("books").select("id, title, author").order("id", { ascending: true });
+      if (error || !data) {
+        setImportResult("خرابی: کتابیں حاصل نہیں ہو سکیں۔");
+        setRegeneratingSlugs(false);
+        return;
+      }
+
+      const used = new Set<string>();
+      const updates: { id: number; slug: string }[] = [];
+
+      for (const b of data as { id: number; title: string; author: string }[]) {
+        const base = generateSlugFromTitle(b.title, b.author) || "book";
+        let slug = base;
+        let counter = 2;
+        while (used.has(slug)) {
+          slug = `${base}-${counter}`;
+          counter++;
+        }
+        used.add(slug);
+        updates.push({ id: b.id, slug });
+      }
+
+      await Promise.all(updates.map((u) => supabase.from("books").update({ slug: u.slug }).eq("id", u.id)));
+
+      setImportResult(`کامیابی: ${updates.length} کتابوں کے URL مصنف کے نام کے ساتھ دوبارہ بن گئے۔`);
+      await fetchBooks();
+    } catch {
+      setImportResult("خرابی: URL دوبارہ بناتے وقت کوئی مسئلہ پیش آیا۔");
+    }
+
+    setRegeneratingSlugs(false);
   };
 
   useEffect(() => {
@@ -885,7 +931,7 @@ function BooksPageInner() {
       imageUrl = publicUrlData.publicUrl;
     }
 
-    const baseSlug = newSlug.trim() || generateSlugFromTitle(newTitle);
+    const baseSlug = newSlug.trim() || generateSlugFromTitle(newTitle, newAuthor);
     const uniqueSlug = makeUniqueSlug(baseSlug, books, editingId);
 
     const bookData = {
@@ -940,7 +986,7 @@ function BooksPageInner() {
     setNewWeight(book.weight ? book.weight.toString() : "");
     setNewStock(book.stock ? book.stock.toString() : "");
     setNewCostPrice(book.cost_price ? book.cost_price.toString() : "");
-    setNewSlug(book.slug || generateSlugFromTitle(book.title));
+    setNewSlug(book.slug || generateSlugFromTitle(book.title, book.author));
     setExistingImageUrl(book.image_url || null);
     setImagePreview(book.image_url || null);
     setImageFile(null);
@@ -980,7 +1026,7 @@ function BooksPageInner() {
         const language = row[4];
         if (!title || typeof title !== "string" || title.trim() === "") continue;
 
-        const base = generateSlugFromTitle(title.toString().trim());
+        const base = generateSlugFromTitle(title.toString().trim(), author ? author.toString().trim() : undefined);
         const combinedExisting = books.map((b) => ({ id: b.id, slug: b.slug || "" } as Book));
         let slug = makeUniqueSlug(base, combinedExisting, null);
         while (usedSlugsThisBatch.includes(slug)) {
@@ -1558,6 +1604,17 @@ ${itemsList}
                 {importing ? t.importing : t.excel}
                 <input type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelImport} disabled={importing} className="hidden" />
               </label>
+
+              <button
+                onClick={handleRegenerateAllSlugs}
+                disabled={regeneratingSlugs}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 border transition text-xs font-semibold disabled:opacity-50 ${
+                  darkMode ? "bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <RotateCw size={15} className={regeneratingSlugs ? "animate-spin" : ""} />
+                {regeneratingSlugs ? "بن رہے ہیں..." : "تمام URL اپڈیٹ کریں"}
+              </button>
 
               <button
                 onClick={() => setShowPdfOptions(true)}
@@ -2221,7 +2278,7 @@ ${itemsList}
                     onChange={(e) => {
                       setNewTitle(e.target.value);
                       if (!editingId) {
-                        setNewSlug(generateSlugFromTitle(e.target.value));
+                        setNewSlug(generateSlugFromTitle(e.target.value, newAuthor));
                       }
                     }}
                     placeholder="مثلاً: كیف عاملہم"
@@ -2235,7 +2292,12 @@ ${itemsList}
                   <input
                     type="text"
                     value={newAuthor}
-                    onChange={(e) => setNewAuthor(e.target.value)}
+                    onChange={(e) => {
+                      setNewAuthor(e.target.value);
+                      if (!editingId) {
+                        setNewSlug(generateSlugFromTitle(newTitle, e.target.value));
+                      }
+                    }}
                     placeholder="مثلاً: صالح المنجد"
                     className={`w-full rounded-lg border p-2 text-xs ${darkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-200"}`}
                   />
