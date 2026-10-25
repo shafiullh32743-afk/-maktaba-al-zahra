@@ -91,7 +91,7 @@ export default function ShopPage() {
       navContact: "رابطہ",
       waFloating: "واٹس ایپ پر رابطہ کریں",
       heading: "ہماری کتب",
-      subHeading: "مكتبہ الزھراء کی دستیاب کتابیں — ٹوکری میں شامل کریں یا سیدھا واٹس ایپ پر آرڈر کریں",
+      subHeading: "مكتبہ الزھراء کی دستیاب کتابیں — ٹوکری میں شامل کریں یا سیدھا واٹس ایپ پر آرڈر کریں اور اگر مطلوبہ كتاب نظر نہ آئے تو واٹس ایپ پر رابطہ كریں 03055232889",
       searchPlaceholder: "کتاب یا مصنف تلاش کریں...",
       allCategories: "تمام زمرے",
       allAuthors: "تمام مصنفین",
@@ -102,7 +102,7 @@ export default function ShopPage() {
       addToCart: "ٹوکری میں شامل کریں",
       orderOnWhatsApp: "سیدھا واٹس ایپ پر آرڈر کریں",
       writeReview: "ریویو لکھیں",
-      footerDesc: "آن لائن اسلامک بک سٹور جہاں تمام دینی، علمی و ادبی کتب مناسب قیمت پر دستیاب ہیں۔",
+      footerDesc: "آن لائن اسلامک بک سٹور جہاں تمام دینی، علمی وادبی کتب مناسب قیمت پر دستیاب ہیں۔",
       address: "پتہ",
       addressDetails: "مکتبہ الزہراء، نزد جامعہ الحسنین فیصل آباد، پاکستان",
       contactLabel: "رابطہ",
@@ -177,7 +177,7 @@ export default function ShopPage() {
   };
 
   const handleWhatsAppOrder = (book: Book) => {
-    const message = "السلام علیکم! میں یہ کتاب خریدنا چاہتا ہوں: " + book.title;
+    const message = "السلام علیکم! میں یہ کتاب خریدنا چاہتا ہوں مجھے اس كے بارے میں مزید معلومات مل سكتی ہیں؟: " + book.title;
     const url = "https://wa.me/923055232889?text=" + encodeURIComponent(message);
     window.open(url, "_blank");
   };
