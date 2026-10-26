@@ -36,6 +36,7 @@ import {
   BadgeCheck,
   Facebook,
   Link2,
+  Eye,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { addToCart, getCartCount } from "@/lib/cart";
@@ -48,6 +49,7 @@ interface Book {
   category: string;
   price?: number;
   image_url?: string;
+  views?: number;
 }
 
 interface Review {
@@ -79,6 +81,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
   const [addedToCart, setAddedToCart] = useState(false);
+  const [viewCount, setViewCount] = useState(initialBook.views ?? 0);
 
   // ایڈٹ اور اپ ڈیٹ کے لیے سٹیٹس (States)
   const [isEditing, setIsEditing] = useState(false);
@@ -94,6 +97,15 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
       setIsLiked(list.includes(Number(initialBook.id)));
     } catch {
       // storage error handling
+    }
+  }, [initialBook.id]);
+
+  useEffect(() => {
+    // ہر وزٹ پر کتاب کے "ویوز" کی تعداد ایک بڑھا دیں (صرف عام گاہکوں کے لیے، ایڈمن کی وزٹ شمار نہ ہو)
+    if (!/(^|;\s*)maktaba-auth=[^;]+/.test(document.cookie)) {
+      const newCount = (initialBook.views ?? 0) + 1;
+      setViewCount(newCount);
+      supabase.from("books").update({ views: newCount }).eq("id", initialBook.id).then();
     }
   }, [initialBook.id]);
 
@@ -321,6 +333,9 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
             </Link>
             <nav className="flex items-center gap-3 md:gap-4 text-xs font-semibold text-slate-600">
               <Link href="/shop" className="hover:text-emerald-600 transition">کتب</Link>
+              <Link href="/shop" className="hidden sm:flex items-center gap-1 hover:text-emerald-600 transition">
+                <FolderTree size={13} /> زمرے
+              </Link>
               <Link href="/" className="hover:text-emerald-600 transition">ہوم</Link>
               <Link href="/about" className="hover:text-emerald-600 transition">ہمارے بارے میں</Link>
               <Link href="/contact" className="hover:text-emerald-600 transition">رابطہ</Link>
@@ -502,6 +517,10 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
                         <span className="text-[10px] text-slate-400">({reviews.length} ریویوز)</span>
                       </div>
                     )}
+
+                    <p className="mt-2.5 flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
+                      <Eye size={13} /> دیکھا گیا: {viewCount.toLocaleString()} بار
+                    </p>
 
                     {book.price ? (
                       <div className="mt-5 inline-flex items-baseline gap-1 rounded-xl bg-blue-50 border border-blue-100 px-4 py-2">
