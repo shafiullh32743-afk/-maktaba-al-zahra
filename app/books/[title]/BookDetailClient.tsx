@@ -32,6 +32,10 @@ import {
   Trash2,
   ShoppingBag,
   Check,
+  ShieldCheck,
+  BadgeCheck,
+  Facebook,
+  Link2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { addToCart, getCartCount } from "@/lib/cart";
@@ -174,6 +178,18 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleFacebookShare = () => {
+    const url = "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(window.location.href);
+    window.open(url, "_blank");
+  };
+
+  const handleWhatsAppShare = () => {
+    if (!book) return;
+    const message = book.title + " - " + window.location.href;
+    const url = "https://wa.me/?text=" + encodeURIComponent(message);
+    window.open(url, "_blank");
+  };
+
   const toggleLike = () => {
     if (!book) return;
     const bid = Number(book.id);
@@ -308,17 +324,14 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
               <Link href="/" className="hover:text-emerald-600 transition">ہوم</Link>
               <Link href="/about" className="hover:text-emerald-600 transition">ہمارے بارے میں</Link>
               <Link href="/contact" className="hover:text-emerald-600 transition">رابطہ</Link>
-                                <Link
-                  href="/cart"
-                  className="relative flex items-center justify-center rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition p-2"
-                >
-                  <ShoppingBag size={16} />
-                  {cartCount > 0 && (
-                    <span className="absolute -top-1.5 -left-1.5 bg-rose-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center ring-2 ring-white">
-                      {cartCount}
-                    </span>
-                  )}
-                </Link>
+              <Link href="/cart" className="relative hover:text-emerald-600 transition">
+                <ShoppingBag size={17} />
+                {cartCount > 0 && (
+                  <span className="absolute -top-2 -left-2 bg-rose-500 text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
+                    {cartCount}
+                  </span>
+                )}
+              </Link>
             </nav>
           </div>
         )}
@@ -328,31 +341,10 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
           <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
             <Link
               href={isAdmin ? "/books" : "/shop"}
-              className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-emerald-600 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs transition"
+              className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-blue-600 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs transition"
             >
               <ArrowRight size={15} /> واپس کتب کی فہرست
             </Link>
-
-            {book && !isAdmin && (
-              <button
-                onClick={handleAddToCart}
-                className={`inline-flex items-center gap-2 text-xs font-semibold px-4 py-2 rounded-lg shadow-xs transition ${
-                  addedToCart
-                    ? "bg-emerald-600 text-white"
-                    : "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
-                }`}
-              >
-                {addedToCart ? (
-                  <>
-                    <Check size={15} /> ٹوکری میں شامل ہو گئی
-                  </>
-                ) : (
-                  <>
-                    <ShoppingBag size={15} /> ٹوکری میں شامل کریں
-                  </>
-                )}
-              </button>
-            )}
 
             {book && isAdmin && (
               <div className="flex items-center gap-2">
@@ -466,7 +458,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
                 <div className="lg:col-span-7 p-6 lg:p-8 flex flex-col justify-between order-2 lg:order-1">
                   <div>
                     <div className="flex items-center justify-between gap-4">
-                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 border border-emerald-100">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 border border-blue-100">
                         <Tag size={12} /> {book.category}
                       </span>
 
@@ -499,7 +491,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
                     <h1 className="mt-4 text-2xl font-bold text-slate-900 leading-snug">{book.title}</h1>
 
                     <p className="mt-2 text-slate-600 flex items-center gap-2 text-sm font-medium">
-                      <User size={16} className="text-emerald-600" />
+                      <User size={16} className="text-blue-600" />
                       مصنف / ناشر: <span className="text-slate-800 font-semibold">{book.author}</span>
                     </p>
 
@@ -512,9 +504,9 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
                     )}
 
                     {book.price ? (
-                      <div className="mt-5 inline-flex items-baseline gap-1 rounded-xl bg-slate-50 border border-slate-200 px-4 py-2">
-                        <span className="text-xs font-semibold text-slate-500">Rs</span>
-                        <span className="text-2xl font-bold text-slate-900 tracking-tight">
+                      <div className="mt-5 inline-flex items-baseline gap-1 rounded-xl bg-blue-50 border border-blue-100 px-4 py-2">
+                        <span className="text-xs font-semibold text-blue-500">Rs</span>
+                        <span className="text-2xl font-bold text-blue-700 tracking-tight">
                           {Number(book.price).toLocaleString()}
                         </span>
                       </div>
@@ -524,12 +516,74 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
                       </div>
                     )}
 
-                    <div className="mt-6">
+                    {/* اعتماد کے بیجز */}
+                    <div className="mt-5 bg-slate-50 border border-slate-100 rounded-xl p-3.5 space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                        <Truck size={15} className="text-blue-600 shrink-0" />
+                        پاکستان بھر میں تیز ترسیل
+                      </div>
+                      <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                        <ShieldCheck size={15} className="text-blue-600 shrink-0" />
+                        محفوظ اور قابلِ اعتماد ادائیگی
+                      </div>
+                      <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                        <BadgeCheck size={15} className="text-blue-600 shrink-0" />
+                        مستند اور معتبر بک سٹور
+                      </div>
+                    </div>
+
+                    {!isAdmin && (
+                      <div className="mt-5 flex flex-col sm:flex-row gap-2.5">
+                        <button
+                          onClick={handleAddToCart}
+                          className={`flex-1 font-semibold py-2.5 px-5 rounded-lg flex items-center justify-center gap-2 text-xs shadow-xs transition ${
+                            addedToCart
+                              ? "bg-emerald-600 text-white"
+                              : "bg-blue-600 hover:bg-blue-700 text-white"
+                          }`}
+                        >
+                          {addedToCart ? (
+                            <>
+                              <Check size={16} /> ٹوکری میں شامل ہو گئی
+                            </>
+                          ) : (
+                            <>
+                              <ShoppingBag size={16} /> ٹوکری میں شامل کریں
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={handleWhatsAppOrder}
+                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-5 rounded-lg flex items-center justify-center gap-2 text-xs shadow-xs transition"
+                        >
+                          <MessageCircle size={16} /> واٹس ایپ پر آرڈر کریں
+                        </button>
+                      </div>
+                    )}
+
+                    {/* سوشل شیئر آئیکنز */}
+                    <div className="mt-5 flex items-center gap-2.5">
+                      <span className="text-[11px] font-semibold text-slate-400">شیئر کریں:</span>
                       <button
-                        onClick={handleWhatsAppOrder}
-                        className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-5 rounded-lg flex items-center justify-center gap-2 text-xs shadow-xs transition"
+                        onClick={handleFacebookShare}
+                        title="فیس بک پر شیئر کریں"
+                        className="w-8 h-8 rounded-full bg-[#1877F2]/10 text-[#1877F2] flex items-center justify-center hover:bg-[#1877F2]/20 transition"
                       >
-                        <MessageCircle size={16} /> واٹس ایپ پر آرڈر کریں
+                        <Facebook size={15} />
+                      </button>
+                      <button
+                        onClick={handleWhatsAppShare}
+                        title="واٹس ایپ پر شیئر کریں"
+                        className="w-8 h-8 rounded-full bg-[#25D366]/10 text-[#25D366] flex items-center justify-center hover:bg-[#25D366]/20 transition"
+                      >
+                        <MessageCircle size={15} />
+                      </button>
+                      <button
+                        onClick={handleShare}
+                        title="لنک کاپی کریں"
+                        className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 transition"
+                      >
+                        <Link2 size={15} />
                       </button>
                     </div>
                   </div>
