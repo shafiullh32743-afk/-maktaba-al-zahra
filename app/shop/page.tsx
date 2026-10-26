@@ -256,14 +256,17 @@ export default function ShopPage() {
             <Link href="/contact" className="hover:text-emerald-200 transition">
               {t.navContact}
             </Link>
-            <Link href="/cart" className="relative hover:text-emerald-200 transition">
-              <ShoppingBag size={19} />
-              {cartCount > 0 && (
-                <span className="absolute -top-2 -left-2 bg-rose-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                  {cartCount}
-                </span>
-              )}
-            </Link>
+                              <Link
+                  href="/cart"
+                  className="relative flex items-center justify-center rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition p-2"
+                >
+                  <ShoppingBag size={16} />
+                  {cartCount > 0 && (
+                    <span className="absolute -top-1.5 -left-1.5 bg-rose-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center ring-2 ring-white">
+                      {cartCount}
+                    </span>
+                  )}
+                </Link>
             <button
               onClick={() => setDarkMode(!darkMode)}
               className={`flex items-center justify-center rounded-lg transition p-1.5 ${darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-emerald-700 hover:bg-emerald-600"}`}

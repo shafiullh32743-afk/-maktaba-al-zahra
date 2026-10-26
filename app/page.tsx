@@ -323,14 +323,17 @@ export default function DashboardPage() {
                 <Link href="/" className="hover:text-emerald-600 transition">ہوم</Link>
                 <Link href="/about" className="hover:text-emerald-600 transition">ہمارے بارے میں</Link>
                 <Link href="/contact" className="hover:text-emerald-600 transition">رابطہ</Link>
-                <Link href="/cart" className="relative hover:text-emerald-600 transition">
-                  <ShoppingBag size={17} />
-                  {cartCount > 0 && (
-                    <span className="absolute -top-2 -left-2 bg-rose-500 text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
-                      {cartCount}
-                    </span>
-                  )}
-                </Link>
+                            <Link
+              href="/cart"
+              className="relative flex items-center justify-center rounded-lg bg-emerald-700/60 hover:bg-emerald-700 transition p-2"
+            >
+              <ShoppingBag size={17} />
+              {cartCount > 0 && (
+                <span className="absolute -top-1.5 -left-1.5 bg-rose-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center ring-2 ring-emerald-800">
+                  {cartCount}
+                </span>
+              )}
+            </Link>
               </nav>
             </div>
           )}
