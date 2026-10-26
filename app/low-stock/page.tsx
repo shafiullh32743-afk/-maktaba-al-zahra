@@ -37,18 +37,24 @@ export default function LowStockPage() {
   const [loaded, setLoaded] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Supabase کی طرف سے صرف وہی کتب فیچ کریں جن کا سٹاک 3 سے کم ہے
+  // سٹاک کی حد: 1000 یا زیادہ قیمت والی کتاب کے لیے 2، اس سے کم قیمت والی کے لیے 3
+  const isLowStock = (book: Book) => {
+    const threshold = (book.price ?? 0) >= 1000 ? 2 : 3;
+    return (book.stock ?? 0) <= threshold;
+  };
+
+  // Supabase سے وہی کتب فیچ کریں جن کا سٹاک 3 یا اس سے کم ہے (بڑی حد یہی ہے)، پھر قیمت کے حساب سے فلٹر کریں
   const fetchLowStockBooks = useCallback(async () => {
     try {
       setLoaded(false);
       const { data, error } = await supabase
         .from("books")
         .select("*")
-        .lt("stock", 3)
+        .lte("stock", 3)
         .order("stock", { ascending: true });
 
       if (!error && data) {
-        setBooks(data);
+        setBooks(data.filter(isLowStock));
       }
     } catch (err) {
       console.error("Error fetching low stock books:", err);

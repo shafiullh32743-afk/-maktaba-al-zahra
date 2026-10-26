@@ -516,9 +516,10 @@ function BooksPageInner() {
     },
   }[lang];
 
-  function getStockStatus(stock: number) {
+   function getStockStatus(stock: number, price?: number) {
+    const lowStockThreshold = (price ?? 0) >= 1000 ? 2 : 3;
     if (stock <= 0) return { label: t.outOfStock, color: "text-rose-700 bg-rose-50 border-rose-200" };
-    if (stock <= 5) return { label: t.lowStockLabel, color: "text-amber-700 bg-amber-50 border-amber-200" };
+    if (stock <= lowStockThreshold) return { label: t.lowStockLabel, color: "text-amber-700 bg-amber-50 border-amber-200" };
     return { label: t.inStock, color: "text-emerald-700 bg-emerald-50 border-emerald-200" };
   }
 
@@ -1758,7 +1759,7 @@ ${itemsList}
 
               {filteredBooks.map((book) => {
                 const ratingInfo = getBookRating(book.title);
-                const stockInfo = getStockStatus(book.stock ?? 0);
+                               const stockInfo = getStockStatus(book.stock ?? 0, book.price);
                 const outOfStock = (book.stock ?? 0) <= 0;
                 const inCart = cart.find((item) => item.id === book.id);
                 const isWished = wishlist.includes(book.id);
