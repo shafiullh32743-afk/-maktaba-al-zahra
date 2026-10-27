@@ -120,7 +120,7 @@ export default function CartPage() {
     <main dir={lang === "ur" ? "rtl" : "ltr"} className={`min-h-screen font-sans transition-colors ${darkMode ? "bg-gray-950 text-gray-100" : "bg-gray-50 text-gray-900"}`}>
       {/* ہیڈر */}
       <header className={`sticky top-0 z-30 shadow-md text-white ${darkMode ? "bg-gray-900" : "bg-emerald-800"}`}>
-        <div className="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-5 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
             <img src="/logo.jpg" alt="مكتبہ الزھراء" className="h-10 w-auto rounded-md" />
             <span className="text-lg font-bold">مكتبہ الزھراء</span>
