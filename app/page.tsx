@@ -325,9 +325,9 @@ export default function DashboardPage() {
                 <Link href="/contact" className="hover:text-emerald-600 transition">رابطہ</Link>
                             <Link
               href="/cart"
-              className="relative flex items-center justify-center rounded-lg bg-emerald-700/60 hover:bg-emerald-700 transition p-2"
+                           className="relative flex items-center justify-center rounded-lg bg-orange-50 hover:bg-orange-100 transition p-2"
             >
-              <ShoppingBag size={17} />
+              <ShoppingCart size={17} className="text-orange-500" />
               {cartCount > 0 && (
                 <span className="absolute -top-1.5 -left-1.5 bg-rose-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center ring-2 ring-emerald-800">
                   {cartCount}

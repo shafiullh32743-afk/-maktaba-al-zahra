@@ -347,8 +347,11 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
               <Link href="/" className="hover:text-emerald-600 transition">ہوم</Link>
               <Link href="/about" className="hover:text-emerald-600 transition">ہمارے بارے میں</Link>
               <Link href="/contact" className="hover:text-emerald-600 transition">رابطہ</Link>
-              <Link href="/cart" className="relative hover:text-emerald-600 transition">
-                <ShoppingBag size={17} />
+                           <Link
+                href="/cart"
+                className="relative flex items-center justify-center rounded-lg bg-orange-50 hover:bg-orange-100 transition p-2"
+              >
+                <ShoppingCart size={17} className="text-orange-500" />
                 {cartCount > 0 && (
                   <span className="absolute -top-2 -left-2 bg-rose-500 text-white text-[9px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
                     {cartCount}

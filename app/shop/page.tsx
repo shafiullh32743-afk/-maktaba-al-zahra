@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { BookOpen, Search, MessageCircle, Tag, ShoppingBag, Check, Star, MapPin, Phone, X, Globe, Moon, Sun } from "lucide-react";
+import { BookOpen, Search, MessageCircle, Tag, ShoppingBag, ShoppingCart, Check, Star, MapPin, Phone, X, Globe, Moon, Sun } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { addToCart, getCartCount } from "@/lib/cart";
 
@@ -258,9 +258,11 @@ export default function ShopPage() {
             </Link>
                               <Link
                   href="/cart"
-                  className="relative flex items-center justify-center rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition p-2"
+                                   className={`relative flex items-center justify-center rounded-lg transition p-2 ${
+                    darkMode ? "bg-orange-500/20 hover:bg-orange-500/30" : "bg-orange-50 hover:bg-orange-100"
+                  }`}
                 >
-                  <ShoppingBag size={16} />
+                  <ShoppingCart size={16} className="text-orange-500" />
                   {cartCount > 0 && (
                     <span className="absolute -top-1.5 -left-1.5 bg-rose-500 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center ring-2 ring-white">
                       {cartCount}
