@@ -320,7 +320,6 @@ export default function DashboardPage() {
               </Link>
               <nav className="flex items-center gap-3 md:gap-4 text-xs font-semibold text-slate-600">
                 <Link href="/shop" className="hover:text-emerald-600 transition">کتب</Link>
-                <Link href="/" className="hover:text-emerald-600 transition">ہوم</Link>
                 <Link href="/about" className="hover:text-emerald-600 transition">ہمارے بارے میں</Link>
                 <Link href="/contact" className="hover:text-emerald-600 transition">رابطہ</Link>
                             <Link

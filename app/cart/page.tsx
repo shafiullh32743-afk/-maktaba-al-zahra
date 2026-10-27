@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Trash2, Minus, Plus, MessageCircle, ShoppingBag, ArrowRight } from "lucide-react";
+import { Trash2, Minus, Plus, MessageCircle, ShoppingBag, ShoppingCart, ArrowRight } from "lucide-react";
 import { getCart, removeFromCart, updateQty, clearCart, CartItem } from "@/lib/cart";
 
 export default function CartPage() {
@@ -67,17 +67,25 @@ export default function CartPage() {
           </Link>
 
           <nav className="flex items-center gap-5 text-sm font-medium">
-            <Link href="/shop" className="hover:text-emerald-200 transition">
+                       <Link href="/shop" className="hover:text-emerald-200 transition">
               کتب
-            </Link>
-            <Link href="/" className="hover:text-emerald-200 transition">
-              ہوم
             </Link>
             <Link href="/about" className="hover:text-emerald-200 transition">
               ہمارے بارے میں
             </Link>
             <Link href="/contact" className="hover:text-emerald-200 transition">
               رابطہ
+            </Link>
+            <Link
+              href="/cart"
+              className="relative flex items-center justify-center rounded-lg bg-orange-500/30 transition p-2"
+            >
+              <ShoppingCart size={17} className="text-orange-300" />
+              {cart.length > 0 && (
+                <span className="absolute -top-1.5 -left-1.5 bg-rose-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center ring-2 ring-emerald-800">
+                  {cart.length}
+                </span>
+              )}
             </Link>
           </nav>
         </div>

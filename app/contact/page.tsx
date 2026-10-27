@@ -37,10 +37,7 @@ export default function ContactPage() {
             <Link href="/shop" className="hover:text-emerald-200 transition">
               کتب
             </Link>
-            <Link href="/" className="hover:text-emerald-200 transition">
-              ہوم
-            </Link>
-            <Link href="/about" className="hover:text-emerald-200 transition">
+                        <Link href="/about" className="hover:text-emerald-200 transition">
               ہمارے بارے میں
             </Link>
             <Link href="/contact" className="text-emerald-200">

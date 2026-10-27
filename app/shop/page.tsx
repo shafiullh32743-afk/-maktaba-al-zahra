@@ -247,10 +247,7 @@ export default function ShopPage() {
             <Link href="/shop" className="text-emerald-200">
               {t.navBooks}
             </Link>
-            <Link href="/" className="hover:text-emerald-200 transition">
-              {t.navHome}
-            </Link>
-            <Link href="/about" className="hover:text-emerald-200 transition">
+                        <Link href="/about" className="hover:text-emerald-200 transition">
               {t.navAbout}
             </Link>
             <Link href="/contact" className="hover:text-emerald-200 transition">

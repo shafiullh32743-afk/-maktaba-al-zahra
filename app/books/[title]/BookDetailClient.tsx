@@ -344,7 +344,6 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
               <Link href="/shop" className="hidden sm:flex items-center gap-1 hover:text-emerald-600 transition">
                 <FolderTree size={13} /> زمرے
               </Link>
-              <Link href="/" className="hover:text-emerald-600 transition">ہوم</Link>
               <Link href="/about" className="hover:text-emerald-600 transition">ہمارے بارے میں</Link>
               <Link href="/contact" className="hover:text-emerald-600 transition">رابطہ</Link>
                            <Link
