@@ -2,12 +2,23 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Trash2, Minus, Plus, MessageCircle, ShoppingBag, ShoppingCart, ArrowRight } from "lucide-react";
+import { Trash2, Minus, Plus, MessageCircle, ShoppingBag, ShoppingCart, ArrowRight, MapPin, CreditCard, Globe, Moon, Sun, Phone } from "lucide-react";
 import { getCart, removeFromCart, updateQty, clearCart, CartItem } from "@/lib/cart";
 
 export default function CartPage() {
+  const [lang, setLang] = useState<"ur" | "en">("ur");
+  const [darkMode, setDarkMode] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("maktaba-dark-mode");
+    if (saved === "true") setDarkMode(true);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("maktaba-dark-mode", darkMode ? "true" : "false");
+  }, [darkMode]);
 
   useEffect(() => {
     setCart(getCart());
@@ -21,6 +32,55 @@ export default function CartPage() {
       window.removeEventListener("storage", refresh);
     };
   }, []);
+
+  const t = {
+    ur: {
+      navBooks: "کتب",
+      navHome: "ہوم",
+      navAbout: "ہمارے بارے میں",
+      navContact: "رابطہ",
+      cartTitle: "آپ کی ٹوکری",
+      clearCart: "ٹوکری خالی کریں",
+      emptyCart: "آپ کی ٹوکری خالی ہے",
+      viewBooks: "کتابیں دیکھیں",
+      priceNotSet: "قیمت درج نہیں",
+      totalPrice: "کل مجموعی قیمت (تخمینی)",
+      checkoutWhatsApp: "واٹس ایپ پر آرڈر مکمل کریں",
+      checkoutNote: "آرڈر مکمل کرنے کے لیے آپ کو واٹس ایپ پر بھیجا جائے گا جہاں آپ اپنا پتہ اور تفصیلات بتا سکیں گے",
+      address: "پتہ (Address)",
+      addressDetails: "مکتبہ الزہراء، نزد جامعہ الحسنین فیصل آباد، پاکستان",
+      paymentTitle: "ادائیگی کا طریقہ کار (Payment Method)",
+      paymentDetails: "آن لائن بینک ٹرانسفر، ایزی پیسہ، جائز کیش یا کیش آن ڈیلیوری دستیاب ہے۔",
+      contactLabel: "رابطہ",
+      waMessage: "واٹس ایپ پر پیغام بھیجیں",
+      footerDesc: "آن لائن اسلامک بک سٹور جہاں تمام دینی، علمی و ادبی کتب مناسب قیمت پر دستیاب ہیں۔",
+      copyright: "© 2026 مكتبہ الزھراء. جملہ حقوق محفوظ ہیں۔",
+      loading: "لوڈ ہو رہا ہے...",
+    },
+    en: {
+      navBooks: "Books",
+      navHome: "Home",
+      navAbout: "About",
+      navContact: "Contact",
+      cartTitle: "Your Cart",
+      clearCart: "Clear Cart",
+      emptyCart: "Your cart is empty",
+      viewBooks: "View Books",
+      priceNotSet: "Price Not Set",
+      totalPrice: "Estimated Total Price",
+      checkoutWhatsApp: "Complete Order on WhatsApp",
+      checkoutNote: "You will be redirected to WhatsApp to share your delivery address and details",
+      address: "Address",
+      addressDetails: "Maktaba Al-Zahra, Near Jamia Al-Hasanain, Faisalabad, Pakistan",
+      paymentTitle: "Payment Method",
+      paymentDetails: "Online Bank Transfer, Easypaisa, JazzCash, or Cash on Delivery available.",
+      contactLabel: "Contact",
+      waMessage: "Send a WhatsApp message",
+      footerDesc: "Online Islamic bookstore offering religious and literary books at affordable prices.",
+      copyright: "© 2026 Maktaba Al-Zahra. All rights reserved.",
+      loading: "Loading...",
+    },
+  }[lang];
 
   const total = cart.reduce((sum, item) => sum + (item.price || 0) * item.qty, 0);
 
@@ -43,23 +103,23 @@ export default function CartPage() {
 
   const handleCheckout = () => {
     if (cart.length === 0) return;
-    let message = "السلام علیکم! میں یہ کتابیں خریدنا چاہتا ہوں:\n\n";
+    let message = lang === "ur" ? "السلام علیکم! میں یہ کتابیں خریدنا چاہتا ہوں:\n\n" : "Assalam-o-Alaikum! I want to order these books:\n\n";
     cart.forEach((item, i) => {
-      message += `${i + 1}. ${item.title} — مقدار: ${item.qty}`;
-      if (item.price) message += ` — قیمت: Rs ${(item.price * item.qty).toLocaleString()}`;
+      message += `${i + 1}. ${item.title} — ${lang === "ur" ? "مقدار" : "Qty"}: ${item.qty}`;
+      if (item.price) message += ` — ${lang === "ur" ? "قیمت" : "Price"}: Rs ${(item.price * item.qty).toLocaleString()}`;
       message += "\n";
     });
     if (total > 0) {
-      message += `\nکل مجموعی قیمت: Rs ${total.toLocaleString()}`;
+      message += `\n${lang === "ur" ? "کل مجموعی قیمت" : "Total"}: Rs ${total.toLocaleString()}`;
     }
     const url = "https://wa.me/923055232889?text=" + encodeURIComponent(message);
     window.open(url, "_blank");
   };
 
   return (
-    <main dir="rtl" className="min-h-screen bg-gray-50 font-sans">
+    <main dir={lang === "ur" ? "rtl" : "ltr"} className={`min-h-screen font-sans transition-colors ${darkMode ? "bg-gray-950 text-gray-100" : "bg-gray-50 text-gray-900"}`}>
       {/* ہیڈر */}
-      <header className="bg-emerald-800 text-white sticky top-0 z-30 shadow-md">
+      <header className={`sticky top-0 z-30 shadow-md text-white ${darkMode ? "bg-gray-900" : "bg-emerald-800"}`}>
         <div className="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
             <img src="/logo.jpg" alt="مكتبہ الزھراء" className="h-10 w-auto rounded-md" />
@@ -67,26 +127,42 @@ export default function CartPage() {
           </Link>
 
           <nav className="flex items-center gap-5 text-sm font-medium">
-                       <Link href="/shop" className="hover:text-emerald-200 transition">
-              کتب
+            <Link href="/shop" className="hover:text-emerald-200 transition">
+              {t.navBooks}
             </Link>
             <Link href="/about" className="hover:text-emerald-200 transition">
-              ہمارے بارے میں
+              {t.navAbout}
             </Link>
             <Link href="/contact" className="hover:text-emerald-200 transition">
-              رابطہ
+              {t.navContact}
             </Link>
             <Link
               href="/cart"
-              className="relative flex items-center justify-center rounded-lg bg-orange-500/30 transition p-2"
+              className={`relative flex items-center justify-center rounded-lg transition p-2 ${
+                darkMode ? "bg-orange-500/20 text-orange-400" : "bg-orange-50 text-orange-500"
+              }`}
             >
-              <ShoppingCart size={17} className="text-orange-300" />
+              <ShoppingCart size={17} />
               {cart.length > 0 && (
                 <span className="absolute -top-1.5 -left-1.5 bg-rose-500 text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center ring-2 ring-emerald-800">
                   {cart.length}
                 </span>
               )}
             </Link>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className={`flex items-center justify-center rounded-lg transition p-1.5 ${darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-emerald-700 hover:bg-emerald-600"}`}
+              title={darkMode ? "لائٹ موڈ" : "ڈارک موڈ"}
+            >
+              {darkMode ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
+            <button
+              onClick={() => setLang(lang === "ur" ? "en" : "ur")}
+              className={`flex items-center gap-1 rounded-lg transition px-2 py-1 text-xs font-bold ${darkMode ? "bg-gray-700 hover:bg-gray-600" : "bg-emerald-700 hover:bg-emerald-600"}`}
+            >
+              <Globe size={14} />
+              {lang === "ur" ? "EN" : "اردو"}
+            </button>
           </nav>
         </div>
       </header>
@@ -94,31 +170,31 @@ export default function CartPage() {
       {/* مین مواد */}
       <section className="max-w-3xl mx-auto px-5 py-8">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
             <ShoppingBag className="text-emerald-700" size={24} />
-            آپ کی ٹوکری
+            {t.cartTitle}
           </h1>
           {cart.length > 0 && (
             <button
               onClick={handleClear}
               className="text-xs font-medium text-rose-600 hover:underline"
             >
-              ٹوکری خالی کریں
+              {t.clearCart}
             </button>
           )}
         </div>
 
         {!loaded ? (
-          <div className="py-16 text-center text-gray-400 text-sm">لوڈ ہو رہا ہے...</div>
+          <div className="py-16 text-center text-gray-400 text-sm">{t.loading}</div>
         ) : cart.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-2xl border border-gray-200 shadow-sm">
+          <div className={`flex flex-col items-center justify-center py-20 text-center rounded-2xl border shadow-sm ${darkMode ? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
             <span className="text-6xl mb-4">🛒</span>
-            <p className="text-gray-500 text-lg mb-4">آپ کی ٹوکری خالی ہے</p>
+            <p className="text-gray-400 text-lg mb-4">{t.emptyCart}</p>
             <Link
               href="/shop"
               className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 text-white px-5 py-2.5 hover:bg-emerald-800 transition shadow-sm text-sm font-medium"
             >
-              کتابیں دیکھیں <ArrowRight size={16} />
+              {t.viewBooks} <ArrowRight size={16} />
             </Link>
           </div>
         ) : (
@@ -127,9 +203,9 @@ export default function CartPage() {
               {cart.map((item) => (
                 <div
                   key={item.id}
-                  className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 flex items-center gap-4"
+                  className={`rounded-2xl border shadow-sm p-4 flex items-center gap-4 ${darkMode ? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}
                 >
-                  <div className="w-16 h-16 shrink-0 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center border border-amber-200 overflow-hidden">
+                  <div className={`w-16 h-16 shrink-0 rounded-xl flex items-center justify-center border overflow-hidden ${darkMode ? "bg-gray-800 border-gray-700" : "bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200"}`}>
                     {item.image_url ? (
                       <img src={item.image_url} alt={item.title} className="w-full h-full object-cover" />
                     ) : (
@@ -138,19 +214,19 @@ export default function CartPage() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-gray-800 text-sm line-clamp-1">{item.title}</p>
+                    <p className={`font-bold text-sm line-clamp-1 ${darkMode ? "text-gray-100" : "text-gray-800"}`}>{item.title}</p>
                     <p className="text-xs text-gray-400 mt-0.5">{item.author}</p>
                     {item.price ? (
-                      <p className="text-sm font-bold text-emerald-700 mt-1">Rs {item.price.toLocaleString()}</p>
+                      <p className="text-sm font-bold text-emerald-500 mt-1">Rs {item.price.toLocaleString()}</p>
                     ) : (
-                      <p className="text-xs text-gray-400 italic mt-1">قیمت درج نہیں</p>
+                      <p className="text-xs text-gray-400 italic mt-1">{t.priceNotSet}</p>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2 bg-gray-50 rounded-lg border border-gray-200 px-1.5 py-1">
+                  <div className={`flex items-center gap-2 rounded-lg border px-1.5 py-1 ${darkMode ? "bg-gray-800 border-gray-700" : "bg-gray-50 border-gray-200"}`}>
                     <button
                       onClick={() => handleQtyChange(item.id, -1)}
-                      className="p-1 rounded-md hover:bg-gray-200 text-gray-600 disabled:opacity-30"
+                      className="p-1 rounded-md hover:bg-gray-600/20 text-gray-400 disabled:opacity-30"
                       disabled={item.qty <= 1}
                     >
                       <Minus size={13} />
@@ -158,7 +234,7 @@ export default function CartPage() {
                     <span className="text-sm font-semibold w-5 text-center">{item.qty}</span>
                     <button
                       onClick={() => handleQtyChange(item.id, 1)}
-                      className="p-1 rounded-md hover:bg-gray-200 text-gray-600"
+                      className="p-1 rounded-md hover:bg-gray-600/20 text-gray-400"
                     >
                       <Plus size={13} />
                     </button>
@@ -166,7 +242,7 @@ export default function CartPage() {
 
                   <button
                     onClick={() => handleRemove(item.id)}
-                    className="p-2 rounded-lg text-rose-500 hover:bg-rose-50 transition"
+                    className="p-2 rounded-lg text-rose-500 hover:bg-rose-500/10 transition"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -175,11 +251,11 @@ export default function CartPage() {
             </div>
 
             {/* ٹوٹل اور چیک آؤٹ */}
-            <div className="mt-6 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+            <div className={`mt-6 rounded-2xl border shadow-sm p-5 ${darkMode ? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
               {total > 0 && (
                 <div className="flex items-center justify-between mb-4 text-sm">
-                  <span className="text-gray-500">کل مجموعی قیمت (تخمینی)</span>
-                  <span className="font-extrabold text-lg text-emerald-700">Rs {total.toLocaleString()}</span>
+                  <span className="text-gray-400">{t.totalPrice}</span>
+                  <span className="font-extrabold text-lg text-emerald-500">Rs {total.toLocaleString()}</span>
                 </div>
               )}
               <button
@@ -187,21 +263,47 @@ export default function CartPage() {
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#25D366] text-white py-3 font-semibold hover:bg-[#20BD5A] transition shadow-sm"
               >
                 <MessageCircle size={18} />
-                واٹس ایپ پر آرڈر مکمل کریں
+                {t.checkoutWhatsApp}
               </button>
               <p className="text-[11px] text-gray-400 text-center mt-3">
-                آرڈر مکمل کرنے کے لیے آپ کو واٹس ایپ پر بھیجا جائے گا جہاں آپ اپنا پتہ اور تفصیلات بتا سکیں گے
+                {t.checkoutNote}
               </p>
             </div>
           </>
         )}
       </section>
 
-      {/* فوٹر */}
-      <footer className="border-t border-gray-200 bg-white mt-10">
-        <div className="max-w-5xl mx-auto px-5 py-8 flex flex-col items-center gap-3">
-          <img src="/logo.jpg" alt="مكتبہ الزھراء" className="h-10 w-auto opacity-90" />
-          <p className="text-gray-500 text-sm text-center">© 2026 مكتبہ الزھراء. جملہ حقوق محفوظ ہیں۔</p>
+      {/* فوٹر (پتہ اور ادائیگی کے طریقہ کار کے ساتھ) */}
+      <footer className={`border-t mt-10 ${darkMode ? "border-gray-800 bg-gray-900" : "border-gray-200 bg-white"}`}>
+        <div className="max-w-5xl mx-auto px-5 py-8 grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+          <div className="text-center md:text-right">
+            <h4 className={`font-bold mb-2 flex items-center justify-center md:justify-start gap-1.5 ${darkMode ? "text-gray-100" : "text-gray-800"}`}>
+              <MapPin size={15} className="text-emerald-600" /> {t.address}
+            </h4>
+            <p className="text-xs text-gray-400 leading-relaxed">{t.addressDetails}</p>
+          </div>
+
+          <div className="text-center md:text-right">
+            <h4 className={`font-bold mb-2 flex items-center justify-center md:justify-start gap-1.5 ${darkMode ? "text-gray-100" : "text-gray-800"}`}>
+              <CreditCard size={15} className="text-emerald-600" /> {t.paymentTitle}
+            </h4>
+            <p className="text-xs text-gray-400 leading-relaxed">{t.paymentDetails}</p>
+          </div>
+
+          <div className="text-center md:text-right">
+            <h4 className={`font-bold mb-2 flex items-center justify-center md:justify-start gap-1.5 ${darkMode ? "text-gray-100" : "text-gray-800"}`}>
+              <Phone size={15} className="text-emerald-600" /> {t.contactLabel}
+            </h4>
+            <a href="tel:+923055232889" dir="ltr" className="text-xs text-gray-400 hover:text-emerald-600 block">
+              0305-5232889
+            </a>
+            <a href="https://wa.me/923055232889" target="_blank" rel="noopener noreferrer" className="text-xs text-[#25D366] font-semibold mt-1 inline-block">
+              {t.waMessage}
+            </a>
+          </div>
+        </div>
+        <div className={`border-t py-4 text-center text-xs text-gray-400 ${darkMode ? "border-gray-800" : "border-gray-100"}`}>
+          <p>{t.copyright}</p>
         </div>
       </footer>
     </main>
