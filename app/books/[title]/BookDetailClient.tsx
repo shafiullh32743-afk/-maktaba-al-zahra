@@ -58,6 +58,7 @@ interface Book {
   price?: number;
   image_url?: string;
   views?: number;
+   weight?: number;
 }
 
 interface Review {
@@ -138,6 +139,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
       price: book.price,
       slug: book.slug,
       image_url: book.image_url,
+       weight: book.weight,
     });
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 1200);

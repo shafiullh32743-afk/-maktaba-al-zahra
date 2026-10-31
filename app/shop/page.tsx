@@ -15,6 +15,7 @@ interface Book {
   price?: number;
   stock?: number;
   image_url?: string;
+ weight?: number;
 }
 
 interface Review {
@@ -183,13 +184,14 @@ export default function ShopPage() {
   };
 
   const handleAddToCart = (book: Book) => {
-    addToCart({
+        addToCart({
       id: book.id,
       title: book.title,
       author: book.author,
       price: book.price,
       slug: book.slug,
       image_url: book.image_url,
+      weight: book.weight,
     });
     setAddedId(book.id);
     setTimeout(() => setAddedId(null), 1200);

@@ -116,115 +116,278 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-// فہرست کتب کی اصل PDF فائل بناتا ہے (اردو درست دکھانے کے لیے صفحہ پہلے براؤزر میں بنتا ہے، پھر PDF میں ڈالا جاتا ہے)
-async function buildBooksPdf(list: Book[], rtl: boolean): Promise<Blob> {
-  const [{ jsPDF }, html2canvasModule] = await Promise.all([import("jspdf"), import("html2canvas")]);
-  const html2canvas = html2canvasModule.default;
+// ---- PDF بنانے کا کوڈ (کسی اضافی لائبریری کے بغیر) ----
 
+// JPEG تصاویر (ہر صفحہ ایک تصویر) سے اصل PDF فائل بناتا ہے
+function buildPdfFromJpegs(pages: { data: Uint8Array; width: number; height: number }[]): Blob {
+  const enc = new TextEncoder();
+  const chunks: Uint8Array[] = [];
+  const offsets: number[] = [];
+  let length = 0;
+
+  const push = (d: Uint8Array | string) => {
+    const bytes = typeof d === "string" ? enc.encode(d) : d;
+    chunks.push(bytes);
+    length += bytes.length;
+  };
+  const startObj = (n: number) => {
+    offsets[n] = length;
+    push(`${n} 0 obj\n`);
+  };
+
+  const PW = 595.28;
+  const PH = 841.89;
+  const n = pages.length;
+
+  push("%PDF-1.4\n");
+  startObj(1);
+  push("<< /Type /Catalog /Pages 2 0 R >>\nendobj\n");
+
+  const kids = pages.map((_, i) => `${3 + i * 3} 0 R`).join(" ");
+  startObj(2);
+  push(`<< /Type /Pages /Kids [${kids}] /Count ${n} >>\nendobj\n`);
+
+  pages.forEach((p, i) => {
+    const pageObj = 3 + i * 3;
+    const contentObj = 4 + i * 3;
+    const imageObj = 5 + i * 3;
+
+    startObj(pageObj);
+    push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources << /XObject << /Im0 ${imageObj} 0 R >> >> /Contents ${contentObj} 0 R >>\nendobj\n`
+    );
+
+    const content = `q ${PW} 0 0 ${PH} 0 0 cm /Im0 Do Q`;
+    startObj(contentObj);
+    push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream\nendobj\n`);
+
+    startObj(imageObj);
+    push(
+      `<< /Type /XObject /Subtype /Image /Width ${p.width} /Height ${p.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${p.data.length} >>\nstream\n`
+    );
+    push(p.data);
+    push("\nendstream\nendobj\n");
+  });
+
+  const xrefStart = length;
+  const total = 3 + n * 3;
+  let xref = `xref\n0 ${total}\n0000000000 65535 f \n`;
+  for (let i = 1; i < total; i++) {
+    xref += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
+  }
+  push(xref);
+  push(`trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`);
+
+  return new Blob(chunks as unknown as BlobPart[], { type: "application/pdf" });
+}
+
+// متن کو دی گئی چوڑائی میں لائنوں میں توڑتا ہے
+function wrapCanvasText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const words = String(text).split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [""];
+
+  const lines: string[] = [];
+  let current = "";
+
+  const pushLongWord = (word: string) => {
+    let part = "";
+    for (const ch of word) {
+      if (ctx.measureText(part + ch).width > maxWidth && part) {
+        lines.push(part);
+        part = ch;
+      } else {
+        part += ch;
+      }
+    }
+    current = part;
+  };
+
+  for (const word of words) {
+    const test = current ? `${current} ${word}` : word;
+    if (ctx.measureText(test).width <= maxWidth) {
+      current = test;
+    } else if (current) {
+      lines.push(current);
+      current = "";
+      if (ctx.measureText(word).width > maxWidth) pushLongWord(word);
+      else current = word;
+    } else {
+      pushLongWord(word);
+    }
+  }
+  if (current) lines.push(current);
+  return lines.length ? lines : [""];
+}
+
+// فہرست کتب کی PDF فائل بناتا ہے۔ صفحہ براؤزر کے canvas پر بنتا ہے (اردو صحیح جڑ کر آتی ہے)
+async function buildBooksPdf(list: Book[]): Promise<Blob> {
+  const mainEl = document.querySelector("main");
+  const family = getComputedStyle(mainEl || document.body).fontFamily || "Arial, sans-serif";
   try {
+    await (document as any).fonts?.load(`26px ${family}`, "کتاب الزھراء");
     await (document as any).fonts?.ready;
   } catch {}
 
-  const FIRST_PAGE_ROWS = 18;
-  const NEXT_PAGE_ROWS = 24;
+  const W = 1240;
+  const H = 1754;
+  const M = 60;
+  const PAD = 12;
+  const LINE_H = 40;
+  const ROW_PAD_Y = 10;
+  const HEAD_H = 60;
+  const TITLE_BLOCK_H = 140;
+  const FOOTER_H = 70;
+  const FONT = `26px ${family}`;
+  const FONT_BOLD = `bold 26px ${family}`;
 
-  const pages: Book[][] = [];
-  if (list.length === 0) {
-    pages.push([]);
-  } else {
-    pages.push(list.slice(0, FIRST_PAGE_ROWS));
-    for (let i = FIRST_PAGE_ROWS; i < list.length; i += NEXT_PAGE_ROWS) {
-      pages.push(list.slice(i, i + NEXT_PAGE_ROWS));
+  const COLS: { label: string; w: number; align: "center" | "right" }[] = [
+    { label: "#", w: 70, align: "center" },
+    { label: "کتاب کا نام", w: 400, align: "right" },
+    { label: "مصنف", w: 250, align: "right" },
+    { label: "زمرہ", w: 180, align: "right" },
+    { label: "قیمت", w: 120, align: "center" },
+    { label: "سٹاک", w: 100, align: "center" },
+  ];
+
+  type Row = { cells: string[][]; h: number };
+
+  // پہلا مرحلہ: ہر قطار کی اونچائی ناپنا اور صفحات میں بانٹنا
+  const measureCanvas = document.createElement("canvas");
+  const mctx = measureCanvas.getContext("2d");
+  if (!mctx) throw new Error("canvas unavailable");
+  mctx.direction = "rtl";
+
+  const rows: Row[] = list.map((book, index) => {
+    const texts = [
+      String(index + 1),
+      book.title,
+      book.author,
+      book.category,
+      book.price ? Number(book.price).toLocaleString("en-US") : "-",
+      book.stock !== undefined && book.stock !== null ? String(book.stock) : "-",
+    ];
+    const cells = texts.map((text, ci) => {
+      mctx.font = ci === 1 ? FONT_BOLD : FONT;
+      return COLS[ci].align === "center" ? [text] : wrapCanvasText(mctx, text, COLS[ci].w - PAD * 2);
+    });
+    const maxLines = Math.max(...cells.map((c) => c.length));
+    return { cells, h: maxLines * LINE_H + ROW_PAD_Y * 2 };
+  });
+
+  const pages: Row[][] = [];
+  let current: Row[] = [];
+  let y = M + TITLE_BLOCK_H + HEAD_H;
+  const limit = H - M - FOOTER_H;
+
+  for (const row of rows) {
+    if (y + row.h > limit && current.length > 0) {
+      pages.push(current);
+      current = [];
+      y = M + HEAD_H;
     }
+    current.push(row);
+    y += row.h;
   }
+  pages.push(current);
 
-  const wrapper = document.createElement("div");
-  wrapper.dir = rtl ? "rtl" : "ltr";
-  wrapper.style.cssText =
-    "position:fixed;left:-10000px;top:0;width:794px;background:#ffffff;color:#111827;padding:32px;box-sizing:border-box;font-family:'Noto Sans Arabic','Noto Nastaliq Urdu',Arial,sans-serif;";
-  document.body.appendChild(wrapper);
-
-  const pdf = new jsPDF({ unit: "mm", format: "a4" });
-  const pageW = pdf.internal.pageSize.getWidth();
-  const pageH = pdf.internal.pageSize.getHeight();
+  // دوسرا مرحلہ: صفحات بنانا
   const dateStr = new Date().toLocaleDateString("en-GB");
+  const jpegPages: { data: Uint8Array; width: number; height: number }[] = [];
 
-  const cell = "padding:6px 8px;border:1px solid #cbd5e1;font-size:13px;line-height:1.7;";
+  for (let p = 0; p < pages.length; p++) {
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("canvas unavailable");
 
-  try {
-    for (let p = 0; p < pages.length; p++) {
-      const startIndex = p === 0 ? 0 : FIRST_PAGE_ROWS + (p - 1) * NEXT_PAGE_ROWS;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, W, H);
+    ctx.direction = "rtl";
+    ctx.textBaseline = "middle";
 
-      const rows = pages[p]
-        .map(
-          (book, idx) => `
-          <tr style="background:${idx % 2 === 0 ? "#ffffff" : "#f8fafc"};">
-            <td style="${cell}text-align:center;width:36px;">${startIndex + idx + 1}</td>
-            <td style="${cell}font-weight:bold;">${escapeHtml(book.title)}</td>
-            <td style="${cell}">${escapeHtml(book.author)}</td>
-            <td style="${cell}">${escapeHtml(book.category)}</td>
-            <td style="${cell}text-align:center;">${book.price ? Number(book.price).toLocaleString() : "-"}</td>
-            <td style="${cell}text-align:center;">${book.stock ?? "-"}</td>
-          </tr>`
-        )
-        .join("");
+    let cy = M;
 
-      const header =
-        p === 0
-          ? `<div style="text-align:center;margin-bottom:14px;">
-               <div style="font-size:26px;font-weight:bold;color:#047857;">مكتبہ الزھراء</div>
-               <div style="font-size:13px;color:#475569;margin-top:4px;">فہرست کتب — کل ${list.length} کتابیں — ${dateStr}</div>
-             </div>`
-          : "";
-
-      const body =
-        list.length === 0
-          ? `<div style="text-align:center;padding:40px;color:#64748b;font-size:14px;">کوئی کتاب موجود نہیں</div>`
-          : `<table style="width:100%;border-collapse:collapse;">
-               <thead>
-                 <tr>
-                   <th style="${cell}background:#047857;color:#ffffff;">#</th>
-                   <th style="${cell}background:#047857;color:#ffffff;">کتاب کا نام</th>
-                   <th style="${cell}background:#047857;color:#ffffff;">مصنف</th>
-                   <th style="${cell}background:#047857;color:#ffffff;">زمرہ</th>
-                   <th style="${cell}background:#047857;color:#ffffff;">قیمت</th>
-                   <th style="${cell}background:#047857;color:#ffffff;">سٹاک</th>
-                 </tr>
-               </thead>
-               <tbody>${rows}</tbody>
-             </table>`;
-
-      wrapper.innerHTML = `${header}${body}
-        <div style="text-align:center;font-size:11px;color:#64748b;margin-top:14px;">صفحہ ${p + 1} / ${pages.length}</div>`;
-
-      const canvas = await html2canvas(wrapper, {
-        scale: 2,
-        backgroundColor: "#ffffff",
-        useCORS: true,
-      });
-
-      let imgW = pageW;
-      let imgH = (canvas.height * imgW) / canvas.width;
-      if (imgH > pageH) {
-        const factor = pageH / imgH;
-        imgW = imgW * factor;
-        imgH = pageH;
-      }
-
-      if (p > 0) pdf.addPage();
-      pdf.addImage(canvas.toDataURL("image/jpeg", 0.92), "JPEG", (pageW - imgW) / 2, 0, imgW, imgH);
+    if (p === 0) {
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#047857";
+      ctx.font = `bold 54px ${family}`;
+      ctx.fillText("مكتبہ الزھراء", W / 2, cy + 40);
+      ctx.fillStyle = "#475569";
+      ctx.font = `28px ${family}`;
+      ctx.fillText(`فہرست کتب — کل ${list.length} کتابیں — ${dateStr}`, W / 2, cy + 100);
+      cy += TITLE_BLOCK_H;
     }
-  } finally {
-    wrapper.remove();
+
+    // ٹیبل کی ہیڈنگ (دائیں سے بائیں)
+    let x = W - M;
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "#cbd5e1";
+    for (const col of COLS) {
+      ctx.fillStyle = "#047857";
+      ctx.fillRect(x - col.w, cy, col.w, HEAD_H);
+      ctx.strokeRect(x - col.w, cy, col.w, HEAD_H);
+      ctx.fillStyle = "#ffffff";
+      ctx.font = FONT_BOLD;
+      ctx.textAlign = "center";
+      ctx.fillText(col.label, x - col.w / 2, cy + HEAD_H / 2);
+      x -= col.w;
+    }
+    cy += HEAD_H;
+
+    if (list.length === 0) {
+      ctx.fillStyle = "#64748b";
+      ctx.font = FONT;
+      ctx.textAlign = "center";
+      ctx.fillText("کوئی کتاب موجود نہیں", W / 2, cy + 60);
+    }
+
+    pages[p].forEach((row, ri) => {
+      let rx = W - M;
+      const zebra = ri % 2 === 0 ? "#ffffff" : "#f8fafc";
+      COLS.forEach((col, ci) => {
+        ctx.fillStyle = zebra;
+        ctx.fillRect(rx - col.w, cy, col.w, row.h);
+        ctx.strokeStyle = "#cbd5e1";
+        ctx.strokeRect(rx - col.w, cy, col.w, row.h);
+
+        ctx.fillStyle = "#111827";
+        ctx.font = ci === 1 ? FONT_BOLD : FONT;
+        row.cells[ci].forEach((line, li) => {
+          const ly = cy + ROW_PAD_Y + li * LINE_H + LINE_H / 2;
+          if (col.align === "center") {
+            ctx.textAlign = "center";
+            ctx.fillText(line, rx - col.w / 2, ly);
+          } else {
+            ctx.textAlign = "right";
+            ctx.fillText(line, rx - PAD, ly);
+          }
+        });
+        rx -= col.w;
+      });
+      cy += row.h;
+    });
+
+    ctx.fillStyle = "#64748b";
+    ctx.font = `22px ${family}`;
+    ctx.textAlign = "center";
+    ctx.fillText(`صفحہ ${p + 1} / ${pages.length}`, W / 2, H - M + 5);
+
+    const blob: Blob = await new Promise((resolve, reject) => {
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/jpeg", 0.9);
+    });
+    jpegPages.push({ data: new Uint8Array(await blob.arrayBuffer()), width: W, height: H });
+
+    // براؤزر کو سانس لینے دیں تاکہ صفحہ اٹکے نہیں
+    await new Promise((r) => setTimeout(r, 0));
   }
 
-  return pdf.output("blob");
+  return buildPdfFromJpegs(jpegPages);
 }
 
-function generateSlugFromTitle(title: string, author?: string): string {
-  const combined = author && author.trim() ? `${title} ${author}` : title;
+function generateSlugFromTitle(title: string): string {
   let result = "";
-  for (const ch of combined) {
+  for (const ch of title) {
     if (urduToRomanMap[ch] !== undefined) {
       result += urduToRomanMap[ch];
     } else if (/[a-zA-Z0-9\s]/.test(ch)) {
@@ -388,7 +551,6 @@ function BooksPageInner() {
 
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
-  const [regeneratingSlugs, setRegeneratingSlugs] = useState(false);
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [renamingCategory, setRenamingCategory] = useState(false);
@@ -516,10 +678,9 @@ function BooksPageInner() {
     },
   }[lang];
 
-   function getStockStatus(stock: number, price?: number) {
-    const lowStockThreshold = (price ?? 0) >= 1000 ? 2 : 3;
+  function getStockStatus(stock: number) {
     if (stock <= 0) return { label: t.outOfStock, color: "text-rose-700 bg-rose-50 border-rose-200" };
-    if (stock <= lowStockThreshold) return { label: t.lowStockLabel, color: "text-amber-700 bg-amber-50 border-amber-200" };
+    if (stock <= 5) return { label: t.lowStockLabel, color: "text-amber-700 bg-amber-50 border-amber-200" };
     return { label: t.inStock, color: "text-emerald-700 bg-emerald-50 border-emerald-200" };
   }
 
@@ -562,7 +723,7 @@ function BooksPageInner() {
         const currentBooks = data as Book[];
         await Promise.all(
           booksWithoutSlug.map((b) => {
-            const base = generateSlugFromTitle(b.title, b.author);
+            const base = generateSlugFromTitle(b.title);
             const unique = makeUniqueSlug(base, currentBooks, b.id);
             return unique ? supabase.from("books").update({ slug: unique }).eq("id", b.id) : null;
           })
@@ -580,50 +741,6 @@ function BooksPageInner() {
   const fetchReviews = async () => {
     const { data } = await supabase.from("reviews").select("*").eq("approved", true);
     if (data) setReviews(data as Review[]);
-  };
-
-  // تمام (بشمول پرانی) کتابوں کے URL (slug) دوبارہ بنائیں تاکہ مصنف کا نام بھی اس میں شامل ہو
-  const handleRegenerateAllSlugs = async () => {
-    const confirmed = window.confirm(
-      "یہ تمام کتابوں کے URL (ویب لنک) دوبارہ بنا دے گا تاکہ ان میں مصنف کا نام بھی شامل ہو۔\n\nتوجہ: اگر پرانے لنک کہیں شیئر کیے جا چکے ہیں (واٹس ایپ، گوگل وغیرہ) تو وہ کام کرنا بند کر دیں گے۔\n\nکیا آپ یقینی طور پر جاری رکھنا چاہتے ہیں؟"
-    );
-    if (!confirmed) return;
-
-    setRegeneratingSlugs(true);
-    setImportResult(null);
-
-    try {
-      const { data, error } = await supabase.from("books").select("id, title, author").order("id", { ascending: true });
-      if (error || !data) {
-        setImportResult("خرابی: کتابیں حاصل نہیں ہو سکیں۔");
-        setRegeneratingSlugs(false);
-        return;
-      }
-
-      const used = new Set<string>();
-      const updates: { id: number; slug: string }[] = [];
-
-      for (const b of data as { id: number; title: string; author: string }[]) {
-        const base = generateSlugFromTitle(b.title, b.author) || "book";
-        let slug = base;
-        let counter = 2;
-        while (used.has(slug)) {
-          slug = `${base}-${counter}`;
-          counter++;
-        }
-        used.add(slug);
-        updates.push({ id: b.id, slug });
-      }
-
-      await Promise.all(updates.map((u) => supabase.from("books").update({ slug: u.slug }).eq("id", u.id)));
-
-      setImportResult(`کامیابی: ${updates.length} کتابوں کے URL مصنف کے نام کے ساتھ دوبارہ بن گئے۔`);
-      await fetchBooks();
-    } catch {
-      setImportResult("خرابی: URL دوبارہ بناتے وقت کوئی مسئلہ پیش آیا۔");
-    }
-
-    setRegeneratingSlugs(false);
   };
 
   useEffect(() => {
@@ -695,7 +812,7 @@ function BooksPageInner() {
 
     const list = pdfStockOnly ? filteredBooks.filter((b) => (b.stock ?? 0) > 0) : filteredBooks;
 
-    buildBooksPdf(list, lang === "ur")
+    buildBooksPdf(list)
       .then((blob) => {
         if (!cancelled) setPdfFile(new File([blob], PDF_FILE_NAME, { type: "application/pdf" }));
       })
@@ -932,7 +1049,7 @@ function BooksPageInner() {
       imageUrl = publicUrlData.publicUrl;
     }
 
-    const baseSlug = newSlug.trim() || generateSlugFromTitle(newTitle, newAuthor);
+    const baseSlug = newSlug.trim() || generateSlugFromTitle(newTitle);
     const uniqueSlug = makeUniqueSlug(baseSlug, books, editingId);
 
     const bookData = {
@@ -987,7 +1104,7 @@ function BooksPageInner() {
     setNewWeight(book.weight ? book.weight.toString() : "");
     setNewStock(book.stock ? book.stock.toString() : "");
     setNewCostPrice(book.cost_price ? book.cost_price.toString() : "");
-    setNewSlug(book.slug || generateSlugFromTitle(book.title, book.author));
+    setNewSlug(book.slug || generateSlugFromTitle(book.title));
     setExistingImageUrl(book.image_url || null);
     setImagePreview(book.image_url || null);
     setImageFile(null);
@@ -1027,7 +1144,7 @@ function BooksPageInner() {
         const language = row[4];
         if (!title || typeof title !== "string" || title.trim() === "") continue;
 
-        const base = generateSlugFromTitle(title.toString().trim(), author ? author.toString().trim() : undefined);
+        const base = generateSlugFromTitle(title.toString().trim());
         const combinedExisting = books.map((b) => ({ id: b.id, slug: b.slug || "" } as Book));
         let slug = makeUniqueSlug(base, combinedExisting, null);
         while (usedSlugsThisBatch.includes(slug)) {
@@ -1607,17 +1724,6 @@ ${itemsList}
               </label>
 
               <button
-                onClick={handleRegenerateAllSlugs}
-                disabled={regeneratingSlugs}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 border transition text-xs font-semibold disabled:opacity-50 ${
-                  darkMode ? "bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                <RotateCw size={15} className={regeneratingSlugs ? "animate-spin" : ""} />
-                {regeneratingSlugs ? "بن رہے ہیں..." : "تمام URL اپڈیٹ کریں"}
-              </button>
-
-              <button
                 onClick={() => setShowPdfOptions(true)}
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 border transition text-xs font-semibold ${
                   darkMode ? "bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
@@ -1759,7 +1865,7 @@ ${itemsList}
 
               {filteredBooks.map((book) => {
                 const ratingInfo = getBookRating(book.title);
-                               const stockInfo = getStockStatus(book.stock ?? 0, book.price);
+                const stockInfo = getStockStatus(book.stock ?? 0);
                 const outOfStock = (book.stock ?? 0) <= 0;
                 const inCart = cart.find((item) => item.id === book.id);
                 const isWished = wishlist.includes(book.id);
@@ -2279,7 +2385,7 @@ ${itemsList}
                     onChange={(e) => {
                       setNewTitle(e.target.value);
                       if (!editingId) {
-                        setNewSlug(generateSlugFromTitle(e.target.value, newAuthor));
+                        setNewSlug(generateSlugFromTitle(e.target.value));
                       }
                     }}
                     placeholder="مثلاً: كیف عاملہم"
@@ -2293,12 +2399,7 @@ ${itemsList}
                   <input
                     type="text"
                     value={newAuthor}
-                    onChange={(e) => {
-                      setNewAuthor(e.target.value);
-                      if (!editingId) {
-                        setNewSlug(generateSlugFromTitle(newTitle, e.target.value));
-                      }
-                    }}
+                    onChange={(e) => setNewAuthor(e.target.value)}
                     placeholder="مثلاً: صالح المنجد"
                     className={`w-full rounded-lg border p-2 text-xs ${darkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-200"}`}
                   />

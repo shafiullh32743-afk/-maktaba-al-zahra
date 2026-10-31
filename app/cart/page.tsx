@@ -10,6 +10,10 @@ export default function CartPage() {
   const [darkMode, setDarkMode] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerAddress, setCustomerAddress] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"cod" | "advance">("cod");
 
   useEffect(() => {
     const saved = localStorage.getItem("maktaba-dark-mode");
@@ -44,9 +48,22 @@ export default function CartPage() {
       emptyCart: "آپ کی ٹوکری خالی ہے",
       viewBooks: "کتابیں دیکھیں",
       priceNotSet: "قیمت درج نہیں",
-      totalPrice: "کل مجموعی قیمت (تخمینی)",
+      totalPrice: "کتابوں کی قیمت",
+      deliveryCharge: "ڈیلیوری چارجز",
+      grandTotal: "کل مجموعی رقم",
       checkoutWhatsApp: "واٹس ایپ پر آرڈر مکمل کریں",
-      checkoutNote: "آرڈر مکمل کرنے کے لیے آپ کو واٹس ایپ پر بھیجا جائے گا جہاں آپ اپنا پتہ اور تفصیلات بتا سکیں گے",
+      checkoutNote: "آرڈر مکمل کرنے کے لیے آپ کو واٹس ایپ پر بھیجا جائے گا",
+      detailsTitle: "ترسیل کی تفصیلات",
+      nameLabel: "آپ کا نام",
+      namePlaceholder: "اپنا پورا نام لکھیں",
+      phoneLabel: "فون نمبر",
+      phonePlaceholder: "03XXXXXXXXX",
+      addressLabel: "مکمل پتہ",
+      addressPlaceholder: "گھر نمبر، گلی، علاقہ، شہر",
+      paymentMethodLabel: "ادائیگی کا طریقہ",
+      paymentCod: "آرڈر پر ادائیگی (Cash on Delivery)",
+      paymentAdvance: "پیشگی ادائیگی (بینک ٹرانسفر / ایزی پیسہ / جاز کیش)",
+      fillRequired: "براہ کرم نام، فون نمبر اور پتہ درج کریں",
       address: "پتہ (Address)",
       addressDetails: "مکتبہ الزہراء، نزد جامعہ الحسنین فیصل آباد، پاکستان",
       paymentTitle: "ادائیگی کا طریقہ کار (Payment Method)",
@@ -67,9 +84,22 @@ export default function CartPage() {
       emptyCart: "Your cart is empty",
       viewBooks: "View Books",
       priceNotSet: "Price Not Set",
-      totalPrice: "Estimated Total Price",
+      totalPrice: "Books Total",
+      deliveryCharge: "Delivery Charges",
+      grandTotal: "Grand Total",
       checkoutWhatsApp: "Complete Order on WhatsApp",
-      checkoutNote: "You will be redirected to WhatsApp to share your delivery address and details",
+      checkoutNote: "You will be redirected to WhatsApp to confirm your order",
+      detailsTitle: "Delivery Details",
+      nameLabel: "Your Name",
+      namePlaceholder: "Enter your full name",
+      phoneLabel: "Phone Number",
+      phonePlaceholder: "03XXXXXXXXX",
+      addressLabel: "Full Address",
+      addressPlaceholder: "House no., street, area, city",
+      paymentMethodLabel: "Payment Method",
+      paymentCod: "Cash on Delivery",
+      paymentAdvance: "Advance Payment (Bank Transfer / Easypaisa / JazzCash)",
+      fillRequired: "Please enter your name, phone number and address",
       address: "Address",
       addressDetails: "Maktaba Al-Zahra, Near Jamia Al-Hasanain, Faisalabad, Pakistan",
       paymentTitle: "Payment Method",
@@ -83,6 +113,15 @@ export default function CartPage() {
   }[lang];
 
   const total = cart.reduce((sum, item) => sum + (item.price || 0) * item.qty, 0);
+   const totalWeight =
+    Math.round(cart.reduce((sum, item) => sum + (item.weight || 1) * item.qty, 0) * 100) / 100;
+  const deliveryCharge =
+    cart.length > 0
+      ? totalWeight <= 1
+        ? 225
+        : 225 + Math.ceil(totalWeight - 1) * 100
+      : 0;
+  const grandTotal = total + deliveryCharge;
 
   const handleQtyChange = (id: string, delta: number) => {
     const item = cart.find((c) => c.id === id);
@@ -103,6 +142,10 @@ export default function CartPage() {
 
   const handleCheckout = () => {
     if (cart.length === 0) return;
+    if (customerName.trim() === "" || customerPhone.trim() === "" || customerAddress.trim() === "") {
+      alert(t.fillRequired);
+      return;
+    }
     let message = lang === "ur" ? "السلام علیکم! میں یہ کتابیں خریدنا چاہتا ہوں:\n\n" : "Assalam-o-Alaikum! I want to order these books:\n\n";
     cart.forEach((item, i) => {
       message += `${i + 1}. ${item.title} — ${lang === "ur" ? "مقدار" : "Qty"}: ${item.qty}`;
@@ -110,8 +153,16 @@ export default function CartPage() {
       message += "\n";
     });
     if (total > 0) {
-      message += `\n${lang === "ur" ? "کل مجموعی قیمت" : "Total"}: Rs ${total.toLocaleString()}`;
+      message += `\n${lang === "ur" ? "کتابوں کی قیمت" : "Books Total"}: Rs ${total.toLocaleString()}`;
     }
+    message += `\n${lang === "ur" ? "ڈیلیوری چارجز" : "Delivery Charges"} (${totalWeight} kg): Rs ${deliveryCharge.toLocaleString()}`;
+    message += `\n${lang === "ur" ? "کل مجموعی رقم" : "Grand Total"}: Rs ${grandTotal.toLocaleString()}`;
+    message += `\n\n${lang === "ur" ? "نام" : "Name"}: ${customerName}`;
+    message += `\n${lang === "ur" ? "فون نمبر" : "Phone"}: ${customerPhone}`;
+    message += `\n${lang === "ur" ? "پتہ" : "Address"}: ${customerAddress}`;
+    message += `\n${lang === "ur" ? "ادائیگی کا طریقہ" : "Payment Method"}: ${
+      paymentMethod === "cod" ? t.paymentCod : t.paymentAdvance
+    }`;
     const url = "https://wa.me/923055232889?text=" + encodeURIComponent(message);
     window.open(url, "_blank");
   };
@@ -250,14 +301,101 @@ export default function CartPage() {
               ))}
             </div>
 
-            {/* ٹوٹل اور چیک آؤٹ */}
+            {/* ترسیل کی تفصیلات (نام، فون، پتہ، ادائیگی) */}
             <div className={`mt-6 rounded-2xl border shadow-sm p-5 ${darkMode ? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
+              <h3 className={`font-bold text-sm mb-4 ${darkMode ? "text-gray-100" : "text-gray-800"}`}>{t.detailsTitle}</h3>
+
+              <div className="space-y-3">
+                <div>
+                  <label className={`block mb-1 text-xs font-semibold ${darkMode ? "text-gray-300" : "text-gray-600"}`}>{t.nameLabel}</label>
+                  <input
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder={t.namePlaceholder}
+                    className={`w-full rounded-lg border p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
+                      darkMode ? "bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-500" : "bg-white border-gray-200 text-gray-900"
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block mb-1 text-xs font-semibold ${darkMode ? "text-gray-300" : "text-gray-600"}`}>{t.phoneLabel}</label>
+                  <input
+                    type="tel"
+                    dir="ltr"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder={t.phonePlaceholder}
+                    className={`w-full rounded-lg border p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
+                      darkMode ? "bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-500" : "bg-white border-gray-200 text-gray-900"
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block mb-1 text-xs font-semibold ${darkMode ? "text-gray-300" : "text-gray-600"}`}>{t.addressLabel}</label>
+                  <textarea
+                    value={customerAddress}
+                    onChange={(e) => setCustomerAddress(e.target.value)}
+                    placeholder={t.addressPlaceholder}
+                    rows={2}
+                    className={`w-full rounded-lg border p-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
+                      darkMode ? "bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-500" : "bg-white border-gray-200 text-gray-900"
+                    }`}
+                  />
+                </div>
+
+                <div>
+                  <label className={`block mb-1.5 text-xs font-semibold ${darkMode ? "text-gray-300" : "text-gray-600"}`}>{t.paymentMethodLabel}</label>
+                  <div className="space-y-1.5">
+                    <label className={`flex items-center gap-2 rounded-lg border p-2.5 text-xs cursor-pointer ${
+                      paymentMethod === "cod"
+                        ? darkMode ? "border-emerald-600 bg-emerald-950" : "border-emerald-400 bg-emerald-50"
+                        : darkMode ? "border-gray-700" : "border-gray-200"
+                    }`}>
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        checked={paymentMethod === "cod"}
+                        onChange={() => setPaymentMethod("cod")}
+                      />
+                      {t.paymentCod}
+                    </label>
+                    <label className={`flex items-center gap-2 rounded-lg border p-2.5 text-xs cursor-pointer ${
+                      paymentMethod === "advance"
+                        ? darkMode ? "border-emerald-600 bg-emerald-950" : "border-emerald-400 bg-emerald-50"
+                        : darkMode ? "border-gray-700" : "border-gray-200"
+                    }`}>
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        checked={paymentMethod === "advance"}
+                        onChange={() => setPaymentMethod("advance")}
+                      />
+                      {t.paymentAdvance}
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ٹوٹل اور چیک آؤٹ */}
+            <div className={`mt-4 rounded-2xl border shadow-sm p-5 ${darkMode ? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
               {total > 0 && (
-                <div className="flex items-center justify-between mb-4 text-sm">
+                <div className="flex items-center justify-between mb-2 text-sm">
                   <span className="text-gray-400">{t.totalPrice}</span>
-                  <span className="font-extrabold text-lg text-emerald-500">Rs {total.toLocaleString()}</span>
+                  <span className="font-semibold">Rs {total.toLocaleString()}</span>
                 </div>
               )}
+              <div className="flex items-center justify-between mb-2 text-sm">
+                <span className="text-gray-400">{t.deliveryCharge} ({totalWeight} kg)</span>
+                <span className="font-semibold">Rs {deliveryCharge.toLocaleString()}</span>
+              </div>
+              <div className={`flex items-center justify-between mb-4 pt-2 border-t text-sm ${darkMode ? "border-gray-800" : "border-gray-100"}`}>
+                <span className="font-bold">{t.grandTotal}</span>
+                <span className="font-extrabold text-lg text-emerald-500">Rs {grandTotal.toLocaleString()}</span>
+              </div>
               <button
                 onClick={handleCheckout}
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#25D366] text-white py-3 font-semibold hover:bg-[#20BD5A] transition shadow-sm"
