@@ -116,6 +116,19 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+// اردو الف باء کے مطابق ترتیب (زمرہ پہلے، پھر کتاب کا نام)
+const urduCollator = new Intl.Collator(["ur", "ar"], { numeric: true });
+
+function sortBooksForList(list: Book[], groupByCategory: boolean): Book[] {
+  return [...list].sort((a, b) => {
+    if (groupByCategory) {
+      const c = urduCollator.compare((a.category || "عمومی").trim(), (b.category || "عمومی").trim());
+      if (c !== 0) return c;
+    }
+    return urduCollator.compare((a.title || "").trim(), (b.title || "").trim());
+  });
+}
+
 // ---- PDF بنانے کا کوڈ (کسی اضافی لائبریری کے بغیر) ----
 
 // JPEG تصاویر (ہر صفحہ ایک تصویر) سے اصل PDF فائل بناتا ہے
@@ -220,7 +233,7 @@ function wrapCanvasText(ctx: CanvasRenderingContext2D, text: string, maxWidth: n
 }
 
 // فہرست کتب کی PDF فائل بناتا ہے۔ صفحہ براؤزر کے canvas پر بنتا ہے (اردو صحیح جڑ کر آتی ہے)
-async function buildBooksPdf(list: Book[]): Promise<Blob> {
+async function buildBooksPdf(list: Book[], groupByCategory: boolean): Promise<Blob> {
   const mainEl = document.querySelector("main");
   const family = getComputedStyle(mainEl || document.body).fontFamily || "Arial, sans-serif";
   try {
@@ -232,9 +245,11 @@ async function buildBooksPdf(list: Book[]): Promise<Blob> {
   const H = 1754;
   const M = 60;
   const PAD = 12;
+  const TABLE_W = W - M * 2;
   const LINE_H = 40;
   const ROW_PAD_Y = 10;
   const HEAD_H = 60;
+  const HEADING_H = 58;
   const TITLE_BLOCK_H = 140;
   const FOOTER_H = 70;
   const FONT = `26px ${family}`;
@@ -249,7 +264,9 @@ async function buildBooksPdf(list: Book[]): Promise<Blob> {
     { label: "سٹاک", w: 100, align: "center" },
   ];
 
-  type Row = { cells: string[][]; h: number };
+  type Row =
+    | { kind: "book"; cells: string[][]; h: number }
+    | { kind: "heading"; text: string; h: number };
 
   // پہلا مرحلہ: ہر قطار کی اونچائی ناپنا اور صفحات میں بانٹنا
   const measureCanvas = document.createElement("canvas");
@@ -257,9 +274,28 @@ async function buildBooksPdf(list: Book[]): Promise<Blob> {
   if (!mctx) throw new Error("canvas unavailable");
   mctx.direction = "rtl";
 
-  const rows: Row[] = list.map((book, index) => {
+  const sorted = sortBooksForList(list, groupByCategory);
+  const categoryCounts = new Map<string, number>();
+  sorted.forEach((b) => {
+    const key = (b.category || "عمومی").trim();
+    categoryCounts.set(key, (categoryCounts.get(key) || 0) + 1);
+  });
+
+  const items: Row[] = [];
+  let lastCategory: string | null = null;
+  let counter = 0;
+
+  sorted.forEach((book) => {
+    const cat = (book.category || "عمومی").trim();
+    if (groupByCategory && cat !== lastCategory) {
+      items.push({ kind: "heading", text: `${cat} — ${categoryCounts.get(cat)} کتابیں`, h: HEADING_H });
+      lastCategory = cat;
+      counter = 0;
+    }
+    counter++;
+
     const texts = [
-      String(index + 1),
+      String(counter),
       book.title,
       book.author,
       book.category,
@@ -271,7 +307,7 @@ async function buildBooksPdf(list: Book[]): Promise<Blob> {
       return COLS[ci].align === "center" ? [text] : wrapCanvasText(mctx, text, COLS[ci].w - PAD * 2);
     });
     const maxLines = Math.max(...cells.map((c) => c.length));
-    return { cells, h: maxLines * LINE_H + ROW_PAD_Y * 2 };
+    items.push({ kind: "book", cells, h: maxLines * LINE_H + ROW_PAD_Y * 2 });
   });
 
   const pages: Row[][] = [];
@@ -279,8 +315,12 @@ async function buildBooksPdf(list: Book[]): Promise<Blob> {
   let y = M + TITLE_BLOCK_H + HEAD_H;
   const limit = H - M - FOOTER_H;
 
-  for (const row of rows) {
-    if (y + row.h > limit && current.length > 0) {
+  for (let i = 0; i < items.length; i++) {
+    const row = items[i];
+    const next = items[i + 1];
+    // زمرے کا عنوان صفحے کے آخر میں اکیلا نہ رہ جائے
+    const need = row.h + (row.kind === "heading" && next ? next.h : 0);
+    if (y + need > limit && current.length > 0) {
       pages.push(current);
       current = [];
       y = M + HEAD_H;
@@ -315,7 +355,11 @@ async function buildBooksPdf(list: Book[]): Promise<Blob> {
       ctx.fillText("مكتبہ الزھراء", W / 2, cy + 40);
       ctx.fillStyle = "#475569";
       ctx.font = `28px ${family}`;
-      ctx.fillText(`فہرست کتب — کل ${list.length} کتابیں — ${dateStr}`, W / 2, cy + 100);
+      ctx.fillText(
+        `فہرست کتب — کل ${list.length} کتابیں — ${groupByCategory ? "زمرے اور الف باء کے مطابق" : "الف باء کے مطابق"} — ${dateStr}`,
+        W / 2,
+        cy + 100
+      );
       cy += TITLE_BLOCK_H;
     }
 
@@ -342,9 +386,25 @@ async function buildBooksPdf(list: Book[]): Promise<Blob> {
       ctx.fillText("کوئی کتاب موجود نہیں", W / 2, cy + 60);
     }
 
-    pages[p].forEach((row, ri) => {
+    let bookIndexOnPage = 0;
+    pages[p].forEach((row) => {
+      if (row.kind === "heading") {
+        ctx.fillStyle = "#d1fae5";
+        ctx.fillRect(M, cy, TABLE_W, row.h);
+        ctx.strokeStyle = "#6ee7b7";
+        ctx.strokeRect(M, cy, TABLE_W, row.h);
+        ctx.fillStyle = "#065f46";
+        ctx.font = `bold 30px ${family}`;
+        ctx.textAlign = "right";
+        ctx.fillText(row.text, W - M - PAD * 1.5, cy + row.h / 2);
+        cy += row.h;
+        bookIndexOnPage = 0;
+        return;
+      }
+
       let rx = W - M;
-      const zebra = ri % 2 === 0 ? "#ffffff" : "#f8fafc";
+      const zebra = bookIndexOnPage % 2 === 0 ? "#ffffff" : "#f8fafc";
+      bookIndexOnPage++;
       COLS.forEach((col, ci) => {
         ctx.fillStyle = zebra;
         ctx.fillRect(rx - col.w, cy, col.w, row.h);
@@ -496,6 +556,7 @@ function BooksPageInner() {
   // PDF: ڈاؤن لوڈ / شیئر / پرنٹ
   const [showPdfOptions, setShowPdfOptions] = useState(false);
   const [pdfStockOnly, setPdfStockOnly] = useState(true);
+  const [pdfGrouped, setPdfGrouped] = useState(true);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pdfPreparing, setPdfPreparing] = useState(false);
   const [pdfMessage, setPdfMessage] = useState<string | null>(null);
@@ -812,7 +873,7 @@ function BooksPageInner() {
 
     const list = pdfStockOnly ? filteredBooks.filter((b) => (b.stock ?? 0) > 0) : filteredBooks;
 
-    buildBooksPdf(list)
+    buildBooksPdf(list, pdfGrouped)
       .then((blob) => {
         if (!cancelled) setPdfFile(new File([blob], PDF_FILE_NAME, { type: "application/pdf" }));
       })
@@ -827,7 +888,7 @@ function BooksPageInner() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPdfOptions, pdfStockOnly]);
+  }, [showPdfOptions, pdfStockOnly, pdfGrouped]);
 
   const downloadPdfFile = () => {
     if (!pdfFile) return;
@@ -1323,20 +1384,38 @@ ${itemsList}
   };
 
   // فہرست پرنٹ کرنے کا فنکشن
-  const handleDownloadPDF = (stockOnly: boolean) => {
-    const booksForPdf = stockOnly ? filteredBooks.filter((b) => (b.stock ?? 0) > 0) : filteredBooks;
+  const handleDownloadPDF = (stockOnly: boolean, grouped: boolean) => {
+    const filtered = stockOnly ? filteredBooks.filter((b) => (b.stock ?? 0) > 0) : filteredBooks;
+    const booksForPdf = sortBooksForList(filtered, grouped);
+
+    const counts = new Map<string, number>();
+    booksForPdf.forEach((b) => {
+      const key = (b.category || "عمومی").trim();
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    let lastCat: string | null = null;
+    let counter = 0;
     const rows = booksForPdf
-      .map(
-        (book, index) => `
-        <tr>
-          <td style="padding:8px;border:1px solid #ccc;text-align:center;">${index + 1}</td>
+      .map((book) => {
+        const cat = (book.category || "عمومی").trim();
+        let heading = "";
+        if (grouped && cat !== lastCat) {
+          heading = `<tr><td colspan="6" style="padding:8px;border:1px solid #6ee7b7;background:#d1fae5;color:#065f46;font-weight:bold;">${escapeHtml(cat)} — ${counts.get(cat)} کتابیں</td></tr>`;
+          lastCat = cat;
+          counter = 0;
+        }
+        counter++;
+        return `${heading}
+        <tr style="break-inside:avoid;">
+          <td style="padding:8px;border:1px solid #ccc;text-align:center;">${counter}</td>
           <td style="padding:8px;border:1px solid #ccc;">${escapeHtml(book.title)}</td>
           <td style="padding:8px;border:1px solid #ccc;">${escapeHtml(book.author)}</td>
           <td style="padding:8px;border:1px solid #ccc;">${escapeHtml(book.category)}</td>
           <td style="padding:8px;border:1px solid #ccc;text-align:center;">${book.price || "-"}</td>
           <td style="padding:8px;border:1px solid #ccc;text-align:center;">${book.stock ?? "-"}</td>
-        </tr>`
-      )
+        </tr>`;
+      })
       .join("");
 
     const html = `
@@ -2180,6 +2259,36 @@ ${itemsList}
                 </button>
               </div>
 
+              {/* ترتیب */}
+              <div className={`mt-2 grid grid-cols-2 gap-1 p-1 rounded-xl ${darkMode ? "bg-slate-800" : "bg-gray-100"}`}>
+                <button
+                  type="button"
+                  onClick={() => setPdfGrouped(true)}
+                  className={`rounded-lg py-2 text-xs font-semibold transition ${
+                    pdfGrouped
+                      ? "bg-emerald-700 text-white shadow-xs"
+                      : darkMode
+                      ? "text-slate-300 hover:bg-slate-700"
+                      : "text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  زمرے کے مطابق
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPdfGrouped(false)}
+                  className={`rounded-lg py-2 text-xs font-semibold transition ${
+                    !pdfGrouped
+                      ? "bg-emerald-700 text-white shadow-xs"
+                      : darkMode
+                      ? "text-slate-300 hover:bg-slate-700"
+                      : "text-gray-600 hover:bg-gray-200"
+                  }`}
+                >
+                  صرف الف باء
+                </button>
+              </div>
+
               {/* حالت */}
               <div className="mt-3 min-h-[20px] text-xs">
                 {pdfPreparing ? (
@@ -2213,7 +2322,7 @@ ${itemsList}
                 <button
                   type="button"
                   onClick={() => {
-                    handleDownloadPDF(pdfStockOnly);
+                    handleDownloadPDF(pdfStockOnly, pdfGrouped);
                     setShowPdfOptions(false);
                   }}
                   className={`w-full rounded-xl py-3 font-medium transition flex items-center justify-center gap-2 ${
