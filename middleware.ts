@@ -38,6 +38,6 @@ export function middleware(request: NextRequest) {
 export const config = {
   // Static فائلز اور امیجز (لوگو وغیرہ) کے علاوہ تمام روٹس پر مڈل ویئر لاگو ہوگا
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:jpg|jpeg|png|gif|svg|webp|ico|txt|woff|woff2)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\.(?:jpg|jpeg|png|gif|svg|webp|ico|txt|woff|woff2)$).*)",
   ],
 };
