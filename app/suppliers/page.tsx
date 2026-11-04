@@ -126,6 +126,19 @@ export default function SuppliersPage() {
     }
   };
 
+  // تلاش میں نظر آنے والی تمام کتب ایک ساتھ شامل کریں
+  const addAllVisible = async (supplierId: number, visible: BookLite[]) => {
+    const existing = new Set(links.filter((l) => l.supplier_id === supplierId).map((l) => l.book_id));
+    const rows = visible.filter((b) => !existing.has(b.id)).map((b) => ({ supplier_id: supplierId, book_id: b.id }));
+    if (rows.length === 0) return;
+    const { error } = await supabase.from("supplier_books").insert(rows);
+    if (error) {
+      setLinksError("شامل نہیں ہو سکیں: " + error.message);
+      return;
+    }
+    setLinks((prev) => [...prev, ...rows]);
+  };
+
   const openOrder = (s: Supplier, tab: "order" | "list") => {
     setOrderSupplier(s);
     setOrderTab(tab);
@@ -541,40 +554,65 @@ export default function SuppliersPage() {
                 );
               })()
             ) : (
-              <div>
-                <input
-                  type="text"
-                  placeholder="کتاب کا نام تلاش کریں..."
-                  value={bookSearch}
-                  onChange={(e) => setBookSearch(e.target.value)}
-                  className="w-full mb-3 rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                />
-                <p className="text-[11px] text-slate-400 mb-2">
-                  جو کتابیں اس سپلائر کے پاس ہیں ان پر ٹک لگائیں ({supplierBooks(orderSupplier.id).length} منتخب)
-                </p>
-                <div className="max-h-[50vh] overflow-y-auto">
-                  {allBooks
-                    .filter((b) => bookSearch.trim() === "" || b.title.toLowerCase().includes(bookSearch.trim().toLowerCase()))
-                    .map((b) => {
-                      const checked = links.some((l) => l.supplier_id === orderSupplier.id && l.book_id === b.id);
-                      return (
-                        <label
-                          key={b.id}
-                          className="flex items-center gap-2 py-2 border-b border-slate-100 last:border-0 cursor-pointer"
+              (() => {
+                const term = bookSearch.trim().toLowerCase();
+                const visible = allBooks.filter(
+                  (b) =>
+                    term === "" ||
+                    b.title.toLowerCase().includes(term) ||
+                    (b.author || "").toLowerCase().includes(term)
+                );
+                const notAdded = visible.filter(
+                  (b) => !links.some((l) => l.supplier_id === orderSupplier.id && l.book_id === b.id)
+                );
+                return (
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="کتاب کے نام یا مصنف کے نام سے تلاش کریں..."
+                      value={bookSearch}
+                      onChange={(e) => setBookSearch(e.target.value)}
+                      className="w-full mb-2 rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-[11px] text-slate-400">
+                        {supplierBooks(orderSupplier.id).length} کتب منتخب • {visible.length} نظر آ رہی ہیں
+                      </p>
+                      {term !== "" && notAdded.length > 0 && (
+                        <button
+                          onClick={() => addAllVisible(orderSupplier.id, visible)}
+                          className="rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-semibold px-2.5 py-1 hover:bg-emerald-100 transition"
                         >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleLink(orderSupplier.id, b.id)}
-                            className="w-4 h-4 accent-emerald-600"
-                          />
-                          <span className="text-xs text-slate-700 flex-1">{b.title}</span>
-                          <span className="text-[11px] text-slate-400">سٹاک {b.stock ?? 0}</span>
-                        </label>
-                      );
-                    })}
-                </div>
-              </div>
+                          یہ سب {notAdded.length} کتب شامل کریں
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-[50vh] overflow-y-auto">
+                      {visible.map((b) => {
+                        const checked = links.some((l) => l.supplier_id === orderSupplier.id && l.book_id === b.id);
+                        return (
+                          <label
+                            key={b.id}
+                            className="flex items-center gap-2 py-2 border-b border-slate-100 last:border-0 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleLink(orderSupplier.id, b.id)}
+                              className="w-4 h-4 accent-emerald-600"
+                            />
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-xs text-slate-700">{b.title}</span>
+                              {b.author && <span className="block text-[11px] text-slate-400">{b.author}</span>}
+                            </span>
+                            <span className="text-[11px] text-slate-400">سٹاک {b.stock ?? 0}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()
             )}
           </div>
         </div>
