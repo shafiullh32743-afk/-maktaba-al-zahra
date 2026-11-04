@@ -1500,7 +1500,6 @@ ${itemsList}
         <div class="label">
           <div class="label-title">${b.title}</div>
           <div class="label-author">${b.author}</div>
-          <div class="label-price">${b.price ? "Rs " + Number(b.price).toLocaleString() : "قیمت درج نہیں"}</div>
           <div class="label-barcode">${code128Svg(b.barcode || "MZ" + b.id)}</div>
           <div class="label-code">${b.barcode || "MZ" + b.id}</div>
         </div>`
@@ -1519,7 +1518,8 @@ ${itemsList}
             .label-title { font-weight: bold; font-size: 13px; line-height: 1.3; }
             .label-author { font-size: 10px; color: #555; margin-top: 3px; }
             .label-price { font-size: 14px; color: #047857; font-weight: bold; margin-top: 5px; }
-            .label-barcode { margin: 6px 8px 0; direction: ltr; }
+            .label-barcode { margin: 8px auto 0; direction: ltr; width: 100px; }
+            .label-barcode svg { width: 100px !important; height: 30px !important; }
             .label-code { font-size: 9px; color: #333; margin-top: 2px; direction: ltr; letter-spacing: 1px; }
           </style>
         </head>
