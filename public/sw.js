@@ -1,6 +1,7 @@
-// مكتبہ الزھراء - سادہ سروس ورکر
-// ایپ انسٹال ہونے کے لیے ضروری ہے۔ ڈیٹا ہمیشہ انٹرنیٹ سے تازہ آتا ہے،
-// تاکہ پرانا ڈیٹا یا پرانے بل نہ دکھیں۔ انٹرنیٹ نہ ہو تو ایک سادہ پیغام نظر آئے گا۔
+// مكتبہ الزھراء - سروس ورکر
+// 1) ایپ انسٹال ہونے کے لیے ضروری ہے
+// 2) ڈیٹا ہمیشہ انٹرنیٹ سے تازہ آتا ہے، انٹرنیٹ نہ ہو تو سادہ پیغام نظر آتا ہے
+// 3) نئے آرڈر کی اطلاع (نوٹیفکیشن) دکھاتا ہے
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
@@ -14,5 +15,40 @@ self.addEventListener("fetch", (event) => {
           { headers: { "Content-Type": "text/html; charset=utf-8" } }
         )
     )
+  );
+});
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (e) {
+    data = {};
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || "مكتبہ الزھراء", {
+      body: data.body || "",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      dir: "rtl",
+      lang: "ur",
+      data: { url: data.url || "/orders" },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || "/orders";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const client of list) {
+        if ("focus" in client) {
+          client.navigate(target).catch(() => {});
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(target);
+    })
   );
 });

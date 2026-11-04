@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Trash2, Minus, Plus, MessageCircle, ShoppingBag, ShoppingCart, ArrowRight, MapPin, CreditCard, Globe, Moon, Sun, Phone } from "lucide-react";
 import { getCart, removeFromCart, updateQty, clearCart, CartItem } from "@/lib/cart";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function CartPage() {
   const [lang, setLang] = useState<"ur" | "en">("ur");
@@ -14,6 +15,8 @@ export default function CartPage() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"cod" | "advance">("cod");
+  const [submitting, setSubmitting] = useState(false);
+  const [orderDone, setOrderDone] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("maktaba-dark-mode");
@@ -64,6 +67,9 @@ export default function CartPage() {
       paymentCod: "آرڈر پر ادائیگی (Cash on Delivery)",
       paymentAdvance: "پیشگی ادائیگی (بینک ٹرانسفر / ایزی پیسہ / جاز کیش)",
       fillRequired: "براہ کرم نام، فون نمبر اور پتہ درج کریں",
+      sending: "آرڈر بھیجا جا رہا ہے...",
+      orderSaved: "آپ کا آرڈر موصول ہو گیا ہے",
+      orderSavedNote: "ہم جلد آپ سے رابطہ کریں گے۔ واٹس ایپ پر پیغام بھی بھیج دیں تاکہ آرڈر کی تصدیق ہو جائے۔",
       address: "پتہ (Address)",
       addressDetails: "مکتبہ الزہراء، نزد جامعہ الحسنین فیصل آباد، پاکستان",
       paymentTitle: "ادائیگی کا طریقہ کار (Payment Method)",
@@ -100,6 +106,9 @@ export default function CartPage() {
       paymentCod: "Cash on Delivery",
       paymentAdvance: "Advance Payment (Bank Transfer / Easypaisa / JazzCash)",
       fillRequired: "Please enter your name, phone number and address",
+      sending: "Sending order...",
+      orderSaved: "Your order has been received",
+      orderSavedNote: "We will contact you soon. Please also send the WhatsApp message so we can confirm your order.",
       address: "Address",
       addressDetails: "Maktaba Al-Zahra, Near Jamia Al-Hasanain, Faisalabad, Pakistan",
       paymentTitle: "Payment Method",
@@ -140,12 +149,17 @@ export default function CartPage() {
     setCart([]);
   };
 
-  const handleCheckout = () => {
-    if (cart.length === 0) return;
+  const handleCheckout = async () => {
+    if (cart.length === 0 || submitting) return;
     if (customerName.trim() === "" || customerPhone.trim() === "" || customerAddress.trim() === "") {
       alert(t.fillRequired);
       return;
     }
+    setSubmitting(true);
+
+    // واٹس ایپ کی ونڈو پہلے ہی کھول لیں تاکہ موبائل براؤزر اسے بلاک نہ کرے
+    const waWindow = window.open("", "_blank");
+
     let message = lang === "ur" ? "السلام علیکم! میں یہ کتابیں خریدنا چاہتا ہوں:\n\n" : "Assalam-o-Alaikum! I want to order these books:\n\n";
     cart.forEach((item, i) => {
       message += `${i + 1}. ${item.title} — ${lang === "ur" ? "مقدار" : "Qty"}: ${item.qty}`;
@@ -164,7 +178,64 @@ export default function CartPage() {
       paymentMethod === "cod" ? t.paymentCod : t.paymentAdvance
     }`;
     const url = "https://wa.me/923055232889?text=" + encodeURIComponent(message);
-    window.open(url, "_blank");
+
+    // آرڈر کو ڈیٹا بیس میں محفوظ کریں (ایڈمن کے آرڈرز صفحے میں نظر آئے گا)
+    let saved = false;
+    try {
+      const ids = cart.map((item) => item.id);
+      const { data: costRows } = await supabase.from("books").select("id, cost_price").in("id", ids);
+      const costMap = new Map<string, number>(
+        (costRows || []).map((r: { id: string | number; cost_price?: number | null }) => [String(r.id), Number(r.cost_price) || 0])
+      );
+      const orderGroup = `grp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const addressWithPayment = `${customerAddress.trim()}\n${lang === "ur" ? "ادائیگی" : "Payment"}: ${
+        paymentMethod === "cod" ? t.paymentCod : t.paymentAdvance
+      }`;
+
+      const orderRows = cart.map((item, index) => {
+        const lineTotal = (item.price || 0) * item.qty;
+        return {
+          book_title: item.title,
+          customer_name: customerName.trim(),
+          customer_phone: customerPhone.trim(),
+          customer_address: addressWithPayment,
+          status: "نیا",
+          book_price: lineTotal,
+          cost_price: (costMap.get(String(item.id)) || 0) * item.qty,
+          delivery_charge: index === 0 ? deliveryCharge : 0,
+          total_amount: index === 0 ? grandTotal : lineTotal,
+          quantity: item.qty,
+          order_group: orderGroup,
+        };
+      });
+
+      const { error } = await supabase.from("orders").insert(orderRows);
+      if (!error) {
+        saved = true;
+        // ایڈمن کو نوٹیفکیشن بھیجنے کی کوشش (ناکام ہو تو آرڈر پر کوئی اثر نہیں)
+        fetch("/api/notify-order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderGroup }),
+        }).catch(() => {});
+      }
+    } catch {
+      saved = false;
+    }
+
+    // محفوظ ہو یا نہ ہو، واٹس ایپ پر پیغام ضرور جائے تاکہ آرڈر ضائع نہ ہو
+    if (waWindow) {
+      waWindow.location.href = url;
+    } else {
+      window.location.href = url;
+    }
+
+    if (saved) {
+      clearCart();
+      setCart([]);
+      setOrderDone(true);
+    }
+    setSubmitting(false);
   };
 
   return (
@@ -239,8 +310,11 @@ export default function CartPage() {
           <div className="py-16 text-center text-gray-400 text-sm">{t.loading}</div>
         ) : cart.length === 0 ? (
           <div className={`flex flex-col items-center justify-center py-20 text-center rounded-2xl border shadow-sm ${darkMode ? "bg-gray-900 border-gray-800" : "bg-white border-gray-200"}`}>
-            <span className="text-6xl mb-4">🛒</span>
-            <p className="text-gray-400 text-lg mb-4">{t.emptyCart}</p>
+            <span className="text-6xl mb-4">{orderDone ? "✅" : "🛒"}</span>
+            <p className={`text-lg mb-2 ${orderDone ? "font-bold text-emerald-600" : "text-gray-400 mb-4"}`}>
+              {orderDone ? t.orderSaved : t.emptyCart}
+            </p>
+            {orderDone && <p className="text-xs text-gray-400 mb-4 max-w-xs">{t.orderSavedNote}</p>}
             <Link
               href="/shop"
               className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 text-white px-5 py-2.5 hover:bg-emerald-800 transition shadow-sm text-sm font-medium"
@@ -398,10 +472,11 @@ export default function CartPage() {
               </div>
               <button
                 onClick={handleCheckout}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#25D366] text-white py-3 font-semibold hover:bg-[#20BD5A] transition shadow-sm"
+                disabled={submitting}
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#25D366] text-white py-3 font-semibold hover:bg-[#20BD5A] transition shadow-sm disabled:opacity-60"
               >
                 <MessageCircle size={18} />
-                {t.checkoutWhatsApp}
+                {submitting ? t.sending : t.checkoutWhatsApp}
               </button>
               <p className="text-[11px] text-gray-400 text-center mt-3">
                 {t.checkoutNote}

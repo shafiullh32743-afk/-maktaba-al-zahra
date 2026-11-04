@@ -13,9 +13,11 @@ export function middleware(request: NextRequest) {
   const isShopPage = path === "/shop" || path.startsWith("/shop/");
   const isAboutOrContact = path === "/about" || path === "/contact";
   const isCartPage = path === "/cart";
+  // کسٹمر کا آرڈر محفوظ ہونے پر اطلاع بھیجنے والا راستہ عوامی ہونا ضروری ہے
+  const isNotifyApi = path === "/api/notify-order";
 
   // اگر ان میں سے کوئی بھی صفحہ ہو تو بغیر لاگ ان کے رسائی کی اجازت دیں
-  const isPublicPage = isHomePage || isLoginPage || isSitemap || isBookDetailPage || isShopPage || isAboutOrContact || isCartPage;
+  const isPublicPage = isHomePage || isLoginPage || isSitemap || isBookDetailPage || isShopPage || isAboutOrContact || isCartPage || isNotifyApi;
 
   // 2. غیر لاگ ان صارف کو غیر محفوظ صفحات سے /login پر بھیجیں
   if (!isLoggedIn && !isPublicPage) {

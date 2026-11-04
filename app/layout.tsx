@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Noto_Sans_Arabic } from "next/font/google";
 import "./globals.css";
 import RegisterServiceWorker from "./RegisterServiceWorker";
+import AdminBottomNav from "./AdminBottomNav";
 
 const notoSansArabic = Noto_Sans_Arabic({
   subsets: ["arabic"],
@@ -50,6 +51,7 @@ export default function RootLayout({
       <body>
         {children}
         <RegisterServiceWorker />
+        <AdminBottomNav />
       </body>
     </html>
   );
