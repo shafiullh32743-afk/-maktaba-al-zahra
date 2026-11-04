@@ -36,6 +36,34 @@ interface Supplier {
   notes?: string;
 }
 
+interface BookLite {
+  id: number;
+  title: string;
+  author?: string;
+  price?: number;
+  stock?: number;
+}
+
+interface SupplierBookLink {
+  supplier_id: number;
+  book_id: number;
+}
+
+// کم سٹاک کی حد: 1000 یا زیادہ قیمت والی کتاب کے لیے 2، اس سے کم قیمت والی کے لیے 3
+function isLowStock(book: BookLite) {
+  const threshold = (book.price ?? 0) >= 1000 ? 2 : 3;
+  return (book.stock ?? 0) <= threshold;
+}
+
+// پاکستانی نمبر کو واٹس ایپ کے فارمیٹ (92...) میں بدلیں
+function toWhatsappNumber(phone?: string) {
+  let digits = (phone || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("0")) digits = "92" + digits.slice(1);
+  return digits;
+}
+
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -53,6 +81,79 @@ export default function SuppliersPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
+  // سپلائر کی کتب اور آرڈر
+  const [allBooks, setAllBooks] = useState<BookLite[]>([]);
+  const [links, setLinks] = useState<SupplierBookLink[]>([]);
+  const [linksError, setLinksError] = useState<string | null>(null);
+  const [orderSupplier, setOrderSupplier] = useState<Supplier | null>(null);
+  const [orderTab, setOrderTab] = useState<"order" | "list">("order");
+  const [qtyMap, setQtyMap] = useState<Record<number, string>>({});
+  const [bookSearch, setBookSearch] = useState("");
+
+  const fetchBooksAndLinks = async () => {
+    const { data: booksData } = await supabase.from("books").select("id, title, author, price, stock").order("title", { ascending: true });
+    if (booksData) setAllBooks(booksData as BookLite[]);
+    const { data: linkData, error } = await supabase.from("supplier_books").select("supplier_id, book_id");
+    if (error) {
+      setLinksError("سپلائر کی کتب کا ٹیبل نہیں ملا۔ Supabase میں supplier_books ٹیبل بنائیں۔");
+    } else {
+      setLinksError(null);
+      setLinks((linkData || []) as SupplierBookLink[]);
+    }
+  };
+
+  const supplierBooks = (supplierId: number) => {
+    const ids = new Set(links.filter((l) => l.supplier_id === supplierId).map((l) => l.book_id));
+    return allBooks.filter((b) => ids.has(b.id));
+  };
+
+  const toggleLink = async (supplierId: number, bookId: number) => {
+    const exists = links.some((l) => l.supplier_id === supplierId && l.book_id === bookId);
+    if (exists) {
+      const { error } = await supabase.from("supplier_books").delete().eq("supplier_id", supplierId).eq("book_id", bookId);
+      if (error) {
+        setLinksError("ہٹایا نہیں جا سکا: " + error.message);
+        return;
+      }
+      setLinks((prev) => prev.filter((l) => !(l.supplier_id === supplierId && l.book_id === bookId)));
+    } else {
+      const { error } = await supabase.from("supplier_books").insert({ supplier_id: supplierId, book_id: bookId });
+      if (error) {
+        setLinksError("شامل نہیں ہو سکا: " + error.message);
+        return;
+      }
+      setLinks((prev) => [...prev, { supplier_id: supplierId, book_id: bookId }]);
+    }
+  };
+
+  const openOrder = (s: Supplier, tab: "order" | "list") => {
+    setOrderSupplier(s);
+    setOrderTab(tab);
+    setQtyMap({});
+    setBookSearch("");
+  };
+
+  const sendOrder = () => {
+    if (!orderSupplier) return;
+    const lines = supplierBooks(orderSupplier.id)
+      .map((b) => ({ b, qty: parseInt(qtyMap[b.id] || "0", 10) || 0 }))
+      .filter((x) => x.qty > 0);
+    if (lines.length === 0) {
+      alert("کم از کم ایک کتاب کی تعداد لکھیں");
+      return;
+    }
+    const text =
+      `السلام علیکم${orderSupplier.contact_person ? " " + orderSupplier.contact_person : ""}،\n` +
+      `مکتبہ الزھراء کی طرف سے آرڈر:\n\n` +
+      lines.map((x, i) => `${i + 1}. ${x.b.title} — ${x.qty} عدد`).join("\n") +
+      `\n\nشکریہ`;
+    const number = toWhatsappNumber(orderSupplier.phone);
+    const url = number
+      ? `https://wa.me/${number}?text=${encodeURIComponent(text)}`
+      : `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank");
+  };
+
   const fetchSuppliers = async () => {
     setLoaded(false);
     const { data } = await supabase.from("suppliers").select("*").order("id", { ascending: false });
@@ -62,6 +163,7 @@ export default function SuppliersPage() {
 
   useEffect(() => {
     fetchSuppliers();
+    fetchBooksAndLinks();
   }, []);
 
   const resetForm = () => {
@@ -288,6 +390,37 @@ export default function SuppliersPage() {
                   </div>
                 </div>
 
+                {(() => {
+                  const mine = supplierBooks(s.id);
+                  const needed = mine.filter(isLowStock);
+                  return (
+                    <div className="mt-3 pt-2 border-t border-slate-100 text-xs">
+                      <p className="text-slate-500">
+                        📚 {mine.length} کتب
+                        {needed.length > 0 && (
+                          <span className="mr-2 inline-block rounded-md bg-rose-50 border border-rose-200 text-rose-600 font-semibold px-2 py-0.5 text-[11px]">
+                            ⚠ {needed.length} کم/ختم
+                          </span>
+                        )}
+                      </p>
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          onClick={() => openOrder(s, "order")}
+                          className="flex-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-semibold hover:bg-emerald-700 transition"
+                        >
+                          آرڈر بنائیں
+                        </button>
+                        <button
+                          onClick={() => openOrder(s, "list")}
+                          className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-[11px] font-medium hover:bg-slate-50 transition"
+                        >
+                          کتب کی فہرست
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
                   <button
                     onClick={() => openEditModal(s)}
@@ -308,6 +441,144 @@ export default function SuppliersPage() {
           </div>
         )}
       </section>
+
+      {/* سپلائر کا آرڈر اور کتب کی فہرست */}
+      {orderSupplier && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-xl border border-slate-200 p-5 w-full max-w-lg shadow-xl relative max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setOrderSupplier(null)}
+              className="absolute left-4 top-4 text-slate-400 hover:text-slate-600"
+            >
+              <X size={18} />
+            </button>
+            <h3 className="text-base font-bold text-slate-800 mb-3">{orderSupplier.name}</h3>
+
+            {linksError && (
+              <div className="mb-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-xs px-3 py-2">
+                {linksError}
+              </div>
+            )}
+
+            <div className="flex gap-2 mb-4 text-xs">
+              <button
+                onClick={() => setOrderTab("order")}
+                className={`flex-1 py-1.5 rounded-lg font-semibold border ${
+                  orderTab === "order" ? "bg-emerald-600 text-white border-emerald-600" : "border-slate-200 text-slate-600"
+                }`}
+              >
+                آرڈر بنائیں
+              </button>
+              <button
+                onClick={() => setOrderTab("list")}
+                className={`flex-1 py-1.5 rounded-lg font-semibold border ${
+                  orderTab === "list" ? "bg-emerald-600 text-white border-emerald-600" : "border-slate-200 text-slate-600"
+                }`}
+              >
+                کتب کی فہرست
+              </button>
+            </div>
+
+            {orderTab === "order" ? (
+              (() => {
+                const mine = supplierBooks(orderSupplier.id);
+                const needed = mine.filter(isLowStock);
+                const others = mine.filter((b) => !isLowStock(b));
+                const renderRow = (b: BookLite) => (
+                  <div key={b.id} className="flex items-center justify-between gap-2 py-2 border-b border-slate-100 last:border-0">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-800 truncate">{b.title}</p>
+                      <p className={`text-[11px] font-semibold ${(b.stock ?? 0) <= 0 ? "text-rose-600" : isLowStock(b) ? "text-amber-600" : "text-slate-400"}`}>
+                        {(b.stock ?? 0) <= 0 ? "ختم" : isLowStock(b) ? `کم سٹاک (${b.stock})` : `سٹاک ${b.stock}`}
+                      </p>
+                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      inputMode="numeric"
+                      placeholder="تعداد"
+                      value={qtyMap[b.id] || ""}
+                      onChange={(e) => setQtyMap((prev) => ({ ...prev, [b.id]: e.target.value }))}
+                      className="w-20 rounded-lg border border-slate-200 p-1.5 text-xs text-center focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                  </div>
+                );
+                if (mine.length === 0) {
+                  return (
+                    <p className="text-xs text-slate-500 text-center py-8">
+                      اس سپلائر کی کوئی کتاب شامل نہیں۔ پہلے "کتب کی فہرست" میں کتابیں چنیں۔
+                    </p>
+                  );
+                }
+                return (
+                  <div>
+                    {needed.length > 0 ? (
+                      <>
+                        <p className="text-[11px] font-bold text-rose-600 mb-1">کم یا ختم کتب</p>
+                        {needed.map(renderRow)}
+                      </>
+                    ) : (
+                      <p className="text-xs text-emerald-600 mb-2">اس سپلائر کی کوئی کتاب کم یا ختم نہیں ہے ✅</p>
+                    )}
+                    {others.length > 0 && (
+                      <>
+                        <p className="text-[11px] font-bold text-slate-500 mt-4 mb-1">باقی کتب</p>
+                        {others.map(renderRow)}
+                      </>
+                    )}
+                    <button
+                      onClick={sendOrder}
+                      className="mt-4 w-full rounded-lg bg-emerald-600 text-white py-2 text-xs font-bold hover:bg-emerald-700 transition"
+                    >
+                      آرڈر واٹس ایپ پر بھیجیں
+                    </button>
+                    {!orderSupplier.phone && (
+                      <p className="mt-2 text-[11px] text-amber-600 text-center">
+                        اس سپلائر کا فون نمبر درج نہیں، واٹس ایپ میں خود نمبر چننا ہوگا۔
+                      </p>
+                    )}
+                  </div>
+                );
+              })()
+            ) : (
+              <div>
+                <input
+                  type="text"
+                  placeholder="کتاب کا نام تلاش کریں..."
+                  value={bookSearch}
+                  onChange={(e) => setBookSearch(e.target.value)}
+                  className="w-full mb-3 rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+                <p className="text-[11px] text-slate-400 mb-2">
+                  جو کتابیں اس سپلائر کے پاس ہیں ان پر ٹک لگائیں ({supplierBooks(orderSupplier.id).length} منتخب)
+                </p>
+                <div className="max-h-[50vh] overflow-y-auto">
+                  {allBooks
+                    .filter((b) => bookSearch.trim() === "" || b.title.toLowerCase().includes(bookSearch.trim().toLowerCase()))
+                    .map((b) => {
+                      const checked = links.some((l) => l.supplier_id === orderSupplier.id && l.book_id === b.id);
+                      return (
+                        <label
+                          key={b.id}
+                          className="flex items-center gap-2 py-2 border-b border-slate-100 last:border-0 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleLink(orderSupplier.id, b.id)}
+                            className="w-4 h-4 accent-emerald-600"
+                          />
+                          <span className="text-xs text-slate-700 flex-1">{b.title}</span>
+                          <span className="text-[11px] text-slate-400">سٹاک {b.stock ?? 0}</span>
+                        </label>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {confirmDeleteId !== null && (
