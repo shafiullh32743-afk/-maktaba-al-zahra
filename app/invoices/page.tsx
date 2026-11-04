@@ -141,6 +141,7 @@ export default function InvoicesPage() {
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [previewItems, setPreviewItems] = useState<LineItem[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   const fetchData = async () => {
     setLoaded(false);
@@ -259,6 +260,29 @@ export default function InvoicesPage() {
 
   const totalRevenue = invoices.reduce((sum, i) => sum + (i.total_amount || 0), 0);
   const totalBillsCount = invoices.length;
+
+  // ایک گاہک کی تمام انوائسز ایک جگہ جمع کریں
+  const customerGroups = (() => {
+    const map = new Map<
+      string,
+      { key: string; name: string; phone: string; invoices: Invoice[]; total: number; balance: number }
+    >();
+    filteredInvoices.forEach((inv) => {
+      const cust = getCustomerInfo(inv);
+      const key = inv.customer_id ? `c-${inv.customer_id}` : `n-${cust.name.trim().toLowerCase()}`;
+      let g = map.get(key);
+      if (!g) {
+        g = { key, name: cust.name, phone: cust.phone, invoices: [], total: 0, balance: 0 };
+        map.set(key, g);
+      }
+      g.invoices.push(inv);
+      g.total += Number(inv.total_amount) || 0;
+      if (inv.payment_status !== "paid") {
+        g.balance += (Number(inv.total_amount) || 0) - (Number(inv.amount_paid) || 0);
+      }
+    });
+    return Array.from(map.values());
+  })();
 
   const resetForm = () => {
     setSelectedCustomerId("");
@@ -668,8 +692,34 @@ export default function InvoicesPage() {
             <p className="text-xs text-slate-500">کوئی انوائس موجود نہیں ہے</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-            {filteredInvoices.map((inv) => {
+          <div className="space-y-3">
+            {customerGroups.map((group) => {
+              const open = search.trim() !== "" || !!expandedGroups[group.key];
+              return (
+              <div key={group.key} className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+                <button
+                  onClick={() => setExpandedGroups((prev) => ({ ...prev, [group.key]: !prev[group.key] }))}
+                  className="w-full p-4 flex items-center justify-between gap-3 text-right hover:bg-slate-50 transition"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-emerald-700 truncate">👤 {group.name}</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {group.invoices.length} انوائسز{group.phone ? ` • ${group.phone}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <div className="text-left">
+                      <p className="text-xs font-bold text-slate-800">{group.total.toLocaleString()} روپے</p>
+                      {group.balance > 0 && (
+                        <p className="text-[11px] font-semibold text-rose-600">بقایا: {group.balance.toLocaleString()}</p>
+                      )}
+                    </div>
+                    <span className="text-slate-400 text-xs">{open ? "▲" : "▼"}</span>
+                  </div>
+                </button>
+                {open && (
+                <div className="border-t border-slate-100 p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            {group.invoices.map((inv) => {
               const status = statusLabel(inv.payment_status);
               const balance = inv.total_amount - inv.amount_paid;
               const cust = getCustomerInfo(inv);
@@ -748,6 +798,11 @@ export default function InvoicesPage() {
                     </button>
                   </div>
                 </div>
+              );
+            })}
+                </div>
+                )}
+              </div>
               );
             })}
           </div>
