@@ -92,6 +92,34 @@ export default function DashboardPage() {
   const thisMonthExpenseTotal = thisMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
   const thisMonthProfit = thisMonthRevenue - thisMonthCost - thisMonthExpenseTotal;
 
+  // ہر مہینے کا نفع: فروخت - لاگت - اخراجات
+  const monthNamesUr = ["جنوری", "فروری", "مارچ", "اپریل", "مئی", "جون", "جولائی", "اگست", "ستمبر", "اکتوبر", "نومبر", "دسمبر"];
+  const monthNamesEn = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const monthlyMap: Record<string, { year: number; month: number; revenue: number; cost: number; expense: number }> = {};
+  const getMonthEntry = (d: Date) => {
+    const key = `${d.getFullYear()}-${d.getMonth()}`;
+    if (!monthlyMap[key]) {
+      monthlyMap[key] = { year: d.getFullYear(), month: d.getMonth(), revenue: 0, cost: 0, expense: 0 };
+    }
+    return monthlyMap[key];
+  };
+  getMonthEntry(now);
+  orders.forEach((o) => {
+    const d = new Date(o.created_at || Date.now());
+    if (isNaN(d.getTime())) return;
+    const m = getMonthEntry(d);
+    m.revenue += o.book_price || 0;
+    m.cost += o.cost_price || 0;
+  });
+  expenses.forEach((e) => {
+    const d = new Date(e.expense_date);
+    if (isNaN(d.getTime())) return;
+    getMonthEntry(d).expense += e.amount || 0;
+  });
+  const monthlyStats = Object.values(monthlyMap)
+    .sort((x, y) => y.year * 12 + y.month - (x.year * 12 + x.month))
+    .map((m) => ({ ...m, profit: m.revenue - m.cost - m.expense }));
+
   const totalStockValue = books.reduce((sum, b) => sum + (b.price || 0) * (b.stock || 0), 0);
   const totalBooks = books.length;
   const totalAuthors = new Set(books.map((b) => b.author)).size;
@@ -395,6 +423,48 @@ export default function DashboardPage() {
                     <p className={`text-[11px] text-slate-400 mt-2 p-2 rounded-lg ${darkMode ? "bg-slate-800/50" : "bg-blue-50/50"}`}>
                       {t.totalStockDesc}
                     </p>
+                  </div>
+                </div>
+              )}
+
+              {/* ہر مہینے کا نفع - صرف ایڈمن کو نظر آئے گا */}
+              {isAdmin && (
+                <div className={`rounded-xl border p-4 shadow-xs ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-emerald-100"}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className={`text-sm font-bold ${darkMode ? "text-white" : "text-slate-800"}`}>
+                      {lang === "ur" ? "ہر مہینے کا نفع" : "Monthly Profit"}
+                    </h3>
+                    <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600">
+                      <TrendingUp size={16} />
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs min-w-[420px]">
+                      <thead>
+                        <tr className="text-slate-400 text-[11px]">
+                          <th className="text-right font-medium pb-2">{lang === "ur" ? "مہینہ" : "Month"}</th>
+                          <th className="text-right font-medium pb-2">{t.sales}</th>
+                          <th className="text-right font-medium pb-2">{t.cost}</th>
+                          <th className="text-right font-medium pb-2">{t.expenseLabel}</th>
+                          <th className="text-right font-medium pb-2">{lang === "ur" ? "نفع" : "Profit"}</th>
+                        </tr>
+                      </thead>
+                      <tbody className={`divide-y ${darkMode ? "divide-slate-800" : "divide-slate-100"}`}>
+                        {monthlyStats.map((m) => (
+                          <tr key={`${m.year}-${m.month}`} className={darkMode ? "text-slate-200" : "text-slate-700"}>
+                            <td className="py-2 font-semibold">
+                              {(lang === "ur" ? monthNamesUr : monthNamesEn)[m.month]} {m.year}
+                            </td>
+                            <td className="py-2">Rs {m.revenue.toLocaleString()}</td>
+                            <td className="py-2">Rs {m.cost.toLocaleString()}</td>
+                            <td className="py-2">Rs {m.expense.toLocaleString()}</td>
+                            <td className={`py-2 font-bold ${m.profit >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                              Rs {m.profit.toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
