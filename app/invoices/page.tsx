@@ -127,6 +127,7 @@ export default function InvoicesPage() {
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [manualSubtotal, setManualSubtotal] = useState("");
   const [discountAmount, setDiscountAmount] = useState("0");
+  const [discountMode, setDiscountMode] = useState<"amount" | "percent">("amount");
   const [amountPaid, setAmountPaid] = useState("0");
   const [dueDate, setDueDate] = useState("");
   const [saving, setSaving] = useState(false);
@@ -241,7 +242,13 @@ export default function InvoicesPage() {
 
   const itemsSubtotal = selectedItems.reduce((sum, item) => sum + item.total_price, 0);
   const effectiveSubtotal = selectedItems.length > 0 ? itemsSubtotal : parseFloat(manualSubtotal) || 0;
-  const computedTotal = Math.max(0, effectiveSubtotal - (parseFloat(discountAmount) || 0));
+  // رعایت: روپوں میں یا فیصد کے حساب سے (فیصد ہو تو رقم خود نکلے گی)
+  const discountInput = parseFloat(discountAmount) || 0;
+  const discountRupees =
+    discountMode === "percent"
+      ? Math.round((effectiveSubtotal * Math.min(Math.max(discountInput, 0), 100)) / 100)
+      : discountInput;
+  const computedTotal = Math.max(0, effectiveSubtotal - discountRupees);
 
   const filteredInvoices = invoices.filter((inv) => {
     const term = search.trim().toLowerCase();
@@ -291,6 +298,7 @@ export default function InvoicesPage() {
     setSelectedItems([]);
     setManualSubtotal("");
     setDiscountAmount("0");
+    setDiscountMode("amount");
     setAmountPaid("0");
     setDueDate("");
     setSaveError(null);
@@ -327,7 +335,7 @@ export default function InvoicesPage() {
       walk_in_name: selectedCustomerId === "__new__" ? walkInName.trim() || null : null,
       remarks: remarks.trim() || null,
       subtotal: effectiveSubtotal,
-      discount_amount: parseFloat(discountAmount) || 0,
+      discount_amount: discountRupees,
       total_amount: total,
       amount_paid: paid,
       payment_status: status,
@@ -456,7 +464,11 @@ export default function InvoicesPage() {
             <span style="font-weight: bold;">${Number(invoice.subtotal).toFixed(2)}</span>
           </div>
           <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-            <span>Disc:</span>
+            <span>Disc${
+              Number(invoice.discount_amount) > 0 && Number(invoice.subtotal) > 0
+                ? ` (${parseFloat(((Number(invoice.discount_amount) / Number(invoice.subtotal)) * 100).toFixed(2))}%)`
+                : ""
+            }:</span>
             <span style="font-weight: bold;">${Number(invoice.discount_amount).toFixed(2)}</span>
           </div>
           <div class="grand-total">
@@ -1037,15 +1049,38 @@ export default function InvoicesPage() {
               </div>
 
               <div>
-                <label className="block text-slate-700 mb-1 font-semibold">
-                  رعایت / ڈسکاؤنٹ (روپے)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-semibold">
+                    رعایت / ڈسکاؤنٹ ({discountMode === "percent" ? "فیصد" : "روپے"})
+                  </label>
+                  <div className="flex rounded-lg border border-slate-200 overflow-hidden text-[11px] font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setDiscountMode("amount")}
+                      className={`px-2.5 py-1 ${discountMode === "amount" ? "bg-emerald-600 text-white" : "bg-white text-slate-600"}`}
+                    >
+                      روپے
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDiscountMode("percent")}
+                      className={`px-2.5 py-1 ${discountMode === "percent" ? "bg-emerald-600 text-white" : "bg-white text-slate-600"}`}
+                    >
+                      %
+                    </button>
+                  </div>
+                </div>
                 <input
                   type="number"
                   value={discountAmount}
                   onChange={(e) => setDiscountAmount(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 />
+                {discountMode === "percent" && (
+                  <p className="mt-1 text-[11px] text-emerald-700 font-semibold">
+                    = {discountRupees.toLocaleString()} روپے کی رعایت
+                  </p>
+                )}
               </div>
 
               <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-2.5 flex justify-between items-center">
