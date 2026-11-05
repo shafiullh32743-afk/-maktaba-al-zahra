@@ -78,24 +78,26 @@ function escapeHtml(t: string) {
 }
 
 // بل جیسا انداز: پرنٹ / PDF کے لیے آرڈر شیٹ کے سٹائل
-const orderSheetBodyStyle = `body { font-family: Arial, "Noto Nastaliq Urdu", sans-serif; padding: 16px; color: #111827; background: #ffffff; direction: ltr; }`;
+const orderSheetFontLink = `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;700&display=swap" />`;
+const orderSheetBodyStyle = `body { font-family: "Noto Naskh Arabic", Arial, "Noto Nastaliq Urdu", sans-serif; margin: 0; padding: 16px; color: #0f172a; background: #ffffff; direction: ltr; }`;
 const orderSheetStyles = `
-  .sheet { max-width: 560px; margin: 0 auto; background: white; padding: 18px; font-size: 12px; border: 1px dashed #cbd5e1; border-radius: 8px; }
-  .header { text-align: center; border-bottom: 1px dashed #94a3b8; padding-bottom: 10px; margin-bottom: 10px; }
+  .sheet { max-width: 720px; margin: 0 auto; background: #ffffff; border: 2px solid #065f46; border-radius: 12px; overflow: hidden; font-size: 13px; }
+  .header { text-align: center; padding: 16px 18px 12px; border-bottom: 4px solid #065f46; background: #f0fdf4; }
   .logo-img { height: 80px; width: auto; max-width: 100%; object-fit: contain; margin: 0 auto 6px; display: block; }
-  .header h1 { margin: 0; font-size: 18px; font-weight: bold; color: #047857; }
-  .header p { margin: 2px 0; font-size: 11px; color: #475569; }
-  .title { text-align: center; font-size: 15px; font-weight: bold; letter-spacing: 1px; margin: 4px 0 10px; color: #0f172a; }
-  .meta-box { border-bottom: 1px dashed #94a3b8; padding-bottom: 8px; margin-bottom: 8px; font-size: 11px; }
-  .meta-box div { display: flex; justify-content: space-between; margin-bottom: 2px; }
-  table.items { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 12px; }
-  table.items th { border-bottom: 1px solid #94a3b8; padding: 4px 2px; text-align: left; font-weight: bold; color: #334155; }
-  table.items td { padding: 6px 2px; border-bottom: 1px dotted #e2e8f0; vertical-align: top; }
-  .totals-box { border-top: 1px dashed #94a3b8; padding-top: 8px; font-size: 12px; }
-  .grand-total { font-weight: bold; font-size: 14px; color: #047857; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; padding: 4px 0; margin-top: 4px; display: flex; justify-content: space-between; }
-  .sign-row { margin-top: 36px; display: flex; justify-content: space-between; font-size: 11px; color: #334155; }
-  .sign-row span { border-top: 1px solid #94a3b8; padding-top: 4px; min-width: 140px; text-align: center; }
-  .footer-note { text-align: center; margin-top: 14px; font-size: 10px; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 6px; }
+  .header h1 { margin: 0; font-size: 26px; font-weight: 700; color: #065f46; }
+  .header p { margin: 3px 0; font-size: 12px; color: #334155; }
+  .title { background: #065f46; color: #ffffff; text-align: center; font-size: 15px; font-weight: 700; letter-spacing: 4px; padding: 8px 0; }
+  .meta-box { margin: 14px 18px 12px; padding: 10px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 12px; }
+  .meta-box div { display: flex; justify-content: space-between; margin-bottom: 4px; }
+  table.items { width: calc(100% - 36px); margin: 0 18px 12px; border-collapse: collapse; font-size: 13px; }
+  table.items th { background: #ecfdf5; color: #065f46; border-top: 2px solid #065f46; border-bottom: 2px solid #065f46; padding: 9px 8px; text-align: left; font-weight: 700; }
+  table.items td { padding: 9px 8px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+  table.items tbody tr:nth-child(even) td { background: #f8fafc; }
+  .totals-box { margin: 0 18px; padding-top: 8px; font-size: 13px; }
+  .grand-total { font-weight: 700; font-size: 16px; color: #ffffff; background: #065f46; border-radius: 8px; padding: 9px 14px; margin-top: 6px; display: flex; justify-content: space-between; }
+  .sign-row { margin: 46px 18px 0; display: flex; justify-content: space-between; font-size: 12px; color: #334155; }
+  .sign-row span { border-top: 1.5px solid #64748b; padding-top: 5px; min-width: 170px; text-align: center; }
+  .footer-note { text-align: center; margin: 18px 18px 14px; font-size: 10px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 8px; }
 `;
 
 export default function SuppliersPage() {
@@ -285,13 +287,14 @@ export default function SuppliersPage() {
         <head>
           <meta charset="UTF-8" />
           <title>${orderNo}</title>
+          ${orderSheetFontLink}
           <style>${orderSheetBodyStyle}${orderSheetStyles}
             @media print { body { padding: 0; } .sheet { border: none; max-width: 100%; padding: 0; } }
           </style>
         </head>
         <body>
           ${buildOrderSheetInner(lines)}
-          <script>window.onload = function () { window.focus(); window.print(); };</script>
+          <script>window.onload = function () { var ready = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve(); ready.then(function () { setTimeout(function () { window.focus(); window.print(); }, 200); }); };</script>
         </body>
       </html>`;
     const w = window.open("", "_blank");
@@ -315,9 +318,9 @@ export default function SuppliersPage() {
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
 
       frame = document.createElement("iframe");
-      frame.style.cssText = "position:fixed;left:-10000px;top:0;width:640px;height:1200px;border:0;visibility:hidden;";
+      frame.style.cssText = "position:fixed;left:-10000px;top:0;width:794px;height:1400px;border:0;visibility:hidden;";
       document.body.appendChild(frame);
-      const html = `<!DOCTYPE html><html dir="ltr"><head><meta charset="UTF-8" /><style>${orderSheetBodyStyle}${orderSheetStyles}</style></head><body>${buildOrderSheetInner(lines)}</body></html>`;
+      const html = `<!DOCTYPE html><html dir="ltr"><head><meta charset="UTF-8" />${orderSheetFontLink}<style>${orderSheetBodyStyle}${orderSheetStyles}</style></head><body>${buildOrderSheetInner(lines)}</body></html>`;
       const doc = frame.contentDocument;
       if (!doc) throw new Error("no iframe document");
       doc.open();
@@ -339,9 +342,10 @@ export default function SuppliersPage() {
       );
       try {
         await doc.fonts.ready;
+        await new Promise((r) => setTimeout(r, 300));
       } catch {}
 
-      const canvas = await html2canvas(doc.body, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+      const canvas = await html2canvas(doc.body, { scale: 3, backgroundColor: "#ffffff", useCORS: true });
 
       const pdf = new jsPDF({ unit: "pt", format: "a4" });
       const pageW = pdf.internal.pageSize.getWidth();
@@ -360,7 +364,7 @@ export default function SuppliersPage() {
         ctx.fillRect(0, 0, part.width, part.height);
         ctx.drawImage(canvas, 0, y, canvas.width, part.height, 0, 0, canvas.width, part.height);
         if (page > 0) pdf.addPage();
-        pdf.addImage(part.toDataURL("image/jpeg", 0.92), "JPEG", margin, margin, imgW, part.height * ratio);
+        pdf.addImage(part.toDataURL("image/png"), "PNG", margin, margin, imgW, part.height * ratio);
       }
 
       const blob = pdf.output("blob");
