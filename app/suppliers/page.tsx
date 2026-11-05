@@ -78,8 +78,8 @@ function escapeHtml(t: string) {
 }
 
 // بل جیسا انداز: پرنٹ / PDF کے لیے آرڈر شیٹ کے سٹائل
+const orderSheetBodyStyle = `body { font-family: Arial, "Noto Nastaliq Urdu", sans-serif; padding: 16px; color: #111827; background: #ffffff; direction: ltr; }`;
 const orderSheetStyles = `
-  body { font-family: Arial, "Noto Nastaliq Urdu", sans-serif; padding: 16px; color: #111827; background: #ffffff; }
   .sheet { max-width: 560px; margin: 0 auto; background: white; padding: 18px; font-size: 12px; border: 1px dashed #cbd5e1; border-radius: 8px; }
   .header { text-align: center; border-bottom: 1px dashed #94a3b8; padding-bottom: 10px; margin-bottom: 10px; }
   .logo-img { height: 80px; width: auto; max-width: 100%; object-fit: contain; margin: 0 auto 6px; display: block; }
@@ -124,6 +124,7 @@ export default function SuppliersPage() {
   const [qtyMap, setQtyMap] = useState<Record<number, string>>({});
   const [bookSearch, setBookSearch] = useState("");
   const [orderNo, setOrderNo] = useState("");
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   const fetchBooksAndLinks = async () => {
     const { data: booksData } = await supabase.from("books").select("id, title, author, price, stock").order("title", { ascending: true });
@@ -224,36 +225,23 @@ export default function SuppliersPage() {
     window.open(url, "_blank");
   };
 
-  // بل جیسی آرڈر شیٹ: پرنٹ کریں یا PDF محفوظ کر کے بھیجیں
-  const printOrderSheet = () => {
-    if (!orderSupplier) return;
-    const lines = getOrderLines();
-    if (lines.length === 0) {
-      alert("کم از کم ایک کتاب کی تعداد لکھیں");
-      return;
-    }
+  // آرڈر شیٹ کا مواد: نام ← مصنف ← تعداد
+  const buildOrderSheetInner = (lines: { b: BookLite; qty: number }[]) => {
+    if (!orderSupplier) return "";
     const totalQty = lines.reduce((sum, x) => sum + x.qty, 0);
     const now = new Date();
     const rows = lines
       .map(
         (x, i) => `
         <tr>
-          <td style="width: 8%;">${i + 1}</td>
-          <td style="font-weight: bold;">${escapeHtml(x.b.title)}${x.b.author ? `<div style="font-weight: normal; font-size: 10px; color: #64748b;">${escapeHtml(x.b.author)}</div>` : ""}</td>
-          <td style="width: 16%; text-align: center; font-weight: bold;">${x.qty}</td>
+          <td style="width: 7%;">${i + 1}</td>
+          <td style="font-weight: bold;">${escapeHtml(x.b.title)}</td>
+          <td style="width: 30%;">${escapeHtml(x.b.author || "-")}</td>
+          <td style="width: 12%; text-align: center; font-weight: bold;">${x.qty}</td>
         </tr>`
       )
       .join("");
-    const html = `
-      <html dir="ltr" lang="en">
-        <head>
-          <meta charset="UTF-8" />
-          <title>${orderNo}</title>
-          <style>${orderSheetStyles}
-            @media print { body { padding: 0; } .sheet { border: none; max-width: 100%; padding: 0; } }
-          </style>
-        </head>
-        <body>
+    return `
           <div class="sheet">
             <div class="header">
               <img src="${window.location.origin}/logo.jpg" alt="logo" class="logo-img" />
@@ -271,7 +259,7 @@ export default function SuppliersPage() {
             </div>
             <table class="items">
               <thead>
-                <tr><th>#</th><th>Item Name</th><th style="text-align: center;">Qty</th></tr>
+                <tr><th>#</th><th>Item Name</th><th>Author</th><th style="text-align: center;">Qty</th></tr>
               </thead>
               <tbody>${rows}</tbody>
             </table>
@@ -281,7 +269,28 @@ export default function SuppliersPage() {
             </div>
             <div class="sign-row"><span>Prepared by (Shafi)</span><span>Supplier Signature</span></div>
             <div class="footer-note">(Computer Software developed by Maktaba Al-Zahra. Ph: 0305-5232889)</div>
-          </div>
+          </div>`;
+  };
+
+  // بل جیسی آرڈر شیٹ: پرنٹ کریں یا PDF محفوظ کریں
+  const printOrderSheet = () => {
+    if (!orderSupplier) return;
+    const lines = getOrderLines();
+    if (lines.length === 0) {
+      alert("کم از کم ایک کتاب کی تعداد لکھیں");
+      return;
+    }
+    const html = `
+      <html dir="ltr" lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <title>${orderNo}</title>
+          <style>${orderSheetBodyStyle}${orderSheetStyles}
+            @media print { body { padding: 0; } .sheet { border: none; max-width: 100%; padding: 0; } }
+          </style>
+        </head>
+        <body>
+          ${buildOrderSheetInner(lines)}
           <script>window.onload = function () { window.focus(); window.print(); };</script>
         </body>
       </html>`;
@@ -289,6 +298,91 @@ export default function SuppliersPage() {
     if (w) {
       w.document.write(html);
       w.document.close();
+    }
+  };
+
+  // PDF بنا کر شیئر کریں (فون پر شیئر مینو، کمپیوٹر پر ڈاؤنلوڈ)
+  const shareOrderPdf = async () => {
+    if (!orderSupplier) return;
+    const lines = getOrderLines();
+    if (lines.length === 0) {
+      alert("کم از کم ایک کتاب کی تعداد لکھیں");
+      return;
+    }
+    setPdfBusy(true);
+    let frame: HTMLIFrameElement | null = null;
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
+
+      frame = document.createElement("iframe");
+      frame.style.cssText = "position:fixed;left:-10000px;top:0;width:640px;height:1200px;border:0;visibility:hidden;";
+      document.body.appendChild(frame);
+      const html = `<!DOCTYPE html><html dir="ltr"><head><meta charset="UTF-8" /><style>${orderSheetBodyStyle}${orderSheetStyles}</style></head><body>${buildOrderSheetInner(lines)}</body></html>`;
+      const doc = frame.contentDocument;
+      if (!doc) throw new Error("no iframe document");
+      doc.open();
+      doc.write(html);
+      doc.close();
+
+      // لوگو اور فونٹ لوڈ ہونے کا انتظار
+      await Promise.all(
+        Array.from(doc.images).map(
+          (img) =>
+            new Promise<void>((resolve) => {
+              if (img.complete) resolve();
+              else {
+                img.onload = () => resolve();
+                img.onerror = () => resolve();
+              }
+            })
+        )
+      );
+      try {
+        await doc.fonts.ready;
+      } catch {}
+
+      const canvas = await html2canvas(doc.body, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+
+      const pdf = new jsPDF({ unit: "pt", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      const imgW = pageW - margin * 2;
+      const ratio = imgW / canvas.width;
+      const sliceH = Math.floor((pageH - margin * 2) / ratio);
+      for (let y = 0, page = 0; y < canvas.height; y += sliceH, page++) {
+        const part = document.createElement("canvas");
+        part.width = canvas.width;
+        part.height = Math.min(sliceH, canvas.height - y);
+        const ctx = part.getContext("2d");
+        if (!ctx) throw new Error("no canvas context");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, part.width, part.height);
+        ctx.drawImage(canvas, 0, y, canvas.width, part.height, 0, 0, canvas.width, part.height);
+        if (page > 0) pdf.addPage();
+        pdf.addImage(part.toDataURL("image/jpeg", 0.92), "JPEG", margin, margin, imgW, part.height * ratio);
+      }
+
+      const blob = pdf.output("blob");
+      const file = new File([blob], `${orderNo}.pdf`, { type: "application/pdf" });
+      if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: `Purchase Order ${orderNo}` });
+      } else {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${orderNo}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        alert("PDF ڈاؤنلوڈ ہو گئی ہے۔ اسے واٹس ایپ میں منسلک (Attach → Document) کر کے بھیج دیں۔");
+      }
+    } catch (err) {
+      if ((err as { name?: string })?.name !== "AbortError") {
+        alert("PDF نہیں بن سکی۔ براہِ کرم 'آرڈر شیٹ پرنٹ / PDF' والا بٹن استعمال کریں۔");
+      }
+    } finally {
+      if (frame && frame.parentNode) frame.parentNode.removeChild(frame);
+      setPdfBusy(false);
     }
   };
 
@@ -676,6 +770,13 @@ export default function SuppliersPage() {
                       className="mt-2 w-full rounded-lg border border-emerald-600 text-emerald-700 py-2 text-xs font-bold hover:bg-emerald-50 transition"
                     >
                       آرڈر شیٹ پرنٹ / PDF
+                    </button>
+                    <button
+                      onClick={shareOrderPdf}
+                      disabled={pdfBusy}
+                      className="mt-2 w-full rounded-lg bg-slate-800 text-white py-2 text-xs font-bold hover:bg-slate-900 transition disabled:opacity-50"
+                    >
+                      {pdfBusy ? "PDF بن رہی ہے..." : "PDF شیئر کریں (واٹس ایپ وغیرہ)"}
                     </button>
                     {!orderSupplier.phone && (
                       <p className="mt-2 text-[11px] text-amber-600 text-center">
