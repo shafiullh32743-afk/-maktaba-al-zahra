@@ -60,9 +60,43 @@ function toWhatsappNumber(phone?: string) {
   let digits = (phone || "").replace(/\D/g, "");
   if (!digits) return "";
   if (digits.startsWith("00")) digits = digits.slice(2);
-  if (digits.startsWith("0")) digits = "92" + digits.slice(1);
+  if (digits.startsWith("920")) digits = "92" + digits.slice(3);
+  else if (digits.startsWith("0")) digits = "92" + digits.slice(1);
+  else if (digits.length === 10 && digits.startsWith("3")) digits = "92" + digits;
   return digits;
 }
+
+// آرڈر نمبر: PO-تاریخ-چار ہندسے
+function generateOrderNo() {
+  const d = new Date();
+  const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  return `PO-${stamp}-${Math.floor(1000 + Math.random() * 9000)}`;
+}
+
+function escapeHtml(t: string) {
+  return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// بل جیسا انداز: پرنٹ / PDF کے لیے آرڈر شیٹ کے سٹائل
+const orderSheetStyles = `
+  body { font-family: Arial, "Noto Nastaliq Urdu", sans-serif; padding: 16px; color: #111827; background: #ffffff; }
+  .sheet { max-width: 560px; margin: 0 auto; background: white; padding: 18px; font-size: 12px; border: 1px dashed #cbd5e1; border-radius: 8px; }
+  .header { text-align: center; border-bottom: 1px dashed #94a3b8; padding-bottom: 10px; margin-bottom: 10px; }
+  .logo-img { height: 80px; width: auto; max-width: 100%; object-fit: contain; margin: 0 auto 6px; display: block; }
+  .header h1 { margin: 0; font-size: 18px; font-weight: bold; color: #047857; }
+  .header p { margin: 2px 0; font-size: 11px; color: #475569; }
+  .title { text-align: center; font-size: 15px; font-weight: bold; letter-spacing: 1px; margin: 4px 0 10px; color: #0f172a; }
+  .meta-box { border-bottom: 1px dashed #94a3b8; padding-bottom: 8px; margin-bottom: 8px; font-size: 11px; }
+  .meta-box div { display: flex; justify-content: space-between; margin-bottom: 2px; }
+  table.items { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 12px; }
+  table.items th { border-bottom: 1px solid #94a3b8; padding: 4px 2px; text-align: left; font-weight: bold; color: #334155; }
+  table.items td { padding: 6px 2px; border-bottom: 1px dotted #e2e8f0; vertical-align: top; }
+  .totals-box { border-top: 1px dashed #94a3b8; padding-top: 8px; font-size: 12px; }
+  .grand-total { font-weight: bold; font-size: 14px; color: #047857; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; padding: 4px 0; margin-top: 4px; display: flex; justify-content: space-between; }
+  .sign-row { margin-top: 36px; display: flex; justify-content: space-between; font-size: 11px; color: #334155; }
+  .sign-row span { border-top: 1px solid #94a3b8; padding-top: 4px; min-width: 140px; text-align: center; }
+  .footer-note { text-align: center; margin-top: 14px; font-size: 10px; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 6px; }
+`;
 
 export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -89,6 +123,7 @@ export default function SuppliersPage() {
   const [orderTab, setOrderTab] = useState<"order" | "list">("order");
   const [qtyMap, setQtyMap] = useState<Record<number, string>>({});
   const [bookSearch, setBookSearch] = useState("");
+  const [orderNo, setOrderNo] = useState("");
 
   const fetchBooksAndLinks = async () => {
     const { data: booksData } = await supabase.from("books").select("id, title, author, price, stock").order("title", { ascending: true });
@@ -144,27 +179,117 @@ export default function SuppliersPage() {
     setOrderTab(tab);
     setQtyMap({});
     setBookSearch("");
+    setOrderNo(generateOrderNo());
   };
 
+  const getOrderLines = () =>
+    orderSupplier
+      ? supplierBooks(orderSupplier.id)
+          .map((b) => ({ b, qty: parseInt(qtyMap[b.id] || "0", 10) || 0 }))
+          .filter((x) => x.qty > 0)
+      : [];
+
+  // واٹس ایپ کا باقاعدہ (پروفیشنل) آرڈر پیغام
   const sendOrder = () => {
     if (!orderSupplier) return;
-    const lines = supplierBooks(orderSupplier.id)
-      .map((b) => ({ b, qty: parseInt(qtyMap[b.id] || "0", 10) || 0 }))
-      .filter((x) => x.qty > 0);
+    const lines = getOrderLines();
     if (lines.length === 0) {
       alert("کم از کم ایک کتاب کی تعداد لکھیں");
       return;
     }
+    const totalQty = lines.reduce((sum, x) => sum + x.qty, 0);
+    const line = "━━━━━━━━━━━━━━━";
     const text =
-      `السلام علیکم${orderSupplier.contact_person ? " " + orderSupplier.contact_person : ""}،\n` +
-      `مکتبہ الزھراء کی طرف سے آرڈر:\n\n` +
-      lines.map((x, i) => `${i + 1}. ${x.b.title} — ${x.qty} عدد`).join("\n") +
-      `\n\nشکریہ`;
+      `*مکتبۃ الزھراء*\n` +
+      `نزد جامعہ الحسنین، فیصل آباد\n` +
+      `📞 0305-5232889\n` +
+      `${line}\n` +
+      `*پرچیز آرڈر (Purchase Order)*\n` +
+      `آرڈر نمبر: *${orderNo}*\n` +
+      `تاریخ: ${new Date().toLocaleDateString("en-GB")}\n` +
+      `${line}\n` +
+      `محترم: *${orderSupplier.name}*${orderSupplier.contact_person ? " (" + orderSupplier.contact_person + ")" : ""}\n` +
+      `السلام علیکم! براہِ کرم درج ذیل کتب ارسال فرمائیں:\n\n` +
+      lines.map((x, i) => `${i + 1}. ${x.b.title}\n    تعداد: *${x.qty}*`).join("\n") +
+      `\n${line}\n` +
+      `کل عنوانات: *${lines.length}*\n` +
+      `کل تعداد: *${totalQty}*\n` +
+      `${line}\n` +
+      `براہِ کرم آرڈر کی تصدیق اور ترسیل کا وقت بتا دیں۔\n` +
+      `شکریہ\n*مکتبۃ الزھراء*`;
     const number = toWhatsappNumber(orderSupplier.phone);
     const url = number
       ? `https://wa.me/${number}?text=${encodeURIComponent(text)}`
       : `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, "_blank");
+  };
+
+  // بل جیسی آرڈر شیٹ: پرنٹ کریں یا PDF محفوظ کر کے بھیجیں
+  const printOrderSheet = () => {
+    if (!orderSupplier) return;
+    const lines = getOrderLines();
+    if (lines.length === 0) {
+      alert("کم از کم ایک کتاب کی تعداد لکھیں");
+      return;
+    }
+    const totalQty = lines.reduce((sum, x) => sum + x.qty, 0);
+    const now = new Date();
+    const rows = lines
+      .map(
+        (x, i) => `
+        <tr>
+          <td style="width: 8%;">${i + 1}</td>
+          <td style="font-weight: bold;">${escapeHtml(x.b.title)}${x.b.author ? `<div style="font-weight: normal; font-size: 10px; color: #64748b;">${escapeHtml(x.b.author)}</div>` : ""}</td>
+          <td style="width: 16%; text-align: center; font-weight: bold;">${x.qty}</td>
+        </tr>`
+      )
+      .join("");
+    const html = `
+      <html dir="ltr" lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <title>${orderNo}</title>
+          <style>${orderSheetStyles}
+            @media print { body { padding: 0; } .sheet { border: none; max-width: 100%; padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <div class="header">
+              <img src="${window.location.origin}/logo.jpg" alt="logo" class="logo-img" />
+              <h1>مكتبۃ الزھراء</h1>
+              <p>نزد جامعہ الحسنین، فیصل آباد</p>
+              <p>Phone #: 0305-5232889 | Email: maktabaalzahra32@gmail.com</p>
+            </div>
+            <div class="title">PURCHASE ORDER</div>
+            <div class="meta-box">
+              <div><span>Order No: <b>${orderNo}</b></span><span>${now.toLocaleDateString("en-GB")} ${now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span></div>
+              <div><span>To: <b>${escapeHtml(orderSupplier.name)}</b></span></div>
+              ${orderSupplier.contact_person ? `<div><span>Attn: ${escapeHtml(orderSupplier.contact_person)}</span></div>` : ""}
+              ${orderSupplier.phone ? `<div><span>Phone: ${escapeHtml(orderSupplier.phone)}</span></div>` : ""}
+              ${orderSupplier.address ? `<div><span>Address: ${escapeHtml(orderSupplier.address)}</span></div>` : ""}
+            </div>
+            <table class="items">
+              <thead>
+                <tr><th>#</th><th>Item Name</th><th style="text-align: center;">Qty</th></tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+            <div class="totals-box">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 3px;"><span>Total titles:</span><span style="font-weight: bold;">${lines.length}</span></div>
+              <div class="grand-total"><span>Total Quantity:</span><span>${totalQty}</span></div>
+            </div>
+            <div class="sign-row"><span>Prepared by (Shafi)</span><span>Supplier Signature</span></div>
+            <div class="footer-note">(Computer Software developed by Maktaba Al-Zahra. Ph: 0305-5232889)</div>
+          </div>
+          <script>window.onload = function () { window.focus(); window.print(); };</script>
+        </body>
+      </html>`;
+    const w = window.open("", "_blank");
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+    }
   };
 
   const fetchSuppliers = async () => {
@@ -539,11 +664,18 @@ export default function SuppliersPage() {
                         {others.map(renderRow)}
                       </>
                     )}
+                    <p className="mt-4 text-[11px] text-slate-400 text-center" dir="ltr">Order No: {orderNo}</p>
                     <button
                       onClick={sendOrder}
-                      className="mt-4 w-full rounded-lg bg-emerald-600 text-white py-2 text-xs font-bold hover:bg-emerald-700 transition"
+                      className="mt-2 w-full rounded-lg bg-emerald-600 text-white py-2 text-xs font-bold hover:bg-emerald-700 transition"
                     >
                       آرڈر واٹس ایپ پر بھیجیں
+                    </button>
+                    <button
+                      onClick={printOrderSheet}
+                      className="mt-2 w-full rounded-lg border border-emerald-600 text-emerald-700 py-2 text-xs font-bold hover:bg-emerald-50 transition"
+                    >
+                      آرڈر شیٹ پرنٹ / PDF
                     </button>
                     {!orderSupplier.phone && (
                       <p className="mt-2 text-[11px] text-amber-600 text-center">
