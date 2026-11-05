@@ -345,9 +345,9 @@ export default function SuppliersPage() {
         await new Promise((r) => setTimeout(r, 300));
       } catch {}
 
-      const canvas = await html2canvas(doc.body, { scale: 3, backgroundColor: "#ffffff", useCORS: true });
+      const canvas = await html2canvas(doc.body, { scale: 2.5, backgroundColor: "#ffffff", useCORS: true });
 
-      const pdf = new jsPDF({ unit: "pt", format: "a4" });
+      const pdf = new jsPDF({ unit: "pt", format: "a4", compress: true });
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
       const margin = 20;
@@ -364,7 +364,7 @@ export default function SuppliersPage() {
         ctx.fillRect(0, 0, part.width, part.height);
         ctx.drawImage(canvas, 0, y, canvas.width, part.height, 0, 0, canvas.width, part.height);
         if (page > 0) pdf.addPage();
-        pdf.addImage(part.toDataURL("image/png"), "PNG", margin, margin, imgW, part.height * ratio);
+        pdf.addImage(part.toDataURL("image/jpeg", 0.85), "JPEG", margin, margin, imgW, part.height * ratio);
       }
 
       const blob = pdf.output("blob");
