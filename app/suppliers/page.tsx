@@ -79,25 +79,24 @@ function escapeHtml(t: string) {
 
 // بل جیسا انداز: پرنٹ / PDF کے لیے آرڈر شیٹ کے سٹائل
 const orderSheetFontLink = `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;700&display=swap" />`;
-const orderSheetBodyStyle = `body { font-family: "Noto Naskh Arabic", Arial, "Noto Nastaliq Urdu", sans-serif; margin: 0; padding: 16px; color: #0f172a; background: #ffffff; direction: ltr; }`;
+const orderSheetBodyStyle = `body { font-family: "Noto Naskh Arabic", Arial, "Noto Nastaliq Urdu", sans-serif; margin: 0; padding: 16px; color: #111827; background: #ffffff; direction: ltr; }`;
 const orderSheetStyles = `
-  .sheet { max-width: 720px; margin: 0 auto; background: #ffffff; border: 2px solid #065f46; border-radius: 12px; overflow: hidden; font-size: 13px; }
-  .header { text-align: center; padding: 16px 18px 12px; border-bottom: 4px solid #065f46; background: #f0fdf4; }
+  .sheet { max-width: 640px; margin: 0 auto; background: #ffffff; padding: 18px; font-size: 14px; border: 1px dashed #94a3b8; border-radius: 8px; }
+  .header { text-align: center; border-bottom: 1px dashed #94a3b8; padding-bottom: 10px; margin-bottom: 10px; }
   .logo-img { height: 80px; width: auto; max-width: 100%; object-fit: contain; margin: 0 auto 6px; display: block; }
-  .header h1 { margin: 0; font-size: 26px; font-weight: 700; color: #065f46; }
-  .header p { margin: 3px 0; font-size: 12px; color: #334155; }
-  .title { background: #065f46; color: #ffffff; text-align: center; font-size: 15px; font-weight: 700; letter-spacing: 4px; padding: 8px 0; }
-  .meta-box { margin: 14px 18px 12px; padding: 10px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 12px; }
-  .meta-box div { display: flex; justify-content: space-between; margin-bottom: 4px; }
-  table.items { width: calc(100% - 36px); margin: 0 18px 12px; border-collapse: collapse; font-size: 13px; }
-  table.items th { background: #ecfdf5; color: #065f46; border-top: 2px solid #065f46; border-bottom: 2px solid #065f46; padding: 9px 8px; text-align: left; font-weight: 700; }
-  table.items td { padding: 9px 8px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
-  table.items tbody tr:nth-child(even) td { background: #f8fafc; }
-  .totals-box { margin: 0 18px; padding-top: 8px; font-size: 13px; }
-  .grand-total { font-weight: 700; font-size: 16px; color: #ffffff; background: #065f46; border-radius: 8px; padding: 9px 14px; margin-top: 6px; display: flex; justify-content: space-between; }
-  .sign-row { margin: 46px 18px 0; display: flex; justify-content: space-between; font-size: 12px; color: #334155; }
-  .sign-row span { border-top: 1.5px solid #64748b; padding-top: 5px; min-width: 170px; text-align: center; }
-  .footer-note { text-align: center; margin: 18px 18px 14px; font-size: 10px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+  .header h1 { margin: 0; font-size: 22px; font-weight: 700; color: #111827; }
+  .header p { margin: 3px 0; font-size: 12px; color: #374151; }
+  .title { text-align: center; font-size: 17px; font-weight: 700; margin: 6px 0 10px; color: #111827; }
+  .meta-box { border-bottom: 1px dashed #94a3b8; padding-bottom: 8px; margin-bottom: 8px; font-size: 13px; }
+  .meta-box div { display: flex; justify-content: space-between; margin-bottom: 3px; }
+  table.items { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 14px; }
+  table.items th { border-bottom: 1px solid #6b7280; padding: 5px 4px; text-align: left; font-weight: 700; color: #111827; }
+  table.items td { padding: 6px 4px; border-bottom: 1px dotted #cbd5e1; vertical-align: top; text-align: left; }
+  .totals-box { border-top: 1px dashed #94a3b8; padding-top: 8px; font-size: 13px; }
+  .grand-total { font-weight: 700; font-size: 16px; border-top: 1px solid #6b7280; border-bottom: 1px solid #6b7280; padding: 5px 0; margin-top: 5px; display: flex; justify-content: space-between; }
+  .sign-row { margin-top: 44px; display: flex; justify-content: space-between; font-size: 12px; color: #374151; }
+  .sign-row span { border-top: 1px solid #6b7280; padding-top: 5px; min-width: 150px; text-align: center; }
+  .footer-note { text-align: center; margin-top: 16px; font-size: 10px; color: #6b7280; border-top: 1px dashed #cbd5e1; padding-top: 6px; }
 `;
 
 export default function SuppliersPage() {
