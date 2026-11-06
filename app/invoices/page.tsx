@@ -96,14 +96,15 @@ function statusLabel(status: string) {
 
 const invoiceStyles = `
   body { font-family: Arial, "Noto Nastaliq Urdu", sans-serif; padding: 16px; direction: rtl; color: #111827; background: #ffffff; }
-  .invoice-wrapper { max-width: 440px; margin: 0 auto; background: white; padding: 16px; font-size: 12px; border: 1px dashed #cbd5e1; border-radius: 8px; }
+  .invoice-wrapper { width: 100%; max-width: 440px; box-sizing: border-box; margin: 0 auto; background: white; padding: 16px; font-size: 12px; border: 1px dashed #cbd5e1; border-radius: 8px; overflow-wrap: anywhere; word-break: break-word; }
+  .invoice-wrapper * { box-sizing: border-box; max-width: 100%; }
   .header { text-align: center; border-bottom: 1px dashed #94a3b8; padding-bottom: 10px; margin-bottom: 10px; }
   .logo-img { height: 90px; width: auto; max-width: 100%; object-fit: contain; margin: 0 auto 6px; display: block; }
   .header h1 { margin: 0; font-size: 18px; font-weight: bold; color: #047857; }
   .header p { margin: 2px 0; font-size: 11px; color: #475569; }
   .meta-box { border-bottom: 1px dashed #94a3b8; padding-bottom: 8px; margin-bottom: 8px; font-size: 11px; }
   .meta-box div { display: flex; justify-content: space-between; margin-bottom: 2px; }
-  table.items { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 11px; }
+  table.items { width: 100%; table-layout: fixed; border-collapse: collapse; margin-bottom: 8px; font-size: 11px; }
   table.items th { border-bottom: 1px solid #94a3b8; padding-bottom: 4px; text-align: right; font-weight: bold; color: #334155; }
   table.items td { padding: 4px 0; border-bottom: 1px dotted #e2e8f0; }
   .totals-box { border-top: 1px dashed #94a3b8; padding-top: 8px; font-size: 11px; }
@@ -502,8 +503,12 @@ export default function InvoicesPage() {
       <html dir="ltr" lang="en">
         <head>
           <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
           <title>${invoice.invoice_number}</title>
           <style>${invoiceStyles}
+            html, body { margin: 0; width: 100%; }
+            body { padding: 8px; box-sizing: border-box; }
+            @page { margin: 6mm; }
             @media print { body { background: white; padding: 0; } .invoice-wrapper { border: none; box-shadow: none; padding: 0; max-width: 100%; } }
           </style>
         </head>
