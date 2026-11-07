@@ -38,6 +38,8 @@ export default function DashboardPage() {
 
   const [books, setBooks] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -69,6 +71,12 @@ export default function DashboardPage() {
       const { data: ordersData } = await supabase.from("orders").select("*");
       if (ordersData) setOrders(ordersData);
 
+      const { data: invoicesData } = await supabase.from("invoices").select("*");
+      if (invoicesData) setInvoices(invoicesData);
+
+      const { data: invoiceItemsData } = await supabase.from("invoice_items").select("invoice_id, book_id, quantity");
+      if (invoiceItemsData) setInvoiceItems(invoiceItemsData);
+
       const { data: expensesData } = await supabase.from("expenses").select("*");
       if (expensesData) setExpenses(expensesData);
 
@@ -78,8 +86,27 @@ export default function DashboardPage() {
   }, []);
 
   const now = new Date();
-  const thisMonthOrders = orders.filter((o) => {
-    const d = new Date(o.created_at || Date.now());
+  // فروخت کے تمام اندراجات: آرڈرز اور بل (انوائسز) دونوں سے
+  const costByBook = new Map<any, number>(books.map((b) => [b.id, Number(b.cost_price) || 0]));
+  const invoiceCostMap = new Map<any, number>();
+  invoiceItems.forEach((it) => {
+    const c = (it.quantity || 0) * (costByBook.get(it.book_id) || 0);
+    invoiceCostMap.set(it.invoice_id, (invoiceCostMap.get(it.invoice_id) || 0) + c);
+  });
+  const saleEntries: { date: Date; revenue: number; cost: number }[] = [
+    ...orders.map((o) => ({
+      date: new Date(o.created_at || Date.now()),
+      revenue: o.book_price || 0,
+      cost: o.cost_price || 0,
+    })),
+    ...invoices.map((inv) => ({
+      date: new Date(inv.created_at || Date.now()),
+      revenue: Number(inv.total_amount) || 0,
+      cost: invoiceCostMap.get(inv.id) || 0,
+    })),
+  ];
+  const thisMonthOrders = saleEntries.filter((o) => {
+    const d = o.date;
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
   const thisMonthExpenses = expenses.filter((e) => {
@@ -87,8 +114,8 @@ export default function DashboardPage() {
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
 
-  const thisMonthRevenue = thisMonthOrders.reduce((sum, o) => sum + (o.book_price || 0), 0);
-  const thisMonthCost = thisMonthOrders.reduce((sum, o) => sum + (o.cost_price || 0), 0);
+  const thisMonthRevenue = thisMonthOrders.reduce((sum, o) => sum + o.revenue, 0);
+  const thisMonthCost = thisMonthOrders.reduce((sum, o) => sum + o.cost, 0);
   const thisMonthExpenseTotal = thisMonthExpenses.reduce((sum, e) => sum + e.amount, 0);
   const thisMonthProfit = thisMonthRevenue - thisMonthCost - thisMonthExpenseTotal;
 
@@ -104,12 +131,12 @@ export default function DashboardPage() {
     return monthlyMap[key];
   };
   getMonthEntry(now);
-  orders.forEach((o) => {
-    const d = new Date(o.created_at || Date.now());
+  saleEntries.forEach((o) => {
+    const d = o.date;
     if (isNaN(d.getTime())) return;
     const m = getMonthEntry(d);
-    m.revenue += o.book_price || 0;
-    m.cost += o.cost_price || 0;
+    m.revenue += o.revenue;
+    m.cost += o.cost;
   });
   expenses.forEach((e) => {
     const d = new Date(e.expense_date);
