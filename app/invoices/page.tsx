@@ -546,7 +546,7 @@ export default function InvoicesPage() {
   ];
 
   return (
-    <main dir="rtl" className="min-h-screen flex bg-slate-50/60 font-sans">
+    <main dir="rtl" className="min-h-screen flex bg-slate-50/60 font-sans overflow-x-hidden">
       {mobileMenuOpen && (
         <div
           onClick={() => setMobileMenuOpen(false)}
@@ -610,7 +610,7 @@ export default function InvoicesPage() {
         </div>
       </aside>
 
-      <section className="flex-1 p-4 md:p-6 max-w-7xl mx-auto">
+      <section className="flex-1 min-w-0 w-full p-4 md:p-6 max-w-7xl mx-auto">
         <div className="flex items-center justify-between md:hidden mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
           <button
             onClick={() => setMobileMenuOpen(true)}
@@ -716,7 +716,7 @@ export default function InvoicesPage() {
               <div key={group.key} className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
                 <button
                   onClick={() => setExpandedGroups((prev) => ({ ...prev, [group.key]: !prev[group.key] }))}
-                  className="w-full p-4 flex items-center justify-between gap-3 text-right hover:bg-slate-50 transition"
+                  className="w-full min-w-0 p-4 flex items-center justify-between gap-3 text-right hover:bg-slate-50 transition"
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-emerald-700 truncate">👤 {group.name}</p>
