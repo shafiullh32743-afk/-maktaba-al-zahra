@@ -26,6 +26,7 @@ import {
   TrendingUp,
   AlertCircle,
   Eye,
+  Share2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -132,6 +133,7 @@ export default function InvoicesPage() {
   const [amountPaid, setAmountPaid] = useState("0");
   const [dueDate, setDueDate] = useState("");
   const [saving, setSaving] = useState(false);
+  const [sharingId, setSharingId] = useState<number | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const [currentBookId, setCurrentBookId] = useState("");
@@ -522,6 +524,78 @@ export default function InvoicesPage() {
     }
   };
 
+  // بل کی PDF بنا کر شیئر کریں (فون پر شیئر مینو، کمپیوٹر پر ڈاؤنلوڈ)
+  const shareInvoicePdf = async (invoice: Invoice) => {
+    setSharingId(invoice.id);
+    let frame: HTMLIFrameElement | null = null;
+    try {
+      const items = await fetchLineItems(invoice.id);
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
+
+      frame = document.createElement("iframe");
+      frame.style.cssText = "position:fixed;left:-10000px;top:0;width:500px;height:1400px;border:0;visibility:hidden;";
+      document.body.appendChild(frame);
+      const doc = frame.contentDocument;
+      if (!doc) throw new Error("no iframe document");
+      doc.open();
+      doc.write(
+        `<!DOCTYPE html><html dir="ltr"><head><meta charset="UTF-8" /><style>${invoiceStyles}
+          html, body { margin: 0; width: 100%; } body { padding: 8px; box-sizing: border-box; background: #ffffff; }
+        </style></head><body>${buildInvoiceHtml(invoice, items)}</body></html>`
+      );
+      doc.close();
+
+      // لوگو لوڈ ہونے کا انتظار
+      await Promise.all(
+        Array.from(doc.images).map(
+          (img) =>
+            new Promise<void>((resolve) => {
+              if (img.complete) resolve();
+              else {
+                img.onload = () => resolve();
+                img.onerror = () => resolve();
+              }
+            })
+        )
+      );
+      try {
+        await doc.fonts.ready;
+      } catch {}
+
+      const target = (doc.querySelector(".invoice-wrapper") as HTMLElement) || doc.body;
+      const canvas = await html2canvas(target, { scale: 2.5, backgroundColor: "#ffffff", useCORS: true });
+
+      // رسید جیسا ایک ہی لمبا صفحہ (چھوٹا سائز)
+      const pageW = 340;
+      const ratio = pageW / canvas.width;
+      const imgH = canvas.height * ratio;
+      const pdf = new jsPDF({ unit: "pt", format: [pageW, Math.max(imgH, 200)], compress: true });
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.88), "JPEG", 0, 0, pageW, imgH);
+
+      const blob = pdf.output("blob");
+      const fileName = `${invoice.invoice_number}.pdf`;
+      const file = new File([blob], fileName, { type: "application/pdf" });
+      if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: `Invoice ${invoice.invoice_number}` });
+      } else {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        alert("PDF ڈاؤنلوڈ ہو گئی ہے۔ اسے واٹس ایپ میں منسلک (Attach → Document) کر کے بھیج دیں۔");
+      }
+    } catch (err) {
+      if ((err as { name?: string })?.name !== "AbortError") {
+        alert("PDF نہیں بن سکی۔ براہِ کرم پرنٹ والا بٹن استعمال کریں۔");
+      }
+    } finally {
+      if (frame && frame.parentNode) frame.parentNode.removeChild(frame);
+      setSharingId(null);
+    }
+  };
+
   const handlePreviewInvoice = async (invoice: Invoice) => {
     setPreviewLoading(true);
     setPreviewInvoice(invoice);
@@ -807,6 +881,14 @@ export default function InvoicesPage() {
                       <Printer size={15} />
                     </button>
                     <button
+                      onClick={() => shareInvoicePdf(inv)}
+                      disabled={sharingId === inv.id}
+                      className="p-1.5 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded-md transition disabled:opacity-40"
+                      title="PDF شیئر کریں"
+                    >
+                      <Share2 size={15} />
+                    </button>
+                    <button
                       onClick={() => setConfirmDeleteId(inv.id)}
                       className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-50 rounded-md transition"
                       title="حذف کریں"
@@ -876,6 +958,14 @@ export default function InvoicesPage() {
                 className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition"
               >
                 بند کریں
+              </button>
+              <button
+                onClick={() => shareInvoicePdf(previewInvoice)}
+                disabled={sharingId === previewInvoice.id}
+                className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg border border-emerald-600 text-emerald-700 text-xs font-semibold hover:bg-emerald-50 transition disabled:opacity-40"
+              >
+                <Share2 size={15} />
+                <span>{sharingId === previewInvoice.id ? "PDF بن رہی ہے..." : "شیئر کریں"}</span>
               </button>
               <button
                 onClick={() => handlePrintInvoice(previewInvoice)}

@@ -682,7 +682,7 @@ function BooksPageInner() {
       pdf: "PDF",
       labels: "لیبلز",
       addBook: "نئی کتاب",
-      searchPlaceholder: "کتاب تلاش کریں...",
+      searchPlaceholder: "کتاب یا مصنف تلاش کریں...",
       allCategories: "تمام زمرے",
       allAuthors: "تمام مصنفین",
       more: "مزید",
@@ -737,7 +737,7 @@ function BooksPageInner() {
       pdf: "PDF",
       labels: "Labels",
       addBook: "Add Book",
-      searchPlaceholder: "Search book...",
+      searchPlaceholder: "Search book or author...",
       allCategories: "All Categories",
       allAuthors: "All Authors",
       more: "More",
@@ -858,7 +858,11 @@ function BooksPageInner() {
   };
 
   const filteredBooks = books.filter((book) => {
-    const matchesSearch = search.trim() === "" || book.title.toLowerCase().includes(search.trim().toLowerCase());
+    const searchTerm = search.trim().toLowerCase();
+    const matchesSearch =
+      searchTerm === "" ||
+      (book.title || "").toLowerCase().includes(searchTerm) ||
+      (book.author || "").toLowerCase().includes(searchTerm);
     const matchesCategory = filterCategory ? book.category === filterCategory : true;
     const matchesAuthor = filterAuthor ? book.author === filterAuthor : true;
     const matchesLanguage = filterLanguage ? (book.language || "اردو") === filterLanguage : true;
