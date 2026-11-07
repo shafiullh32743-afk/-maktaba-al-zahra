@@ -533,14 +533,16 @@ export default function InvoicesPage() {
       const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import("html2canvas"), import("jspdf")]);
 
       frame = document.createElement("iframe");
-      frame.style.cssText = "position:fixed;left:-10000px;top:0;width:500px;height:1400px;border:0;visibility:hidden;";
+      frame.style.cssText = "position:fixed;left:0;top:0;width:480px;height:1600px;border:0;opacity:0;pointer-events:none;z-index:-1;";
       document.body.appendChild(frame);
       const doc = frame.contentDocument;
       if (!doc) throw new Error("no iframe document");
       doc.open();
       doc.write(
         `<!DOCTYPE html><html dir="ltr"><head><meta charset="UTF-8" /><style>${invoiceStyles}
-          html, body { margin: 0; width: 100%; } body { padding: 8px; box-sizing: border-box; background: #ffffff; }
+          html, body { margin: 0; background: #ffffff; direction: ltr !important; }
+          body { padding: 10px !important; width: 480px; box-sizing: border-box; }
+          .invoice-wrapper { direction: rtl; width: 460px !important; max-width: none !important; margin: 0 !important; }
         </style></head><body>${buildInvoiceHtml(invoice, items)}</body></html>`
       );
       doc.close();
@@ -563,7 +565,16 @@ export default function InvoicesPage() {
       } catch {}
 
       const target = (doc.querySelector(".invoice-wrapper") as HTMLElement) || doc.body;
-      const canvas = await html2canvas(target, { scale: 2.5, backgroundColor: "#ffffff", useCORS: true });
+      const canvas = await html2canvas(target, {
+        scale: 2.5,
+        backgroundColor: "#ffffff",
+        useCORS: true,
+        windowWidth: 480,
+        width: target.offsetWidth,
+        height: target.offsetHeight,
+        scrollX: 0,
+        scrollY: 0,
+      });
 
       // رسید جیسا ایک ہی لمبا صفحہ (چھوٹا سائز)
       const pageW = 340;
