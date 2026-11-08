@@ -26,18 +26,19 @@ import { supabase } from "@/lib/supabaseClient";
 interface Book {
   id: number;
   title: string;
+  author?: string;
   stock?: number;
 }
 
 interface Customer {
-  id: number;
+  id: number | string;
   name: string;
 }
 
 interface Return {
   id: number;
   book_id: number;
-  customer_id: number | null;
+  customer_id: number | string | null;
   quantity: number;
   reason: string;
   condition_notes?: string;
@@ -61,6 +62,7 @@ export default function ReturnsPage() {
 
   const [showModal, setShowModal] = useState(false);
   const [selectedBookId, setSelectedBookId] = useState("");
+  const [bookSearch, setBookSearch] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [reason, setReason] = useState("damaged");
@@ -79,7 +81,7 @@ export default function ReturnsPage() {
       .order("id", { ascending: false });
     if (returnsData) setReturns(returnsData as Return[]);
 
-    const { data: booksData } = await supabase.from("books").select("id, title, stock");
+    const { data: booksData } = await supabase.from("books").select("id, title, author, stock").order("title", { ascending: true });
     if (booksData) setBooks(booksData as Book[]);
 
     const { data: customersData } = await supabase.from("customers").select("id, name");
@@ -93,10 +95,11 @@ export default function ReturnsPage() {
   }, []);
 
   const getBookTitle = (id: number) => books.find((b) => b.id === id)?.title || "نامعلوم کتاب";
-  const getCustomerName = (id: number | null) => (id ? customers.find((c) => c.id === id)?.name : null) || "—";
+  const getCustomerName = (id: number | string | null) => (id ? customers.find((c) => c.id === id)?.name : null) || "—";
 
   const resetForm = () => {
     setSelectedBookId("");
+    setBookSearch("");
     setSelectedCustomerId("");
     setQuantity("1");
     setReason("damaged");
@@ -116,7 +119,7 @@ export default function ReturnsPage() {
 
     const returnData = {
       book_id: bookId,
-      customer_id: selectedCustomerId ? parseInt(selectedCustomerId) : null,
+      customer_id: selectedCustomerId || null,
       quantity: qty,
       reason,
       condition_notes: conditionNotes.trim() || null,
@@ -383,18 +386,56 @@ export default function ReturnsPage() {
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block text-slate-700 mb-1 font-semibold">کتاب منتخب کریں</label>
-                <select
-                  value={selectedBookId}
-                  onChange={(e) => setSelectedBookId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
-                >
-                  <option value="">کتاب منتخب کریں</option>
-                  {books.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.title}
-                    </option>
-                  ))}
-                </select>
+                {selectedBookId && (
+                  <div className="mb-2 flex items-center justify-between gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2">
+                    <span className="text-xs font-semibold text-emerald-800">
+                      ✓ {books.find((b) => String(b.id) === selectedBookId)?.title}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedBookId("")}
+                      className="text-[11px] text-slate-500 hover:text-rose-600"
+                    >
+                      بدلیں
+                    </button>
+                  </div>
+                )}
+                {!selectedBookId && (
+                  <>
+                    <input
+                      type="text"
+                      placeholder="کتاب یا مصنف کے نام سے تلاش کریں..."
+                      value={bookSearch}
+                      onChange={(e) => setBookSearch(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                    <div className="mt-1.5 max-h-44 overflow-y-auto rounded-lg border border-slate-100">
+                      {(() => {
+                        const term = bookSearch.trim().toLowerCase();
+                        const found = books.filter(
+                          (b) =>
+                            term === "" ||
+                            (b.title || "").toLowerCase().includes(term) ||
+                            (b.author || "").toLowerCase().includes(term)
+                        );
+                        if (found.length === 0) {
+                          return <p className="p-3 text-center text-[11px] text-slate-400">کوئی کتاب نہیں ملی</p>;
+                        }
+                        return found.slice(0, 50).map((b) => (
+                          <button
+                            type="button"
+                            key={b.id}
+                            onClick={() => setSelectedBookId(String(b.id))}
+                            className="w-full text-right px-3 py-2 border-b border-slate-100 last:border-0 hover:bg-emerald-50 transition"
+                          >
+                            <span className="block text-xs text-slate-800">{b.title}</span>
+                            {b.author && <span className="block text-[11px] text-slate-400">{b.author}</span>}
+                          </button>
+                        ));
+                      })()}
+                    </div>
+                  </>
+                )}
               </div>
 
               <div>
