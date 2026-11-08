@@ -432,7 +432,7 @@ export default function InvoicesPage() {
         <div class="meta-box">
           <div>
             <span>No. ${invoice.invoice_number}</span>
-            <span>${dateStr} ${timeStr}</span>
+            <span dir="ltr" style="unicode-bidi: isolate;">${dateStr} ${timeStr}</span>
           </div>
           <div><span>M/s: ${cust.name.toUpperCase()}</span></div>
           <div><span>Address: ${cust.address}</span></div>
@@ -543,6 +543,10 @@ export default function InvoicesPage() {
           html, body { margin: 0; background: #ffffff; direction: ltr !important; }
           body { padding: 10px !important; width: 480px; box-sizing: border-box; }
           .invoice-wrapper { direction: rtl; width: 460px !important; max-width: none !important; margin: 0 !important; }
+          .invoice-wrapper, .invoice-wrapper * { line-height: 1.7 !important; }
+          table.items th { padding: 4px 0 8px !important; }
+          table.items td { padding: 6px 0 !important; }
+          .totals-box > div { padding: 3px 0; }
         </style></head><body>${buildInvoiceHtml(invoice, items)}</body></html>`
       );
       doc.close();
@@ -577,11 +581,15 @@ export default function InvoicesPage() {
       });
 
       // رسید جیسا ایک ہی لمبا صفحہ (چھوٹا سائز)
-      const pageW = 340;
-      const ratio = pageW / canvas.width;
+      // بل کے چاروں طرف خالی حاشیہ، تاکہ کنارے نہ کٹیں
+      const margin = 14;
+      const imgW = 340;
+      const ratio = imgW / canvas.width;
       const imgH = canvas.height * ratio;
-      const pdf = new jsPDF({ unit: "pt", format: [pageW, Math.max(imgH, 200)], compress: true });
-      pdf.addImage(canvas.toDataURL("image/jpeg", 0.88), "JPEG", 0, 0, pageW, imgH);
+      const pageW = imgW + margin * 2;
+      const pageH = Math.max(imgH + margin * 2, 200);
+      const pdf = new jsPDF({ unit: "pt", format: [pageW, pageH], compress: true });
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.88), "JPEG", margin, margin, imgW, imgH);
 
       const blob = pdf.output("blob");
       const fileName = `${invoice.invoice_number}.pdf`;
