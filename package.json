@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.113.0",
     "@types/web-push": "^3.6.4",
     "html2canvas": "^1.4.1",

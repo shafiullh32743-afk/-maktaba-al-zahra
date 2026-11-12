@@ -1,11 +1,45 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 
-export function middleware(request: NextRequest) {
-  const isLoggedIn = request.cookies.get("maktaba-auth")?.value === "true";
+// "maktaba-auth" کوکی اب صرف ایک نشانی ہے (بٹن دکھانے / لاگ آؤٹ کے لیے)۔
+// اصل حفاظت Supabase کا سیشن ہے، جسے جعلی نہیں بنایا جا سکتا۔
+export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  const hasHint = request.cookies.get("maktaba-auth")?.value === "true";
 
-  // 1. تمام عوامی (Public) صفحات کی تعریف
+  let response = NextResponse.next({ request });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        },
+      },
+    }
+  );
+
+  // سرور سے تصدیق (جعلی کوکی نہیں چلے گی)
+  let hasSession = false;
+  try {
+    const { data } = await supabase.auth.getUser();
+    hasSession = !!data.user;
+  } catch {
+    hasSession = false;
+  }
+
+  // لاگ آؤٹ: نشانی کوکی ہٹ جائے تو سیشن بھی ختم سمجھیں
+  const isLoggedIn = hasSession && hasHint;
+
+  // 1. عوامی صفحات
   const isHomePage = path === "/";
   const isLoginPage = path.startsWith("/login");
   const isSitemap = path === "/sitemap.xml";
@@ -13,33 +47,40 @@ export function middleware(request: NextRequest) {
   const isShopPage = path === "/shop" || path.startsWith("/shop/");
   const isAboutOrContact = path === "/about" || path === "/contact";
   const isCartPage = path === "/cart";
-  // کسٹمر کا آرڈر محفوظ ہونے پر اطلاع بھیجنے والا راستہ عوامی ہونا ضروری ہے
   const isNotifyApi = path === "/api/notify-order";
 
-  // اگر ان میں سے کوئی بھی صفحہ ہو تو بغیر لاگ ان کے رسائی کی اجازت دیں
-  const isPublicPage = isHomePage || isLoginPage || isSitemap || isBookDetailPage || isShopPage || isAboutOrContact || isCartPage || isNotifyApi;
+  const isPublicPage =
+    isHomePage || isLoginPage || isSitemap || isBookDetailPage || isShopPage || isAboutOrContact || isCartPage || isNotifyApi;
 
-  // 2. غیر لاگ ان صارف کو غیر محفوظ صفحات سے /login پر بھیجیں
-  if (!isLoggedIn && !isPublicPage) {
-    return NextResponse.redirect(new URL("/login", request.url));
+  const redirectTo = (to: string) => {
+    const res = NextResponse.redirect(new URL(to, request.url));
+    // لاگ آؤٹ شدہ حالت میں پرانی Supabase کوکیز صاف کر دیں
+    if (!isLoggedIn) {
+      request.cookies
+        .getAll()
+        .filter((c) => c.name.startsWith("sb-"))
+        .forEach((c) => res.cookies.set(c.name, "", { path: "/", maxAge: 0 }));
+    }
+    return res;
+  };
+
+  if (!isLoggedIn && !isPublicPage) return redirectTo("/login");
+  if (isLoggedIn && isLoginPage) return redirectTo("/");
+  if (!isLoggedIn && isHomePage) return redirectTo("/shop");
+
+  // عوامی صفحے پر لاگ آؤٹ شدہ صارف: پرانی کوکیز صاف
+  if (!isLoggedIn) {
+    request.cookies
+      .getAll()
+      .filter((c) => c.name.startsWith("sb-"))
+      .forEach((c) => response.cookies.set(c.name, "", { path: "/", maxAge: 0 }));
   }
 
-  // 3. پہلے سے لاگ ان صارف کو /login پیج کے بجائے ہوم پیج پر بھیجیں
-  if (isLoggedIn && isLoginPage) {
-    return NextResponse.redirect(new URL("/", request.url));
-  }
-
-  // 4. غیر لاگ ان (عام گاہک) کو ہوم پیج کی بجائے سیدھا کتب کے صفحے پر بھیجیں
-  if (!isLoggedIn && isHomePage) {
-    return NextResponse.redirect(new URL("/shop", request.url));
-  }
-
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {
-  // Static فائلز اور امیجز (لوگو وغیرہ) کے علاوہ تمام روٹس پر مڈل ویئر لاگو ہوگا
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\.(?:jpg|jpeg|png|gif|svg|webp|ico|txt|woff|woff2)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:jpg|jpeg|png|gif|svg|webp|ico|txt|woff|woff2)$).*)",
   ],
 };
