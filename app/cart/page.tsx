@@ -182,11 +182,6 @@ export default function CartPage() {
     // آرڈر کو ڈیٹا بیس میں محفوظ کریں (ایڈمن کے آرڈرز صفحے میں نظر آئے گا)
     let saved = false;
     try {
-      const ids = cart.map((item) => item.id);
-      const { data: costRows } = await supabase.from("books").select("id, cost_price").in("id", ids);
-      const costMap = new Map<string, number>(
-        (costRows || []).map((r: { id: string | number; cost_price?: number | null }) => [String(r.id), Number(r.cost_price) || 0])
-      );
       const orderGroup = `grp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const addressWithPayment = `${customerAddress.trim()}\n${lang === "ur" ? "ادائیگی" : "Payment"}: ${
         paymentMethod === "cod" ? t.paymentCod : t.paymentAdvance
@@ -201,7 +196,7 @@ export default function CartPage() {
           customer_address: addressWithPayment,
           status: "نیا",
           book_price: lineTotal,
-          cost_price: (costMap.get(String(item.id)) || 0) * item.qty,
+          cost_price: 0, // اصل خرید قیمت ڈیٹا بیس خود بھرتا ہے
           delivery_charge: index === 0 ? deliveryCharge : 0,
           total_amount: index === 0 ? grandTotal : lineTotal,
           quantity: item.qty,

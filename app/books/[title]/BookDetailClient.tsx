@@ -114,7 +114,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
     if (!/(^|;\s*)maktaba-auth=[^;]+/.test(document.cookie)) {
       const newCount = (initialBook.views ?? 0) + 1;
       setViewCount(newCount);
-      supabase.from("books").update({ views: newCount }).eq("id", initialBook.id).then();
+      supabase.rpc("increment_book_views", { p_id: initialBook.id }).then();
     }
   }, [initialBook.id]);
 

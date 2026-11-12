@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabaseClient";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://maktaba-al-zahra-books.vercel.app";
 
-  const { data: books } = await supabase.from("books").select("slug, title");
+  const { data: books } = await supabase.from("books_public").select("slug, title");
 
   const bookEntries = (books || []).map((book) => ({
     url: `${baseUrl}/books/${book.slug || encodeURIComponent(book.title)}`,

@@ -18,14 +18,14 @@ const getBook = cache(async (rawIdentifier: string) => {
   const identifier = safeDecode(rawIdentifier);
 
   const { data: bySlug } = await supabase
-    .from("books")
+    .from("books_public")
     .select("*")
     .eq("slug", identifier)
     .limit(1);
   if (bySlug && bySlug.length > 0) return bySlug[0];
 
   const { data: byTitle } = await supabase
-    .from("books")
+    .from("books_public")
     .select("*")
     .eq("title", identifier)
     .limit(1);
@@ -33,7 +33,7 @@ const getBook = cache(async (rawIdentifier: string) => {
 
   if (/^\d+$/.test(identifier)) {
     const { data: byId } = await supabase
-      .from("books")
+      .from("books_public")
       .select("*")
       .eq("id", Number(identifier))
       .limit(1);
@@ -95,7 +95,7 @@ export default async function BookDetailPage({
     .eq("approved", true);
 
   const { data: related } = await supabase
-    .from("books")
+    .from("books_public")
     .select("*")
     .eq("category", book.category)
     .neq("id", book.id)
