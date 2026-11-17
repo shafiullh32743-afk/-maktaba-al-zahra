@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   LayoutDashboard,
@@ -48,6 +48,29 @@ interface SupplierBookLink {
   supplier_id: number;
   book_id: number;
 }
+
+interface SupplierOrderItem {
+  id: string;
+  order_id: string;
+  book_id: number | null;
+  title: string;
+  author?: string | null;
+  quantity: number;
+  received_qty?: number | null;
+}
+
+interface SupplierOrder {
+  id: string;
+  order_no: string;
+  supplier_id: number | string;
+  status: string;
+  created_at: string;
+  received_at?: string | null;
+  supplier_order_items?: SupplierOrderItem[];
+}
+
+// آرڈر کی ایک لائن: فہرست والی کتاب یا دستی کتاب (manual میں id صفر ہوتی ہے)
+type OrderLine = { b: BookLite; qty: number; manual?: boolean };
 
 // کم سٹاک کی حد: 1000 یا زیادہ قیمت والی کتاب کے لیے 2، اس سے کم قیمت والی کے لیے 3
 function isLowStock(book: BookLite) {
@@ -121,11 +144,26 @@ export default function SuppliersPage() {
   const [links, setLinks] = useState<SupplierBookLink[]>([]);
   const [linksError, setLinksError] = useState<string | null>(null);
   const [orderSupplier, setOrderSupplier] = useState<Supplier | null>(null);
-  const [orderTab, setOrderTab] = useState<"order" | "list">("order");
+  const [orderTab, setOrderTab] = useState<"order" | "list" | "history">("order");
   const [qtyMap, setQtyMap] = useState<Record<number, string>>({});
   const [bookSearch, setBookSearch] = useState("");
   const [orderNo, setOrderNo] = useState("");
   const [pdfBusy, setPdfBusy] = useState(false);
+
+  // دستی کتب، محفوظ آرڈرز اور موصولی
+  const [manualLines, setManualLines] = useState<{ title: string; author: string; qty: number }[]>([]);
+  const [manualTitle, setManualTitle] = useState("");
+  const [manualAuthor, setManualAuthor] = useState("");
+  const [manualQty, setManualQty] = useState("1");
+  const [supplierOrders, setSupplierOrders] = useState<SupplierOrder[]>([]);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [orderMsg, setOrderMsg] = useState("");
+  const [receiveOrder, setReceiveOrder] = useState<SupplierOrder | null>(null);
+  const [recvQty, setRecvQty] = useState<Record<string, string>>({});
+  const [receiveBusy, setReceiveBusy] = useState(false);
+  const [receiveMsg, setReceiveMsg] = useState("");
+  const orderStateRef = useRef<{ orderNo: string; id: string | null; sig: string }>({ orderNo: "", id: null, sig: "" });
+  const chainRef = useRef<Promise<void>>(Promise.resolve());
 
   const fetchBooksAndLinks = async () => {
     const { data: booksData } = await supabase.from("books").select("id, title, author, price, stock").order("title", { ascending: true });
@@ -136,6 +174,20 @@ export default function SuppliersPage() {
     } else {
       setLinksError(null);
       setLinks((linkData || []) as SupplierBookLink[]);
+    }
+    await fetchSupplierOrders();
+  };
+
+  const fetchSupplierOrders = async () => {
+    const { data, error } = await supabase
+      .from("supplier_orders")
+      .select("*, supplier_order_items(*)")
+      .order("created_at", { ascending: false });
+    if (error) {
+      setOrdersError("آرڈرز کا ٹیبل نہیں ملا۔ Supabase میں supplier_orders اور supplier_order_items ٹیبل بنائیں۔");
+    } else {
+      setOrdersError(null);
+      setSupplierOrders((data || []) as SupplierOrder[]);
     }
   };
 
@@ -176,20 +228,146 @@ export default function SuppliersPage() {
     setLinks((prev) => [...prev, ...rows]);
   };
 
-  const openOrder = (s: Supplier, tab: "order" | "list") => {
+  const openOrder = (s: Supplier, tab: "order" | "list" | "history") => {
     setOrderSupplier(s);
     setOrderTab(tab);
     setQtyMap({});
     setBookSearch("");
     setOrderNo(generateOrderNo());
+    setManualLines([]);
+    setManualTitle("");
+    setManualAuthor("");
+    setManualQty("1");
+    setOrderMsg("");
+    setReceiveOrder(null);
+    setReceiveMsg("");
+    orderStateRef.current = { orderNo: "", id: null, sig: "" };
   };
 
-  const getOrderLines = () =>
-    orderSupplier
-      ? supplierBooks(orderSupplier.id)
-          .map((b) => ({ b, qty: parseInt(qtyMap[b.id] || "0", 10) || 0 }))
-          .filter((x) => x.qty > 0)
-      : [];
+  const getOrderLines = (): OrderLine[] => {
+    if (!orderSupplier) return [];
+    const fromList: OrderLine[] = supplierBooks(orderSupplier.id)
+      .map((b) => ({ b, qty: parseInt(qtyMap[b.id] || "0", 10) || 0 }))
+      .filter((x) => x.qty > 0);
+    const fromManual: OrderLine[] = manualLines.map((m) => ({
+      b: { id: 0, title: m.title, author: m.author || undefined },
+      qty: m.qty,
+      manual: true,
+    }));
+    return [...fromList, ...fromManual];
+  };
+
+  const handleAddManual = () => {
+    const title = manualTitle.trim();
+    const qty = parseInt(manualQty) || 0;
+    if (!title || qty <= 0) {
+      alert("دستی کتاب کا نام اور تعداد لکھیں");
+      return;
+    }
+    setManualLines((prev) => [...prev, { title, author: manualAuthor.trim(), qty }]);
+    setManualTitle("");
+    setManualAuthor("");
+    setManualQty("1");
+  };
+
+  // آرڈر کو ڈیٹا بیس میں محفوظ کریں (بھیجنے / پرنٹ پر خود بخود بھی ہوتا ہے)
+  const saveOrderRecord = (lines: OrderLine[]) => {
+    if (!orderSupplier || lines.length === 0) return Promise.resolve();
+    const supplierId = orderSupplier.id;
+    const no = orderNo;
+    const sig = JSON.stringify(lines.map((x) => [x.manual ? 0 : x.b.id, x.b.title, x.qty]));
+    chainRef.current = chainRef.current.then(async () => {
+      const st = orderStateRef.current;
+      if (st.orderNo === no && st.id && st.sig === sig) return;
+      try {
+        let id = st.orderNo === no ? st.id : null;
+        if (!id) {
+          const { data, error } = await supabase
+            .from("supplier_orders")
+            .insert({ order_no: no, supplier_id: supplierId, status: "pending" })
+            .select("id")
+            .single();
+          if (error || !data) throw new Error(error?.message || "آرڈر نہیں بن سکا");
+          id = data.id as string;
+          orderStateRef.current = { orderNo: no, id, sig: "" };
+        } else {
+          const { error } = await supabase.from("supplier_order_items").delete().eq("order_id", id);
+          if (error) throw new Error(error.message);
+        }
+        const rows = lines.map((x) => ({
+          order_id: id,
+          book_id: x.manual ? null : x.b.id,
+          title: x.b.title,
+          author: x.b.author || null,
+          quantity: x.qty,
+        }));
+        const { error: itemsErr } = await supabase.from("supplier_order_items").insert(rows);
+        if (itemsErr) throw new Error(itemsErr.message);
+        orderStateRef.current = { orderNo: no, id, sig };
+        setOrderMsg("✅ آرڈر محفوظ ہو گیا — \"پرانے آرڈرز\" میں نظر آئے گا");
+        await fetchSupplierOrders();
+      } catch (e) {
+        setOrderMsg("آرڈر محفوظ نہیں ہو سکا: " + (e as Error).message);
+      }
+    });
+    return chainRef.current;
+  };
+
+  // مال آنے پر: ہر کتاب کی موصول تعداد سٹاک میں جمع کریں
+  const openReceive = (o: SupplierOrder) => {
+    setReceiveOrder(o);
+    setReceiveMsg("");
+    const map: Record<string, string> = {};
+    (o.supplier_order_items || []).forEach((it) => {
+      map[it.id] = String(it.quantity);
+    });
+    setRecvQty(map);
+  };
+
+  const confirmReceive = async () => {
+    if (!receiveOrder) return;
+    setReceiveBusy(true);
+    setReceiveMsg("");
+    try {
+      // دوبارہ شامل ہونے سے بچاؤ: تازہ حالت دیکھیں
+      const { data: fresh } = await supabase.from("supplier_orders").select("status").eq("id", receiveOrder.id).single();
+      if (fresh?.status === "received") {
+        setReceiveMsg("یہ آرڈر پہلے ہی موصول ہو چکا ہے");
+        setReceiveBusy(false);
+        await fetchSupplierOrders();
+        return;
+      }
+      for (const it of receiveOrder.supplier_order_items || []) {
+        const qty = parseInt(recvQty[it.id] ?? "0") || 0;
+        if (it.book_id !== null && qty > 0) {
+          const { data: row, error: readErr } = await supabase.from("books").select("stock").eq("id", it.book_id).single();
+          if (readErr || !row) throw new Error(readErr?.message || "کتاب نہیں ملی");
+          const { error: upErr } = await supabase
+            .from("books")
+            .update({ stock: (Number(row.stock) || 0) + qty })
+            .eq("id", it.book_id);
+          if (upErr) throw new Error(upErr.message);
+        }
+        await supabase.from("supplier_order_items").update({ received_qty: qty }).eq("id", it.id);
+      }
+      const { error } = await supabase
+        .from("supplier_orders")
+        .update({ status: "received", received_at: new Date().toISOString() })
+        .eq("id", receiveOrder.id);
+      if (error) throw new Error(error.message);
+      setReceiveOrder(null);
+      await fetchBooksAndLinks();
+    } catch (e) {
+      setReceiveMsg("سٹاک میں شامل نہیں ہو سکا: " + (e as Error).message);
+    }
+    setReceiveBusy(false);
+  };
+
+  const deleteSupplierOrder = async (o: SupplierOrder) => {
+    if (!confirm("یہ آرڈر ریکارڈ حذف کریں؟ (سٹاک پر کوئی اثر نہیں پڑے گا)")) return;
+    await supabase.from("supplier_orders").delete().eq("id", o.id);
+    await fetchSupplierOrders();
+  };
 
   // واٹس ایپ کا باقاعدہ (پروفیشنل) آرڈر پیغام
   const sendOrder = () => {
@@ -199,6 +377,7 @@ export default function SuppliersPage() {
       alert("کم از کم ایک کتاب کی تعداد لکھیں");
       return;
     }
+    void saveOrderRecord(lines);
     const totalQty = lines.reduce((sum, x) => sum + x.qty, 0);
     const line = "━━━━━━━━━━━━━━━";
     const text =
@@ -227,7 +406,7 @@ export default function SuppliersPage() {
   };
 
   // آرڈر شیٹ کا مواد: نام ← مصنف ← تعداد
-  const buildOrderSheetInner = (lines: { b: BookLite; qty: number }[]) => {
+  const buildOrderSheetInner = (lines: OrderLine[]) => {
     if (!orderSupplier) return "";
     const totalQty = lines.reduce((sum, x) => sum + x.qty, 0);
     const now = new Date();
@@ -281,6 +460,7 @@ export default function SuppliersPage() {
       alert("کم از کم ایک کتاب کی تعداد لکھیں");
       return;
     }
+    void saveOrderRecord(lines);
     const html = `
       <html dir="ltr" lang="en">
         <head>
@@ -311,6 +491,7 @@ export default function SuppliersPage() {
       alert("کم از کم ایک کتاب کی تعداد لکھیں");
       return;
     }
+    void saveOrderRecord(lines);
     setPdfBusy(true);
     let frame: HTMLIFrameElement | null = null;
     try {
@@ -632,6 +813,14 @@ export default function SuppliersPage() {
                     <div className="mt-3 pt-2 border-t border-slate-100 text-xs">
                       <p className="text-slate-500">
                         📚 {mine.length} کتب
+                        {(() => {
+                          const pending = supplierOrders.filter((o) => o.supplier_id === s.id && o.status === "pending").length;
+                          return pending > 0 ? (
+                            <span className="mr-2 inline-block rounded-md bg-sky-50 border border-sky-200 text-sky-700 font-semibold px-2 py-0.5 text-[11px]">
+                              ⏳ {pending} آرڈر زیر انتظار
+                            </span>
+                          ) : null;
+                        })()}
                         {needed.length > 0 && (
                           <span className="mr-2 inline-block rounded-md bg-rose-50 border border-rose-200 text-rose-600 font-semibold px-2 py-0.5 text-[11px]">
                             ⚠ {needed.length} کم/ختم
@@ -650,6 +839,12 @@ export default function SuppliersPage() {
                           className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-[11px] font-medium hover:bg-slate-50 transition"
                         >
                           کتب کی فہرست
+                        </button>
+                        <button
+                          onClick={() => openOrder(s, "history")}
+                          className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-[11px] font-medium hover:bg-slate-50 transition"
+                        >
+                          پرانے آرڈرز
                         </button>
                       </div>
                     </div>
@@ -712,9 +907,134 @@ export default function SuppliersPage() {
               >
                 کتب کی فہرست
               </button>
+              <button
+                onClick={() => setOrderTab("history")}
+                className={`flex-1 py-1.5 rounded-lg font-semibold border ${
+                  orderTab === "history" ? "bg-emerald-600 text-white border-emerald-600" : "border-slate-200 text-slate-600"
+                }`}
+              >
+                پرانے آرڈرز
+              </button>
             </div>
 
-            {orderTab === "order" ? (
+            {ordersError && orderTab !== "list" && (
+              <div className="mb-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-xs px-3 py-2">{ordersError}</div>
+            )}
+
+            {orderTab === "history" ? (
+              (() => {
+                const mineOrders = supplierOrders.filter((o) => o.supplier_id === orderSupplier.id);
+                if (mineOrders.length === 0) {
+                  return <p className="text-xs text-slate-500 text-center py-8">ابھی اس سپلائر کا کوئی محفوظ آرڈر نہیں۔</p>;
+                }
+                return (
+                  <div className="space-y-2.5">
+                    {mineOrders.map((o) => {
+                      const items = o.supplier_order_items || [];
+                      const pending = o.status !== "received";
+                      const isReceiving = receiveOrder?.id === o.id;
+                      return (
+                        <div key={o.id} className="rounded-lg border border-slate-200 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <p className="text-xs font-bold text-slate-800" dir="ltr">{o.order_no}</p>
+                              <p className="text-[11px] text-slate-400" dir="ltr">{new Date(o.created_at).toLocaleDateString("en-GB")}</p>
+                            </div>
+                            <span
+                              className={`text-[11px] font-semibold rounded-md border px-2 py-0.5 ${
+                                pending ? "bg-sky-50 border-sky-200 text-sky-700" : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                              }`}
+                            >
+                              {pending ? "زیر انتظار" : "موصول ہوا"}
+                            </span>
+                          </div>
+
+                          {!isReceiving && (
+                            <ul className="mt-2 text-[11px] text-slate-600 space-y-0.5">
+                              {items.map((it) => (
+                                <li key={it.id} className="flex justify-between gap-2">
+                                  <span className="truncate">{it.title}{it.book_id === null ? " (دستی)" : ""}</span>
+                                  <span className="shrink-0 font-semibold">
+                                    {it.quantity}
+                                    {!pending && it.received_qty !== null && it.received_qty !== undefined && it.received_qty !== it.quantity
+                                      ? ` ← ${it.received_qty} آئیں`
+                                      : ""}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+
+                          {isReceiving && (
+                            <div className="mt-2">
+                              <p className="text-[11px] text-slate-500 mb-1.5">
+                                جتنی کتابیں اصل میں آئیں وہ تعداد لکھیں۔ یہی تعداد سٹاک میں جمع ہوگی (0 = شامل نہیں)۔
+                              </p>
+                              <div className="divide-y divide-slate-100 border border-slate-100 rounded-lg">
+                                {items.map((it) => (
+                                  <div key={it.id} className="flex items-center justify-between gap-2 p-2">
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-medium text-slate-800 truncate">{it.title}</p>
+                                      <p className="text-[10px] text-slate-400">
+                                        آرڈر: {it.quantity}
+                                        {it.book_id === null ? " • دستی کتاب، سٹاک میں شامل نہیں ہوگی" : ""}
+                                      </p>
+                                    </div>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      value={recvQty[it.id] ?? ""}
+                                      onChange={(e) => setRecvQty((prev) => ({ ...prev, [it.id]: e.target.value }))}
+                                      className="w-16 rounded-lg border border-slate-200 p-1.5 text-xs text-center focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                              {receiveMsg && <p className="mt-2 text-[11px] text-rose-600">{receiveMsg}</p>}
+                              <div className="mt-2 flex gap-2">
+                                <button
+                                  onClick={confirmReceive}
+                                  disabled={receiveBusy}
+                                  className="flex-1 rounded-lg bg-sky-600 text-white py-1.5 text-xs font-semibold hover:bg-sky-700 transition disabled:opacity-40"
+                                >
+                                  {receiveBusy ? "شامل ہو رہا ہے..." : "سٹاک میں شامل کریں"}
+                                </button>
+                                <button
+                                  onClick={() => setReceiveOrder(null)}
+                                  className="flex-1 rounded-lg border border-slate-200 text-slate-600 py-1.5 text-xs font-medium hover:bg-slate-50 transition"
+                                >
+                                  منسوخ
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {!isReceiving && (
+                            <div className="mt-2.5 flex items-center justify-end gap-2">
+                              {pending && (
+                                <button
+                                  onClick={() => openReceive(o)}
+                                  className="px-3 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 text-[11px] font-semibold transition"
+                                >
+                                  مال آ گیا (سٹاک میں شامل)
+                                </button>
+                              )}
+                              <button
+                                onClick={() => deleteSupplierOrder(o)}
+                                className="p-1 text-slate-400 hover:text-rose-600 rounded-md transition"
+                                title="ریکارڈ حذف کریں"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()
+            ) : orderTab === "order" ? (
               (() => {
                 const mine = supplierBooks(orderSupplier.id);
                 const needed = mine.filter(isLowStock);
@@ -738,29 +1058,84 @@ export default function SuppliersPage() {
                     />
                   </div>
                 );
-                if (mine.length === 0) {
-                  return (
-                    <p className="text-xs text-slate-500 text-center py-8">
-                      اس سپلائر کی کوئی کتاب شامل نہیں۔ پہلے "کتب کی فہرست" میں کتابیں چنیں۔
-                    </p>
-                  );
-                }
                 return (
                   <div>
-                    {needed.length > 0 ? (
+                    {mine.length === 0 && (
+                      <p className="text-xs text-slate-500 text-center py-4">
+                        اس سپلائر کی کوئی کتاب شامل نہیں۔ "کتب کی فہرست" میں کتابیں چنیں، یا نیچے دستی کتاب لکھیں۔
+                      </p>
+                    )}
+                    {mine.length > 0 && needed.length > 0 ? (
                       <>
                         <p className="text-[11px] font-bold text-rose-600 mb-1">کم یا ختم کتب</p>
                         {needed.map(renderRow)}
                       </>
-                    ) : (
+                    ) : mine.length > 0 ? (
                       <p className="text-xs text-emerald-600 mb-2">اس سپلائر کی کوئی کتاب کم یا ختم نہیں ہے ✅</p>
-                    )}
+                    ) : null}
                     {others.length > 0 && (
                       <>
                         <p className="text-[11px] font-bold text-slate-500 mt-4 mb-1">باقی کتب</p>
                         {others.map(renderRow)}
                       </>
                     )}
+                    <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                      <p className="text-[11px] font-bold text-amber-800 mb-1.5">✍️ دستی کتاب (جو فہرست میں نہیں)</p>
+                      <input
+                        type="text"
+                        placeholder="کتاب کا نام"
+                        value={manualTitle}
+                        onChange={(e) => setManualTitle(e.target.value)}
+                        className="mb-2 w-full rounded-lg border border-slate-200 p-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                      />
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="مصنف (اختیاری)"
+                          value={manualAuthor}
+                          onChange={(e) => setManualAuthor(e.target.value)}
+                          className="flex-1 min-w-0 rounded-lg border border-slate-200 p-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                        />
+                        <input
+                          type="number"
+                          min={1}
+                          value={manualQty}
+                          onChange={(e) => setManualQty(e.target.value)}
+                          className="w-16 rounded-lg border border-slate-200 p-2 text-xs text-center bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                          placeholder="تعداد"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddManual}
+                          className="bg-amber-600 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-amber-700 transition"
+                        >
+                          شامل
+                        </button>
+                      </div>
+                      {manualLines.length > 0 && (
+                        <ul className="mt-2 divide-y divide-amber-100">
+                          {manualLines.map((m, i) => (
+                            <li key={i} className="flex items-center justify-between gap-2 py-1.5 text-xs">
+                              <span className="truncate">
+                                {m.title}
+                                {m.author ? <span className="text-slate-400"> — {m.author}</span> : null}
+                              </span>
+                              <span className="flex items-center gap-2 shrink-0">
+                                <b>{m.qty}</b>
+                                <button
+                                  type="button"
+                                  onClick={() => setManualLines((prev) => prev.filter((_, j) => j !== i))}
+                                  className="text-rose-500 hover:text-rose-700"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
                     <p className="mt-4 text-[11px] text-slate-400 text-center" dir="ltr">Order No: {orderNo}</p>
                     <button
                       onClick={sendOrder}
@@ -781,6 +1156,20 @@ export default function SuppliersPage() {
                     >
                       {pdfBusy ? "PDF بن رہی ہے..." : "PDF شیئر کریں (واٹس ایپ وغیرہ)"}
                     </button>
+                    <button
+                      onClick={() => {
+                        const lines = getOrderLines();
+                        if (lines.length === 0) {
+                          alert("کم از کم ایک کتاب کی تعداد لکھیں");
+                          return;
+                        }
+                        void saveOrderRecord(lines);
+                      }}
+                      className="mt-2 w-full rounded-lg border border-sky-300 text-sky-700 py-2 text-xs font-bold hover:bg-sky-50 transition"
+                    >
+                      آرڈر صرف محفوظ کریں (بھیجے بغیر)
+                    </button>
+                    {orderMsg && <p className="mt-2 text-[11px] text-center text-slate-600">{orderMsg}</p>}
                     {!orderSupplier.phone && (
                       <p className="mt-2 text-[11px] text-amber-600 text-center">
                         اس سپلائر کا فون نمبر درج نہیں، واٹس ایپ میں خود نمبر چننا ہوگا۔
