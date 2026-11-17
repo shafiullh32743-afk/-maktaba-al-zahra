@@ -37,6 +37,7 @@ interface Supplier {
 }
 
 interface BookLite {
+  cost_price?: number | null;
   id: number;
   title: string;
   author?: string;
@@ -47,6 +48,16 @@ interface BookLite {
 interface SupplierBookLink {
   supplier_id: number;
   book_id: number;
+  cost_price?: number | null;
+}
+
+interface SupplierPayment {
+  id: string;
+  supplier_id: number | string;
+  amount: number;
+  kind: string; // payment = ادائیگی، charge = بقایا میں اضافہ
+  note?: string | null;
+  paid_at: string;
 }
 
 interface SupplierOrderItem {
@@ -57,6 +68,7 @@ interface SupplierOrderItem {
   author?: string | null;
   quantity: number;
   received_qty?: number | null;
+  unit_price?: number | null;
 }
 
 interface SupplierOrder {
@@ -66,6 +78,7 @@ interface SupplierOrder {
   status: string;
   created_at: string;
   received_at?: string | null;
+  total_amount?: number | null;
   supplier_order_items?: SupplierOrderItem[];
 }
 
@@ -144,7 +157,7 @@ export default function SuppliersPage() {
   const [links, setLinks] = useState<SupplierBookLink[]>([]);
   const [linksError, setLinksError] = useState<string | null>(null);
   const [orderSupplier, setOrderSupplier] = useState<Supplier | null>(null);
-  const [orderTab, setOrderTab] = useState<"order" | "list" | "history">("order");
+  const [orderTab, setOrderTab] = useState<"order" | "list" | "history" | "account">("order");
   const [qtyMap, setQtyMap] = useState<Record<number, string>>({});
   const [bookSearch, setBookSearch] = useState("");
   const [showOtherSupplierBooks, setShowOtherSupplierBooks] = useState(false);
@@ -162,14 +175,22 @@ export default function SuppliersPage() {
   const [receiveOrder, setReceiveOrder] = useState<SupplierOrder | null>(null);
   const [recvQty, setRecvQty] = useState<Record<string, string>>({});
   const [receiveBusy, setReceiveBusy] = useState(false);
+  const [closeRemaining, setCloseRemaining] = useState(false);
+  const [recvPrice, setRecvPrice] = useState<Record<string, string>>({});
+  const [supplierPayments, setSupplierPayments] = useState<SupplierPayment[]>([]);
+  const [paymentsError, setPaymentsError] = useState<string | null>(null);
+  const [payAmount, setPayAmount] = useState("");
+  const [payNote, setPayNote] = useState("");
+  const [payBusy, setPayBusy] = useState(false);
+  const [payMsg, setPayMsg] = useState("");
   const [receiveMsg, setReceiveMsg] = useState("");
   const orderStateRef = useRef<{ orderNo: string; id: string | null; sig: string }>({ orderNo: "", id: null, sig: "" });
   const chainRef = useRef<Promise<void>>(Promise.resolve());
 
   const fetchBooksAndLinks = async () => {
-    const { data: booksData } = await supabase.from("books").select("id, title, author, price, stock").order("title", { ascending: true });
+    const { data: booksData } = await supabase.from("books").select("id, title, author, price, stock, cost_price").order("title", { ascending: true });
     if (booksData) setAllBooks(booksData as BookLite[]);
-    const { data: linkData, error } = await supabase.from("supplier_books").select("supplier_id, book_id");
+    const { data: linkData, error } = await supabase.from("supplier_books").select("supplier_id, book_id, cost_price");
     if (error) {
       setLinksError("سپلائر کی کتب کا ٹیبل نہیں ملا۔ Supabase میں supplier_books ٹیبل بنائیں۔");
     } else {
@@ -177,6 +198,63 @@ export default function SuppliersPage() {
       setLinks((linkData || []) as SupplierBookLink[]);
     }
     await fetchSupplierOrders();
+    await fetchSupplierPayments();
+  };
+
+  const fetchSupplierPayments = async () => {
+    const { data, error } = await supabase.from("supplier_payments").select("*").order("paid_at", { ascending: false });
+    if (error) {
+      setPaymentsError("حساب کا ٹیبل نہیں ملا۔ Supabase میں supplier_payments ٹیبل بنائیں۔");
+    } else {
+      setPaymentsError(null);
+      setSupplierPayments((data || []) as SupplierPayment[]);
+    }
+  };
+
+  // اس سپلائر کی کتاب کی آخری معلوم خرید قیمت
+  const lastPrice = (supplierId: number | string, b: BookLite): number | null => {
+    const link = links.find((l) => l.supplier_id === supplierId && l.book_id === b.id);
+    const v = link?.cost_price ?? b.cost_price ?? null;
+    return v !== null && v !== undefined && Number(v) > 0 ? Number(v) : null;
+  };
+
+  // سپلائر کا حساب: موصول مال کی رقم + اضافہ − ادائیگیاں
+  const supplierAccount = (supplierId: number | string) => {
+    const received = supplierOrders
+      .filter((o) => o.supplier_id === supplierId)
+      .reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+    const mine = supplierPayments.filter((p) => p.supplier_id === supplierId);
+    const charges = mine.filter((p) => p.kind === "charge").reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const paid = mine.filter((p) => p.kind !== "charge").reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    return { received, charges, paid, balance: received + charges - paid };
+  };
+
+  const addPaymentEntry = async (kind: "payment" | "charge") => {
+    if (!orderSupplier) return;
+    const amount = parseFloat(payAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setPayMsg("رقم درست لکھیں");
+      return;
+    }
+    setPayBusy(true);
+    setPayMsg("");
+    const { error } = await supabase
+      .from("supplier_payments")
+      .insert({ supplier_id: orderSupplier.id, amount, kind, note: payNote.trim() || null });
+    if (error) {
+      setPayMsg("محفوظ نہیں ہو سکا: " + error.message);
+    } else {
+      setPayAmount("");
+      setPayNote("");
+      await fetchSupplierPayments();
+    }
+    setPayBusy(false);
+  };
+
+  const deletePaymentEntry = async (id: string) => {
+    if (!confirm("یہ اندراج حذف کریں؟")) return;
+    await supabase.from("supplier_payments").delete().eq("id", id);
+    await fetchSupplierPayments();
   };
 
   const fetchSupplierOrders = async () => {
@@ -229,7 +307,7 @@ export default function SuppliersPage() {
     setLinks((prev) => [...prev, ...rows]);
   };
 
-  const openOrder = (s: Supplier, tab: "order" | "list" | "history") => {
+  const openOrder = (s: Supplier, tab: "order" | "list" | "history" | "account") => {
     setOrderSupplier(s);
     setOrderTab(tab);
     setQtyMap({});
@@ -243,6 +321,9 @@ export default function SuppliersPage() {
     setOrderMsg("");
     setReceiveOrder(null);
     setReceiveMsg("");
+    setPayAmount("");
+    setPayNote("");
+    setPayMsg("");
     orderStateRef.current = { orderNo: "", id: null, sig: "" };
   };
 
@@ -302,6 +383,7 @@ export default function SuppliersPage() {
           title: x.b.title,
           author: x.b.author || null,
           quantity: x.qty,
+          unit_price: x.manual ? null : lastPrice(supplierId, x.b),
         }));
         const { error: itemsErr } = await supabase.from("supplier_order_items").insert(rows);
         if (itemsErr) throw new Error(itemsErr.message);
@@ -320,10 +402,16 @@ export default function SuppliersPage() {
     setReceiveOrder(o);
     setReceiveMsg("");
     const map: Record<string, string> = {};
+    const priceMap: Record<string, string> = {};
+    setCloseRemaining(false);
     (o.supplier_order_items || []).forEach((it) => {
-      map[it.id] = String(it.quantity);
+      map[it.id] = String(Math.max(0, it.quantity - (Number(it.received_qty) || 0)));
+      const book = allBooks.find((b) => b.id === it.book_id);
+      const price = it.unit_price ?? (book ? lastPrice(o.supplier_id, book) : null);
+      priceMap[it.id] = price ? String(price) : "";
     });
     setRecvQty(map);
+    setRecvPrice(priceMap);
   };
 
   const confirmReceive = async () => {
@@ -331,16 +419,45 @@ export default function SuppliersPage() {
     setReceiveBusy(true);
     setReceiveMsg("");
     try {
-      // دوبارہ شامل ہونے سے بچاؤ: تازہ حالت دیکھیں
-      const { data: fresh } = await supabase.from("supplier_orders").select("status").eq("id", receiveOrder.id).single();
-      if (fresh?.status === "received") {
-        setReceiveMsg("یہ آرڈر پہلے ہی موصول ہو چکا ہے");
+      // دوبارہ شامل ہونے سے بچاؤ: تازہ حالت اور پہلے سے آئی تعداد ڈیٹا بیس سے دیکھیں
+      const { data: freshOrder } = await supabase
+        .from("supplier_orders")
+        .select("status, total_amount")
+        .eq("id", receiveOrder.id)
+        .single();
+      if (freshOrder?.status === "received") {
+        setReceiveMsg("یہ آرڈر پہلے ہی مکمل موصول ہو چکا ہے");
         setReceiveBusy(false);
         await fetchSupplierOrders();
         return;
       }
-      for (const it of receiveOrder.supplier_order_items || []) {
+      const { data: freshItems } = await supabase
+        .from("supplier_order_items")
+        .select("id, quantity, received_qty")
+        .eq("order_id", receiveOrder.id);
+      const freshMap = new Map<string, { received_qty?: number | null }>(
+        (freshItems || []).map(
+          (x: { id: string; received_qty?: number | null }) => [x.id, x] as [string, { received_qty?: number | null }]
+        )
+      );
+
+      const items = receiveOrder.supplier_order_items || [];
+      const anyQty = items.some((it) => (parseInt(recvQty[it.id] ?? "0") || 0) > 0);
+      if (!anyQty && !closeRemaining) {
+        setReceiveMsg("کم از کم ایک کتاب کی تعداد لکھیں");
+        setReceiveBusy(false);
+        return;
+      }
+
+      let addedTotal = 0;
+      let allDone = true;
+      for (const it of items) {
+        const base = Number(freshMap.get(it.id)?.received_qty) || 0;
         const qty = parseInt(recvQty[it.id] ?? "0") || 0;
+        const priceRaw = parseFloat(recvPrice[it.id] ?? "");
+        const price = isNaN(priceRaw) || priceRaw < 0 ? 0 : priceRaw;
+        addedTotal += qty * price;
+
         if (it.book_id !== null && qty > 0) {
           const { data: row, error: readErr } = await supabase.from("books").select("stock").eq("id", it.book_id).single();
           if (readErr || !row) throw new Error(readErr?.message || "کتاب نہیں ملی");
@@ -349,12 +466,32 @@ export default function SuppliersPage() {
             .update({ stock: (Number(row.stock) || 0) + qty })
             .eq("id", it.book_id);
           if (upErr) throw new Error(upErr.message);
+          // نئی خرید قیمت: کتاب پر بھی اور اس سپلائر کے ریکارڈ میں بھی
+          if (price > 0) {
+            await supabase.from("books").update({ cost_price: price }).eq("id", it.book_id);
+            await supabase
+              .from("supplier_books")
+              .update({ cost_price: price })
+              .eq("supplier_id", receiveOrder.supplier_id)
+              .eq("book_id", it.book_id);
+          }
         }
-        await supabase.from("supplier_order_items").update({ received_qty: qty }).eq("id", it.id);
+        const newReceived = base + qty;
+        if (newReceived < it.quantity) allDone = false;
+        await supabase
+          .from("supplier_order_items")
+          .update({ received_qty: newReceived, unit_price: price > 0 ? price : it.unit_price ?? null })
+          .eq("id", it.id);
       }
+
+      const finished = closeRemaining || allDone;
       const { error } = await supabase
         .from("supplier_orders")
-        .update({ status: "received", received_at: new Date().toISOString() })
+        .update({
+          status: finished ? "received" : "partial",
+          ...(finished ? { received_at: new Date().toISOString() } : {}),
+          total_amount: (Number(freshOrder?.total_amount) || 0) + addedTotal,
+        })
         .eq("id", receiveOrder.id);
       if (error) throw new Error(error.message);
       setReceiveOrder(null);
@@ -363,6 +500,71 @@ export default function SuppliersPage() {
       setReceiveMsg("سٹاک میں شامل نہیں ہو سکا: " + (e as Error).message);
     }
     setReceiveBusy(false);
+  };
+
+  // دستی کتاب کو کتب کی فہرست میں شامل کریں (تاکہ اس کا سٹاک بھی بڑھ سکے)
+  const addManualToBooks = async (it: SupplierOrderItem) => {
+    if (!receiveOrder || it.book_id !== null) return;
+    const priceText = window.prompt(`"${it.title}" کی فروخت کی قیمت (روپے) لکھیں، نہ معلوم ہو تو خالی چھوڑیں:`, "");
+    if (priceText === null) return;
+    const salePrice = parseFloat(priceText) || 0;
+    const cost = parseFloat(recvPrice[it.id] ?? "") || 0;
+    setReceiveMsg("");
+    try {
+      const { data: created, error } = await supabase
+        .from("books")
+        .insert({
+          title: it.title,
+          author: it.author || "مكتبہ الزھراء",
+          category: "عمومی",
+          language: "اردو",
+          price: salePrice,
+          weight: 1,
+          stock: 0,
+          cost_price: cost,
+        })
+        .select("id")
+        .single();
+      if (error || !created) throw new Error(error?.message || "کتاب نہیں بن سکی");
+      await supabase.from("supplier_order_items").update({ book_id: created.id }).eq("id", it.id);
+      await supabase
+        .from("supplier_books")
+        .insert({ supplier_id: receiveOrder.supplier_id, book_id: created.id, cost_price: cost > 0 ? cost : null });
+      const { data: fresh } = await supabase
+        .from("supplier_orders")
+        .select("*, supplier_order_items(*)")
+        .eq("id", receiveOrder.id)
+        .single();
+      await fetchBooksAndLinks();
+      if (fresh) setReceiveOrder(fresh as SupplierOrder);
+    } catch (e) {
+      setReceiveMsg("کتب میں شامل نہیں ہو سکی: " + (e as Error).message);
+    }
+  };
+
+  // پرانا (زیر انتظار) آرڈر ترمیم یا دوبارہ بھیجنے کے لیے کھولیں
+  const loadOrderForEdit = (o: SupplierOrder) => {
+    if (!orderSupplier) return;
+    const items = o.supplier_order_items || [];
+    const mineIds = new Set(supplierBooks(orderSupplier.id).map((b) => b.id));
+    if (items.some((it) => it.book_id !== null && !mineIds.has(it.book_id))) {
+      alert("اس آرڈر کی کوئی کتاب اب اس سپلائر کی فہرست میں نہیں۔ پہلے اسے \"کتب کی فہرست\" میں شامل کریں۔");
+      return;
+    }
+    const qm: Record<number, string> = {};
+    items
+      .filter((it) => it.book_id !== null)
+      .forEach((it) => {
+        qm[it.book_id as number] = String(it.quantity);
+      });
+    setQtyMap(qm);
+    setManualLines(
+      items.filter((it) => it.book_id === null).map((it) => ({ title: it.title, author: it.author || "", qty: it.quantity }))
+    );
+    setOrderNo(o.order_no);
+    orderStateRef.current = { orderNo: o.order_no, id: o.id, sig: "" };
+    setOrderMsg("آرڈر ترمیم کے لیے کھلا ہے۔ تعداد بدلیں (کتاب ہٹانی ہو تو تعداد خالی کر دیں) اور دوبارہ بھیجیں یا محفوظ کریں۔");
+    setOrderTab("order");
   };
 
   const deleteSupplierOrder = async (o: SupplierOrder) => {
@@ -816,11 +1018,27 @@ export default function SuppliersPage() {
                       <p className="text-slate-500">
                         📚 {mine.length} کتب
                         {(() => {
-                          const pending = supplierOrders.filter((o) => o.supplier_id === s.id && o.status === "pending").length;
+                          const pending = supplierOrders.filter((o) => o.supplier_id === s.id && o.status !== "received").length;
                           return pending > 0 ? (
                             <span className="mr-2 inline-block rounded-md bg-sky-50 border border-sky-200 text-sky-700 font-semibold px-2 py-0.5 text-[11px]">
                               ⏳ {pending} آرڈر زیر انتظار
                             </span>
+                          ) : null;
+                        })()}
+                        {(() => {
+                          const acc = supplierAccount(s.id);
+                          return Math.round(acc.balance) !== 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => openOrder(s, "account")}
+                              className={`mr-2 inline-block rounded-md border font-semibold px-2 py-0.5 text-[11px] ${
+                                acc.balance > 0
+                                  ? "bg-amber-50 border-amber-200 text-amber-700"
+                                  : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                              }`}
+                            >
+                              {acc.balance > 0 ? `💰 بقایا Rs ${Math.round(acc.balance).toLocaleString()}` : `پیشگی Rs ${Math.round(-acc.balance).toLocaleString()}`}
+                            </button>
                           ) : null;
                         })()}
                         {needed.length > 0 && (
@@ -917,13 +1135,155 @@ export default function SuppliersPage() {
               >
                 پرانے آرڈرز
               </button>
+              <button
+                onClick={() => setOrderTab("account")}
+                className={`flex-1 py-1.5 rounded-lg font-semibold border ${
+                  orderTab === "account" ? "bg-emerald-600 text-white border-emerald-600" : "border-slate-200 text-slate-600"
+                }`}
+              >
+                حساب
+              </button>
             </div>
 
             {ordersError && orderTab !== "list" && (
               <div className="mb-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-xs px-3 py-2">{ordersError}</div>
             )}
 
-            {orderTab === "history" ? (
+            {orderTab === "account" ? (
+              (() => {
+                const acc = supplierAccount(orderSupplier.id);
+                const myPays = supplierPayments.filter((p) => p.supplier_id === orderSupplier.id);
+                const fmt = (n: number) => Math.round(n).toLocaleString();
+                return (
+                  <div>
+                    {paymentsError && (
+                      <div className="mb-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-xs px-3 py-2">{paymentsError}</div>
+                    )}
+                    <div className="rounded-lg border border-slate-200 divide-y divide-slate-100 text-xs">
+                      <div className="flex justify-between p-2.5"><span className="text-slate-500">موصول شدہ مال کی رقم</span><b>Rs {fmt(acc.received)}</b></div>
+                      {acc.charges > 0 && (
+                        <div className="flex justify-between p-2.5"><span className="text-slate-500">پرانا / اضافی بقایا</span><b>Rs {fmt(acc.charges)}</b></div>
+                      )}
+                      <div className="flex justify-between p-2.5"><span className="text-slate-500">کل ادائیگیاں</span><b>Rs {fmt(acc.paid)}</b></div>
+                      <div className={`flex justify-between p-2.5 font-bold ${acc.balance > 0 ? "text-amber-700 bg-amber-50" : "text-emerald-700 bg-emerald-50"}`}>
+                        <span>{acc.balance >= 0 ? "ہمارے ذمے بقایا" : "پیشگی (سپلائر کے ذمے)"}</span>
+                        <span>Rs {fmt(Math.abs(acc.balance))}</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 rounded-lg border border-slate-200 p-3">
+                      <p className="text-[11px] font-bold text-slate-700 mb-1.5">نیا اندراج</p>
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          min={0}
+                          value={payAmount}
+                          onChange={(e) => setPayAmount(e.target.value)}
+                          placeholder="رقم (روپے)"
+                          className="w-28 rounded-lg border border-slate-200 p-2 text-xs text-center focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        />
+                        <input
+                          type="text"
+                          value={payNote}
+                          onChange={(e) => setPayNote(e.target.value)}
+                          placeholder="نوٹ (اختیاری)"
+                          className="flex-1 min-w-0 rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        />
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          onClick={() => addPaymentEntry("payment")}
+                          disabled={payBusy}
+                          className="flex-1 rounded-lg bg-emerald-600 text-white py-1.5 text-xs font-semibold hover:bg-emerald-700 transition disabled:opacity-40"
+                        >
+                          ادائیگی کی
+                        </button>
+                        <button
+                          onClick={() => addPaymentEntry("charge")}
+                          disabled={payBusy}
+                          className="flex-1 rounded-lg border border-amber-300 text-amber-700 py-1.5 text-xs font-semibold hover:bg-amber-50 transition disabled:opacity-40"
+                        >
+                          بقایا بڑھائیں (پرانا حساب)
+                        </button>
+                      </div>
+                      {payMsg && <p className="mt-2 text-[11px] text-rose-600">{payMsg}</p>}
+                    </div>
+
+                    {(() => {
+                      const myOrders = supplierOrders.filter((o) => o.supplier_id === orderSupplier.id);
+                      const monthly = new Map<string, number>();
+                      const topMap = new Map<string, number>();
+                      myOrders.forEach((o) => {
+                        const amt = Number(o.total_amount) || 0;
+                        if (amt > 0) {
+                          const d = new Date(o.received_at || o.created_at);
+                          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                          monthly.set(key, (monthly.get(key) || 0) + amt);
+                        }
+                        (o.supplier_order_items || []).forEach((it) => {
+                          const q = Number(it.received_qty) || 0;
+                          if (q > 0) topMap.set(it.title, (topMap.get(it.title) || 0) + q);
+                        });
+                      });
+                      const monthRows = Array.from(monthly.entries()).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 6);
+                      const topRows = Array.from(topMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 5);
+                      if (monthRows.length === 0 && topRows.length === 0) return null;
+                      return (
+                        <div className="mt-3 rounded-lg border border-slate-200 p-3 text-xs">
+                          <p className="text-[11px] font-bold text-slate-700 mb-1.5">رپورٹ</p>
+                          {monthRows.length > 0 && (
+                            <div className="mb-2">
+                              <p className="text-[10px] text-slate-400 mb-1">ہر مہینے کتنا مال آیا (رقم)</p>
+                              {monthRows.map(([m, amt]) => (
+                                <div key={m} className="flex justify-between py-0.5">
+                                  <span dir="ltr" className="text-slate-500">{m}</span>
+                                  <b>Rs {Math.round(amt).toLocaleString()}</b>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {topRows.length > 0 && (
+                            <div>
+                              <p className="text-[10px] text-slate-400 mb-1">سب سے زیادہ آنے والی کتب (تعداد)</p>
+                              {topRows.map(([t, q]) => (
+                                <div key={t} className="flex justify-between gap-2 py-0.5">
+                                  <span className="truncate text-slate-600">{t}</span>
+                                  <b className="shrink-0">{q}</b>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {myPays.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-[11px] font-bold text-slate-500 mb-1">اندراجات</p>
+                        <div className="divide-y divide-slate-100 border border-slate-100 rounded-lg">
+                          {myPays.map((p) => (
+                            <div key={p.id} className="flex items-center justify-between gap-2 p-2 text-xs">
+                              <div className="min-w-0">
+                                <p className={`font-semibold ${p.kind === "charge" ? "text-amber-700" : "text-emerald-700"}`}>
+                                  {p.kind === "charge" ? "+ بقایا" : "− ادائیگی"} Rs {fmt(Number(p.amount))}
+                                </p>
+                                <p className="text-[10px] text-slate-400 truncate" dir="ltr">
+                                  {new Date(p.paid_at).toLocaleDateString("en-GB")}
+                                  {p.note ? ` • ${p.note}` : ""}
+                                </p>
+                              </div>
+                              <button onClick={() => deletePaymentEntry(p.id)} className="p-1 text-slate-400 hover:text-rose-600" title="حذف">
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()
+            ) : orderTab === "history" ? (
               (() => {
                 const mineOrders = supplierOrders.filter((o) => o.supplier_id === orderSupplier.id);
                 if (mineOrders.length === 0) {
@@ -940,14 +1300,21 @@ export default function SuppliersPage() {
                           <div className="flex items-center justify-between gap-2">
                             <div>
                               <p className="text-xs font-bold text-slate-800" dir="ltr">{o.order_no}</p>
-                              <p className="text-[11px] text-slate-400" dir="ltr">{new Date(o.created_at).toLocaleDateString("en-GB")}</p>
+                              <p className="text-[11px] text-slate-400" dir="ltr">
+                                {new Date(o.created_at).toLocaleDateString("en-GB")}
+                                {Number(o.total_amount) > 0 ? ` • Rs ${Number(o.total_amount).toLocaleString()}` : ""}
+                              </p>
                             </div>
                             <span
                               className={`text-[11px] font-semibold rounded-md border px-2 py-0.5 ${
-                                pending ? "bg-sky-50 border-sky-200 text-sky-700" : "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                o.status === "partial"
+                                  ? "bg-amber-50 border-amber-200 text-amber-700"
+                                  : pending
+                                  ? "bg-sky-50 border-sky-200 text-sky-700"
+                                  : "bg-emerald-50 border-emerald-200 text-emerald-700"
                               }`}
                             >
-                              {pending ? "زیر انتظار" : "موصول ہوا"}
+                              {o.status === "partial" ? "جزوی موصول" : pending ? "زیر انتظار" : "موصول ہوا"}
                             </span>
                           </div>
 
@@ -958,7 +1325,7 @@ export default function SuppliersPage() {
                                   <span className="truncate">{it.title}{it.book_id === null ? " (دستی)" : ""}</span>
                                   <span className="shrink-0 font-semibold">
                                     {it.quantity}
-                                    {!pending && it.received_qty !== null && it.received_qty !== undefined && it.received_qty !== it.quantity
+                                    {it.received_qty !== null && it.received_qty !== undefined && Number(it.received_qty) > 0 && Number(it.received_qty) !== it.quantity
                                       ? ` ← ${it.received_qty} آئیں`
                                       : ""}
                                   </span>
@@ -978,20 +1345,59 @@ export default function SuppliersPage() {
                                     <div className="min-w-0">
                                       <p className="text-xs font-medium text-slate-800 truncate">{it.title}</p>
                                       <p className="text-[10px] text-slate-400">
-                                        آرڈر: {it.quantity}
-                                        {it.book_id === null ? " • دستی کتاب، سٹاک میں شامل نہیں ہوگی" : ""}
+                                        آرڈر: {it.quantity} • آ چکی: {Number(it.received_qty) || 0} • باقی:{" "}
+                                        {Math.max(0, it.quantity - (Number(it.received_qty) || 0))}
                                       </p>
+                                      {it.book_id === null && (
+                                        <button
+                                          type="button"
+                                          onClick={() => addManualToBooks(it)}
+                                          className="mt-0.5 text-[10px] font-semibold text-sky-700 hover:underline"
+                                        >
+                                          دستی کتاب — کتب میں شامل کریں (تاکہ سٹاک بڑھے)
+                                        </button>
+                                      )}
                                     </div>
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      value={recvQty[it.id] ?? ""}
-                                      onChange={(e) => setRecvQty((prev) => ({ ...prev, [it.id]: e.target.value }))}
-                                      className="w-16 rounded-lg border border-slate-200 p-1.5 text-xs text-center focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
-                                    />
+                                    <div className="flex gap-1.5 shrink-0">
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        value={recvQty[it.id] ?? ""}
+                                        onChange={(e) => setRecvQty((prev) => ({ ...prev, [it.id]: e.target.value }))}
+                                        className="w-14 rounded-lg border border-slate-200 p-1.5 text-xs text-center focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+                                        placeholder="تعداد"
+                                      />
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        value={recvPrice[it.id] ?? ""}
+                                        onChange={(e) => setRecvPrice((prev) => ({ ...prev, [it.id]: e.target.value }))}
+                                        className="w-20 rounded-lg border border-slate-200 p-1.5 text-xs text-center focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+                                        placeholder="خرید قیمت"
+                                      />
+                                    </div>
                                   </div>
                                 ))}
                               </div>
+                              <label className="mt-2 flex items-center gap-2 text-[11px] text-slate-600 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={closeRemaining}
+                                  onChange={(e) => setCloseRemaining(e.target.checked)}
+                                  className="w-3.5 h-3.5 accent-sky-600"
+                                />
+                                باقی مال نہیں آئے گا، آرڈر بند کر دیں
+                              </label>
+                              <p className="mt-2 text-[11px] font-semibold text-slate-700">
+                                اس بار کی رقم: Rs{" "}
+                                {items
+                                  .reduce(
+                                    (sum, it) => sum + (parseInt(recvQty[it.id] ?? "0") || 0) * (parseFloat(recvPrice[it.id] ?? "") || 0),
+                                    0
+                                  )
+                                  .toLocaleString()}
+                                <span className="font-normal text-slate-400"> (سپلائر کے حساب میں جمع ہوگی)</span>
+                              </p>
                               {receiveMsg && <p className="mt-2 text-[11px] text-rose-600">{receiveMsg}</p>}
                               <div className="mt-2 flex gap-2">
                                 <button
@@ -1013,12 +1419,20 @@ export default function SuppliersPage() {
 
                           {!isReceiving && (
                             <div className="mt-2.5 flex items-center justify-end gap-2">
+                              {o.status === "pending" && (
+                                <button
+                                  onClick={() => loadOrderForEdit(o)}
+                                  className="px-3 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-[11px] font-semibold transition"
+                                >
+                                  ترمیم / دوبارہ بھیجیں
+                                </button>
+                              )}
                               {pending && (
                                 <button
                                   onClick={() => openReceive(o)}
                                   className="px-3 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 text-[11px] font-semibold transition"
                                 >
-                                  مال آ گیا (سٹاک میں شامل)
+                                  {o.status === "partial" ? "مزید مال آیا" : "مال آ گیا (سٹاک میں شامل)"}
                                 </button>
                               )}
                               <button
@@ -1048,6 +1462,9 @@ export default function SuppliersPage() {
                       <p className={`text-[11px] font-semibold ${(b.stock ?? 0) <= 0 ? "text-rose-600" : isLowStock(b) ? "text-amber-600" : "text-slate-400"}`}>
                         {(b.stock ?? 0) <= 0 ? "ختم" : isLowStock(b) ? `کم سٹاک (${b.stock})` : `سٹاک ${b.stock}`}
                       </p>
+                      {lastPrice(orderSupplier.id, b) !== null && (
+                        <p className="text-[10px] text-slate-400">آخری خرید قیمت: Rs {lastPrice(orderSupplier.id, b)}</p>
+                      )}
                     </div>
                     <input
                       type="number"
@@ -1138,6 +1555,18 @@ export default function SuppliersPage() {
                       )}
                     </div>
 
+                    {(() => {
+                      const est = getOrderLines().reduce(
+                        (sum, x) => sum + (x.manual ? 0 : x.qty * (lastPrice(orderSupplier.id, x.b) || 0)),
+                        0
+                      );
+                      return est > 0 ? (
+                        <p className="mt-3 text-xs font-semibold text-slate-700 text-center">
+                          اندازاً کل رقم: Rs {est.toLocaleString()}
+                          <span className="font-normal text-slate-400"> (آخری خرید قیمت کے حساب سے)</span>
+                        </p>
+                      ) : null;
+                    })()}
                     <p className="mt-4 text-[11px] text-slate-400 text-center" dir="ltr">Order No: {orderNo}</p>
                     <button
                       onClick={sendOrder}
