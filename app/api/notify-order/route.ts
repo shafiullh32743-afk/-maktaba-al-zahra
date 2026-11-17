@@ -20,10 +20,12 @@ export async function POST(request: Request) {
     }
     webpush.setVapidDetails(subject, publicKey, privateKey);
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
-    );
+    // سرور کی خفیہ کنجی (صرف سرور پر، براؤزر کو کبھی نہیں ملتی)
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceKey) {
+      return NextResponse.json({ ok: false, error: "service key missing" }, { status: 500 });
+    }
+    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL as string, serviceKey);
 
     const { data: rows } = await supabase
       .from("orders")

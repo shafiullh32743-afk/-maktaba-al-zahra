@@ -3,10 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
+// سرور کی خفیہ کنجی (صرف سرور پر استعمال ہوتی ہے)
 function db() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
+    process.env.SUPABASE_SERVICE_ROLE_KEY as string
   );
 }
 
