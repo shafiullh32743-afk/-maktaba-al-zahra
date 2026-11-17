@@ -47,7 +47,8 @@ interface Book {
 }
 
 interface SelectedItem {
-  book_id: number;
+  book_id: number | null;
+  manual?: boolean;
   title: string;
   quantity: number;
   unit_price: number;
@@ -64,6 +65,7 @@ interface Invoice {
   payment_status: "unpaid" | "partial" | "paid";
   amount_paid: number;
   due_date: string | null;
+  stock_added_at?: string | null;
   created_at: string;
   walk_in_name?: string;
   remarks?: string;
@@ -71,7 +73,8 @@ interface Invoice {
 }
 
 interface LineItem {
-  book_id: number;
+  book_id: number | null;
+  item_title?: string | null;
   quantity: number;
   unit_price: number;
   total_price: number;
@@ -141,6 +144,19 @@ export default function InvoicesPage() {
   const [currentQty, setCurrentQty] = useState("1");
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
+  // دستی کتاب (جو دکان کی فہرست میں نہیں)
+  const [manualTitle, setManualTitle] = useState("");
+  const [manualQty, setManualQty] = useState("1");
+  const [manualPrice, setManualPrice] = useState("");
+
+  // بل کو سٹاک میں شامل کرنا
+  const [stockInvoice, setStockInvoice] = useState<Invoice | null>(null);
+  const [stockLines, setStockLines] = useState<{ book_id: number; title: string; billQty: number; addQty: string }[]>([]);
+  const [stockManualCount, setStockManualCount] = useState(0);
+  const [stockLoading, setStockLoading] = useState(false);
+  const [stockSaving, setStockSaving] = useState(false);
+  const [stockMsg, setStockMsg] = useState("");
 
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [previewItems, setPreviewItems] = useState<LineItem[]>([]);
@@ -243,6 +259,24 @@ export default function InvoicesPage() {
     setSelectedItems(selectedItems.filter((_, i) => i !== index));
   };
 
+  // دستی کتاب: نام، تعداد اور قیمت خود لکھیں (سٹاک میں کمی نہیں ہوتی)
+  const handleAddManualItem = () => {
+    const title = manualTitle.trim();
+    const qty = parseInt(manualQty) || 0;
+    const price = parseFloat(manualPrice);
+    if (!title || qty <= 0 || isNaN(price) || price < 0) {
+      alert("دستی کتاب کا نام، تعداد اور قیمت تینوں درج کریں");
+      return;
+    }
+    setSelectedItems([
+      ...selectedItems,
+      { book_id: null, manual: true, title, quantity: qty, unit_price: price, total_price: qty * price },
+    ]);
+    setManualTitle("");
+    setManualQty("1");
+    setManualPrice("");
+  };
+
   const itemsSubtotal = selectedItems.reduce((sum, item) => sum + item.total_price, 0);
   const effectiveSubtotal = selectedItems.length > 0 ? itemsSubtotal : parseFloat(manualSubtotal) || 0;
   // رعایت: روپوں میں یا فیصد کے حساب سے (فیصد ہو تو رقم خود نکلے گی)
@@ -307,6 +341,9 @@ export default function InvoicesPage() {
     setSaveError(null);
     setCurrentBookId("");
     setCurrentQty("1");
+    setManualTitle("");
+    setManualQty("1");
+    setManualPrice("");
   };
 
   const openAddModal = () => {
@@ -358,15 +395,18 @@ export default function InvoicesPage() {
 
       if (selectedItems.length > 0) {
         for (const item of selectedItems) {
-          await supabase.from("invoice_items").insert({
+          const { error: itemErr } = await supabase.from("invoice_items").insert({
             invoice_id: newInvoice.id,
             book_id: item.book_id,
+            ...(item.manual ? { item_title: item.title } : {}),
             quantity: item.quantity,
             unit_price: item.unit_price,
             total_price: item.total_price,
           });
+          if (itemErr) throw new Error(itemErr.message);
 
-          const targetBook = books.find((b) => b.id === item.book_id);
+          // دستی کتاب کا سٹاک نہیں گھٹتا
+          const targetBook = item.book_id !== null ? books.find((b) => b.id === item.book_id) : undefined;
           if (targetBook) {
             await supabase
               .from("books")
@@ -400,6 +440,65 @@ export default function InvoicesPage() {
     fetchData();
   };
 
+  const openStockModal = async (invoice: Invoice) => {
+    setStockInvoice(invoice);
+    setStockLines([]);
+    setStockManualCount(0);
+    setStockMsg("");
+    setStockLoading(true);
+    const items = await fetchLineItems(invoice.id);
+    const lines = items
+      .filter((it) => it.book_id !== null)
+      .map((it) => ({
+        book_id: it.book_id as number,
+        title: it.books?.title || "کتاب",
+        billQty: it.quantity,
+        addQty: String(it.quantity),
+      }));
+    setStockLines(lines);
+    setStockManualCount(items.filter((it) => it.book_id === null).length);
+    setStockLoading(false);
+  };
+
+  const closeStockModal = () => {
+    setStockInvoice(null);
+    setStockLines([]);
+    setStockMsg("");
+  };
+
+  const confirmStockAdd = async () => {
+    if (!stockInvoice) return;
+    const toAdd = stockLines
+      .map((l) => ({ ...l, qty: parseInt(l.addQty) || 0 }))
+      .filter((l) => l.qty > 0);
+    if (toAdd.length === 0) {
+      setStockMsg("کم از کم ایک کتاب کی تعداد 1 یا زیادہ لکھیں");
+      return;
+    }
+    setStockSaving(true);
+    setStockMsg("");
+    try {
+      for (const l of toAdd) {
+        // تازہ ترین سٹاک پڑھ کر اس میں جمع کریں
+        const { data: row, error: readErr } = await supabase.from("books").select("stock").eq("id", l.book_id).single();
+        if (readErr || !row) throw new Error(readErr?.message || "کتاب نہیں ملی");
+        const { error: upErr } = await supabase
+          .from("books")
+          .update({ stock: (Number(row.stock) || 0) + l.qty })
+          .eq("id", l.book_id);
+        if (upErr) throw new Error(upErr.message);
+      }
+      // نشانی لگائیں کہ یہ بل سٹاک میں شامل ہو چکا (کالم نہ ہو تو نظر انداز)
+      await supabase.from("invoices").update({ stock_added_at: new Date().toISOString() }).eq("id", stockInvoice.id);
+      setStockSaving(false);
+      closeStockModal();
+      fetchData();
+    } catch (err: any) {
+      setStockMsg(`سٹاک میں شامل نہیں ہو سکا: ${err.message}`);
+      setStockSaving(false);
+    }
+  };
+
   const buildInvoiceHtml = (invoice: Invoice, items: LineItem[]) => {
     const cust = getCustomerInfo(invoice);
     const dateObj = new Date(invoice.created_at);
@@ -411,7 +510,7 @@ export default function InvoicesPage() {
       .map(
         (it, index) => `
         <tr>
-          <td style="font-weight: bold; padding-top: 4px;">${index + 1}. ${it.books?.title || "کتاب"}</td>
+          <td style="font-weight: bold; padding-top: 4px;">${index + 1}. ${it.item_title || it.books?.title || "کتاب"}</td>
           <td style="text-align: center;">${it.quantity}</td>
           <td style="text-align: left;">${Number(it.unit_price).toFixed(2)}</td>
           <td style="text-align: left; font-weight: bold;">${Number(it.total_price).toFixed(2)}</td>
@@ -886,6 +985,13 @@ export default function InvoicesPage() {
                       </button>
                     )}
                     <button
+                      onClick={() => openStockModal(inv)}
+                      className="px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100 transition text-[11px] font-semibold"
+                      title="اس بل کی کتابیں سٹاک میں شامل کریں"
+                    >
+                      + سٹاک
+                    </button>
+                    <button
                       onClick={() => handlePreviewInvoice(inv)}
                       className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-md transition"
                       title="پیش نظارہ"
@@ -942,6 +1048,90 @@ export default function InvoicesPage() {
               <button
                 onClick={() => setConfirmDeleteId(null)}
                 className="flex-1 rounded-lg border border-slate-200 text-slate-600 py-1.5 text-xs font-medium hover:bg-slate-50 transition"
+              >
+                منسوخ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {stockInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-xl border border-slate-200 w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-slate-800">بل {stockInvoice.invoice_number} — سٹاک میں شامل کریں</h3>
+              <button onClick={closeStockModal} className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100">
+                <X size={18} />
+              </button>
+            </div>
+
+            {stockInvoice.stock_added_at && (
+              <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-800">
+                ⚠️ یہ بل پہلے {new Date(stockInvoice.stock_added_at).toLocaleDateString("en-GB")} کو سٹاک میں شامل ہو چکا ہے۔ دوبارہ شامل کریں گے تو سٹاک دوبارہ بڑھے گا۔
+              </div>
+            )}
+
+            <p className="text-[11px] text-slate-500 mb-2">
+              ہر کتاب کی جتنی تعداد سٹاک میں جمع کرنی ہے وہ لکھیں۔ بل والی تعداد پہلے سے لکھی ہے، آپ کم یا زیادہ کر سکتے ہیں۔ 0 لکھنے پر وہ کتاب شامل نہیں ہوگی۔
+            </p>
+
+            {stockLoading ? (
+              <div className="py-8 text-center text-xs text-slate-400">لوڈنگ جاری ہے...</div>
+            ) : stockLines.length === 0 ? (
+              <div className="py-6 text-center text-xs text-slate-500">اس بل میں سٹاک والی کوئی کتاب نہیں ہے۔</div>
+            ) : (
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
+                <table className="w-full text-xs text-right">
+                  <thead className="bg-slate-50 text-slate-600">
+                    <tr>
+                      <th className="p-2">کتاب</th>
+                      <th className="p-2 text-center">بل میں</th>
+                      <th className="p-2 text-center">سٹاک میں جمع</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {stockLines.map((l, idx) => (
+                      <tr key={l.book_id}>
+                        <td className="p-2 font-medium">{l.title}</td>
+                        <td className="p-2 text-center text-slate-500">{l.billQty}</td>
+                        <td className="p-2 text-center">
+                          <input
+                            type="number"
+                            min="0"
+                            value={l.addQty}
+                            onChange={(e) =>
+                              setStockLines(stockLines.map((x, i) => (i === idx ? { ...x, addQty: e.target.value } : x)))
+                            }
+                            className="w-16 rounded-lg border border-slate-200 p-1.5 text-center text-xs focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {stockManualCount > 0 && (
+              <p className="mt-2 text-[11px] text-slate-400">
+                اس بل میں {stockManualCount} دستی کتاب بھی ہے، وہ فہرست میں نہیں اس لیے سٹاک میں شامل نہیں ہو سکتی۔
+              </p>
+            )}
+
+            {stockMsg && <p className="mt-2 text-[11px] text-rose-600">{stockMsg}</p>}
+
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={confirmStockAdd}
+                disabled={stockSaving || stockLoading || stockLines.length === 0}
+                className="flex-1 rounded-lg bg-sky-600 text-white py-2 text-xs font-semibold hover:bg-sky-700 transition disabled:opacity-40"
+              >
+                {stockSaving ? "شامل ہو رہا ہے..." : "سٹاک میں شامل کریں"}
+              </button>
+              <button
+                onClick={closeStockModal}
+                className="flex-1 rounded-lg border border-slate-200 text-slate-600 py-2 text-xs font-medium hover:bg-slate-50 transition"
               >
                 منسوخ
               </button>
@@ -1113,6 +1303,44 @@ export default function InvoicesPage() {
                 </div>
               </div>
 
+              <div className="bg-amber-50/60 border border-amber-200 p-3 rounded-lg">
+                <label className="text-xs font-bold text-amber-800 mb-1.5 block">
+                  ✍️ دستی کتاب (جو فہرست میں نہیں ہے) — سٹاک میں کمی نہیں ہوگی
+                </label>
+                <input
+                  type="text"
+                  placeholder="کتاب کا نام"
+                  value={manualTitle}
+                  onChange={(e) => setManualTitle(e.target.value)}
+                  className="mb-2 w-full rounded-lg border border-slate-200 p-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    value={manualQty}
+                    onChange={(e) => setManualQty(e.target.value)}
+                    className="w-16 rounded-lg border border-slate-200 p-2 text-center text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                    placeholder="تعداد"
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    value={manualPrice}
+                    onChange={(e) => setManualPrice(e.target.value)}
+                    className="flex-1 rounded-lg border border-slate-200 p-2 text-center text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                    placeholder="فی کتاب قیمت (روپے)"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddManualItem}
+                    className="bg-amber-600 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-amber-700 transition"
+                  >
+                    شامل کریں
+                  </button>
+                </div>
+              </div>
+
               {selectedItems.length > 0 && (
                 <div className="border border-slate-200 rounded-lg overflow-hidden">
                   <table className="w-full text-xs text-right">
@@ -1128,7 +1356,12 @@ export default function InvoicesPage() {
                     <tbody className="divide-y divide-slate-100">
                       {selectedItems.map((item, idx) => (
                         <tr key={idx}>
-                          <td className="p-2 font-medium">{item.title}</td>
+                          <td className="p-2 font-medium">
+                            {item.title}
+                            {item.manual && (
+                              <span className="mr-1 text-[9px] font-semibold text-amber-700 bg-amber-100 rounded px-1 py-0.5">دستی</span>
+                            )}
+                          </td>
                           <td className="p-2 text-center">{item.quantity}</td>
                           <td className="p-2">{item.unit_price} روپے</td>
                           <td className="p-2 font-bold text-emerald-700">{item.total_price} روپے</td>
