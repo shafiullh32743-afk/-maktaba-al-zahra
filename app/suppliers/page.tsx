@@ -147,6 +147,7 @@ export default function SuppliersPage() {
   const [orderTab, setOrderTab] = useState<"order" | "list" | "history">("order");
   const [qtyMap, setQtyMap] = useState<Record<number, string>>({});
   const [bookSearch, setBookSearch] = useState("");
+  const [showOtherSupplierBooks, setShowOtherSupplierBooks] = useState(false);
   const [orderNo, setOrderNo] = useState("");
   const [pdfBusy, setPdfBusy] = useState(false);
 
@@ -233,6 +234,7 @@ export default function SuppliersPage() {
     setOrderTab(tab);
     setQtyMap({});
     setBookSearch("");
+    setShowOtherSupplierBooks(false);
     setOrderNo(generateOrderNo());
     setManualLines([]);
     setManualTitle("");
@@ -1181,11 +1183,17 @@ export default function SuppliersPage() {
             ) : (
               (() => {
                 const term = bookSearch.trim().toLowerCase();
+                // جو کتابیں کسی دوسرے سپلائر کے تحت شامل ہیں وہ یہاں چھپ جاتی ہیں
+                const takenByOther = new Set(
+                  links.filter((l) => l.supplier_id !== orderSupplier.id).map((l) => l.book_id)
+                );
+                const matchesTerm = (b: BookLite) =>
+                  term === "" ||
+                  b.title.toLowerCase().includes(term) ||
+                  (b.author || "").toLowerCase().includes(term);
+                const hiddenCount = allBooks.filter((b) => matchesTerm(b) && takenByOther.has(b.id)).length;
                 const visible = allBooks.filter(
-                  (b) =>
-                    term === "" ||
-                    b.title.toLowerCase().includes(term) ||
-                    (b.author || "").toLowerCase().includes(term)
+                  (b) => matchesTerm(b) && (showOtherSupplierBooks || !takenByOther.has(b.id))
                 );
                 const notAdded = visible.filter(
                   (b) => !links.some((l) => l.supplier_id === orderSupplier.id && l.book_id === b.id)
@@ -1212,6 +1220,22 @@ export default function SuppliersPage() {
                         </button>
                       )}
                     </div>
+                    {(hiddenCount > 0 || showOtherSupplierBooks) && (
+                      <div className="mb-2 flex items-center justify-between gap-2 rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-1.5">
+                        <p className="text-[11px] text-slate-500">
+                          {showOtherSupplierBooks
+                            ? "دوسرے سپلائرز کی کتب بھی نظر آ رہی ہیں"
+                            : `${hiddenCount} کتب دوسرے سپلائرز کے تحت شامل ہیں، اس لیے چھپی ہیں`}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setShowOtherSupplierBooks((v) => !v)}
+                          className="shrink-0 text-[11px] font-semibold text-sky-700 hover:underline"
+                        >
+                          {showOtherSupplierBooks ? "چھپائیں" : "دکھائیں"}
+                        </button>
+                      </div>
+                    )}
                     <div className="max-h-[50vh] overflow-y-auto">
                       {visible.map((b) => {
                         const checked = links.some((l) => l.supplier_id === orderSupplier.id && l.book_id === b.id);
