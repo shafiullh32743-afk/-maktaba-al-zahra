@@ -20,10 +20,11 @@ import {
   RotateCcw,
   Star,
   Wallet,
+  TrendingUp,
 } from "lucide-react";
 
 // یہ نیچے والی پٹی صرف لاگ اِن شدہ ایڈمن کو، اور صرف موبائل پر نظر آتی ہے
-const PUBLIC_PREFIXES = ["/login", "/shop", "/cart", "/about", "/contact"];
+const PUBLIC_PREFIXES = ["/login", "/shop", "/cart", "/about", "/contact", "/track"];
 
 const mainItems = [
   { href: "/", label: "ڈیش بورڈ", icon: LayoutDashboard },
@@ -42,6 +43,7 @@ const moreItems = [
   { href: "/returns", label: "واپسی/خراب", icon: RotateCcw },
   { href: "/reviews", label: "ریویوز", icon: Star },
   { href: "/expenses", label: "اخراجات", icon: Wallet },
+  { href: "/reports", label: "رپورٹس", icon: TrendingUp },
 ];
 
 type PushState = "checking" | "unsupported" | "denied" | "off" | "on" | "busy";

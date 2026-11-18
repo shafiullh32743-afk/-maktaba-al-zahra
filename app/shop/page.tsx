@@ -16,6 +16,7 @@ interface Book {
   stock?: number;
   image_url?: string;
  weight?: number;
+  views?: number;
 }
 
 interface Review {
@@ -39,6 +40,12 @@ export default function ShopPage() {
   const [cartCount, setCartCount] = useState(0);
   const [addedId, setAddedId] = useState<string | null>(null);
 
+  // سٹاک آنے پر اطلاع کے لیے
+  const [alertBook, setAlertBook] = useState<string | null>(null);
+  const [alertPhone, setAlertPhone] = useState("");
+  const [alertBusy, setAlertBusy] = useState(false);
+  const [alertDone, setAlertDone] = useState(false);
+
   // ریویو لکھنے کے لیے
   const [reviewBookTitle, setReviewBookTitle] = useState<string | null>(null);
   const [reviewName, setReviewName] = useState("");
@@ -59,7 +66,7 @@ export default function ShopPage() {
   useEffect(() => {
     const fetchBooks = async () => {
       const { data } = await supabase
-        .from("books")
+        .from("books_public")
         .select("*")
         .order("id", { ascending: false });
       if (data) setBooks(data as Book[]);
@@ -119,6 +126,15 @@ export default function ShopPage() {
       thankYou: "شکریہ! آپ کا ریویو موصول ہو گیا",
       pendingApproval: "منظوری کے بعد یہ دوسرے گاہکوں کو نظر آئے گا",
       ok: "ٹھیک ہے",
+      newBooks: "🆕 نئی آنے والی کتب",
+      popularBooks: "🔥 مقبول کتب",
+      notifyMe: "سٹاک آنے پر اطلاع دیں",
+      notifyTitle: "سٹاک آنے پر اطلاع",
+      notifyHint: "اپنا واٹس ایپ / فون نمبر لکھیں، کتاب آتے ہی ہم رابطہ کریں گے",
+      notifyPhone: "فون نمبر",
+      notifySend: "نوٹ کریں",
+      notifyDone: "شکریہ! کتاب آتے ہی آپ سے رابطہ کیا جائے گا",
+      trackOrder: "آرڈر کی حالت",
     },
     en: {
       navBooks: "Books",
@@ -154,6 +170,15 @@ export default function ShopPage() {
       thankYou: "Thank you! Your review has been received",
       pendingApproval: "It will be visible to other customers after approval",
       ok: "OK",
+      newBooks: "🆕 New Arrivals",
+      popularBooks: "🔥 Popular Books",
+      notifyMe: "Notify me when available",
+      notifyTitle: "Back-in-stock alert",
+      notifyHint: "Enter your WhatsApp / phone number and we will contact you when it arrives",
+      notifyPhone: "Phone number",
+      notifySend: "Save",
+      notifyDone: "Thank you! We will contact you when the book arrives",
+      trackOrder: "Track Order",
     },
   }[lang];
 
@@ -207,6 +232,54 @@ export default function ShopPage() {
 
   const closeReviewModal = () => setReviewBookTitle(null);
 
+  const openAlert = (title: string) => {
+    setAlertBook(title);
+    setAlertPhone("");
+    setAlertDone(false);
+  };
+
+  const submitAlert = async () => {
+    const phone = alertPhone.replace(/[^0-9+]/g, "");
+    if (!alertBook || phone.length < 10) return;
+    setAlertBusy(true);
+    await supabase.from("stock_alerts").insert({ book_title: alertBook, phone });
+    setAlertBusy(false);
+    setAlertDone(true);
+  };
+
+  const showHighlights = !search && !filterCategory && !filterAuthor;
+  const newBooksList = books.filter((b) => !(typeof b.stock === "number" && b.stock <= 0)).slice(0, 8);
+  const popularList = [...books]
+    .filter((b) => (b.views || 0) > 0 && !(typeof b.stock === "number" && b.stock <= 0))
+    .sort((a, b) => (b.views || 0) - (a.views || 0))
+    .slice(0, 8);
+
+  const renderStrip = (title: string, list: Book[]) =>
+    list.length === 0 ? null : (
+      <div className="mb-8">
+        <h2 className={`text-lg font-bold mb-3 ${darkMode ? "text-gray-100" : "text-gray-900"}`}>{title}</h2>
+        <div className="flex gap-3 overflow-x-auto pb-2 snap-x">
+          {list.map((b) => (
+            <Link
+              key={b.id}
+              href={`/books/${b.slug || encodeURIComponent(b.title)}`}
+              className={`snap-start shrink-0 w-32 rounded-xl border p-2 ${darkMode ? "bg-gray-900 border-gray-700" : "bg-white border-gray-200"}`}
+            >
+              <div className={`h-32 w-full rounded-lg overflow-hidden flex items-center justify-center ${darkMode ? "bg-gray-800" : "bg-amber-50"}`}>
+                {b.image_url ? (
+                  <img src={b.image_url} alt={b.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                ) : (
+                  <BookOpen className="text-amber-300" size={28} />
+                )}
+              </div>
+              <p className={`mt-2 text-[11px] font-bold line-clamp-2 leading-snug ${darkMode ? "text-gray-100" : "text-gray-800"}`}>{b.title}</p>
+              {b.price ? <p className="mt-1 text-[11px] font-extrabold text-emerald-500">Rs {Number(b.price).toLocaleString()}</p> : null}
+            </Link>
+          ))}
+        </div>
+      </div>
+    );
+
   const handleSubmitReview = async () => {
     if (!reviewBookTitle || reviewName.trim() === "" || reviewComment.trim() === "") return;
     setReviewSubmitting(true);
@@ -246,6 +319,9 @@ export default function ShopPage() {
           </Link>
 
           <nav className="flex items-center gap-5 text-sm font-medium">
+            <Link href="/track" className="hover:text-emerald-200 transition">
+              {t.trackOrder}
+            </Link>
             <Link href="/shop" className="text-emerald-200">
               {t.navBooks}
             </Link>
@@ -338,6 +414,13 @@ export default function ShopPage() {
           </select>
         </div>
 
+        {loaded && showHighlights && (
+          <>
+            {renderStrip(t.newBooks, newBooksList)}
+            {renderStrip(t.popularBooks, popularList)}
+          </>
+        )}
+
         {/* کتابوں کی گرڈ */}
         {!loaded ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
@@ -371,7 +454,7 @@ export default function ShopPage() {
                       darkMode ? "bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700" : "bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200"
                     }`}>
                       {book.image_url ? (
-                        <img src={book.image_url} alt={book.title} className="w-full h-full object-cover" />
+                        <img src={book.image_url} alt={book.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       ) : (
                         <BookOpen className="text-amber-300" size={36} />
                       )}
@@ -429,6 +512,15 @@ export default function ShopPage() {
                       </>
                     )}
                   </button>
+
+                  {outOfStock && (
+                    <button
+                      onClick={() => openAlert(book.title)}
+                      className="mt-2 w-full flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 text-white py-2 text-xs font-semibold hover:bg-amber-600 transition"
+                    >
+                      🔔 {t.notifyMe}
+                    </button>
+                  )}
 
                   <button
                     onClick={() => handleWhatsAppOrder(book)}
@@ -491,6 +583,51 @@ export default function ShopPage() {
           <p className={`text-xs text-center ${darkMode ? "text-gray-600" : "text-gray-400"}`}>{t.copyright}</p>
         </div>
       </footer>
+
+      {/* سٹاک آنے پر اطلاع کا موڈل */}
+      {alertBook && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setAlertBook(null)}>
+          <div className={`rounded-2xl shadow-xl w-full max-w-sm p-5 ${darkMode ? "bg-gray-900" : "bg-white"}`} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className={`font-bold text-sm ${darkMode ? "text-gray-100" : "text-gray-800"}`}>{t.notifyTitle}</h3>
+              <button onClick={() => setAlertBook(null)} className={darkMode ? "text-gray-500" : "text-gray-400"}>
+                <X size={18} />
+              </button>
+            </div>
+            {alertDone ? (
+              <div className="py-6 text-center">
+                <Check className="mx-auto text-emerald-600 mb-2" size={32} />
+                <p className={`text-sm font-semibold ${darkMode ? "text-gray-200" : "text-gray-700"}`}>{t.notifyDone}</p>
+                <button onClick={() => setAlertBook(null)} className="mt-4 rounded-lg bg-emerald-700 text-white text-xs font-semibold px-4 py-2">
+                  {t.ok}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>{alertBook}</p>
+                <p className={`text-[11px] ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{t.notifyHint}</p>
+                <input
+                  type="tel"
+                  dir="ltr"
+                  value={alertPhone}
+                  onChange={(e) => setAlertPhone(e.target.value)}
+                  placeholder="03XXXXXXXXX"
+                  className={`w-full rounded-lg border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 ${
+                    darkMode ? "bg-gray-800 border-gray-700 text-gray-100" : "bg-white border-gray-200 text-gray-900"
+                  }`}
+                />
+                <button
+                  onClick={submitAlert}
+                  disabled={alertBusy || alertPhone.replace(/[^0-9+]/g, "").length < 10}
+                  className="w-full rounded-lg bg-emerald-700 text-white text-sm font-semibold py-2.5 hover:bg-emerald-800 transition disabled:opacity-50"
+                >
+                  {alertBusy ? t.sending : t.notifySend}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ریویو لکھنے کا موڈل */}
       {reviewBookTitle && (

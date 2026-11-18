@@ -48,9 +48,10 @@ export async function middleware(request: NextRequest) {
   const isAboutOrContact = path === "/about" || path === "/contact";
   const isCartPage = path === "/cart";
   const isNotifyApi = path === "/api/notify-order";
+  const isTrack = path === "/track" || path === "/api/track-order";
 
   const isPublicPage =
-    isHomePage || isLoginPage || isSitemap || isBookDetailPage || isShopPage || isAboutOrContact || isCartPage || isNotifyApi;
+    isHomePage || isLoginPage || isSitemap || isBookDetailPage || isShopPage || isAboutOrContact || isCartPage || isNotifyApi || isTrack;
 
   const redirectTo = (to: string) => {
     const res = NextResponse.redirect(new URL(to, request.url));

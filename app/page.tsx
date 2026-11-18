@@ -240,6 +240,7 @@ export default function DashboardPage() {
     { href: "/reviews", label: t.reviews, icon: Star },
     { href: "/low-stock", label: t.lowStock, icon: PackageMinus },
     { href: "/expenses", label: t.expenses, icon: Wallet },
+    { href: "/reports", label: lang === "ur" ? "رپورٹس" : "Reports", icon: TrendingUp },
   ];
 
   return (

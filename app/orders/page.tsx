@@ -41,6 +41,10 @@ interface OrderItem {
   quantity: number;
   total_amount?: number;
   status: string;
+  stock_deducted?: boolean | null;
+  delivery_charge?: number | null;
+  courier_name?: string | null;
+  tracking_number?: string | null;
   order_group?: string;
   created_at?: string;
 }
@@ -48,6 +52,19 @@ interface OrderItem {
 interface OrderGroup {
   key: string;
   items: OrderItem[];
+}
+
+const COURIERS = ["TCS", "Leopards", "M&P", "Trax", "PostEx", "BlueEx", "Pakistan Post", "دستی / خود پہنچایا"];
+
+// پاکستانی نمبر کو واٹس ایپ کے فارمیٹ (92...) میں بدلیں
+function toWhatsappNumber(phone?: string) {
+  let digits = (phone || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("920")) digits = "92" + digits.slice(3);
+  else if (digits.startsWith("0")) digits = "92" + digits.slice(1);
+  else if (digits.length === 10 && digits.startsWith("3")) digits = "92" + digits;
+  return digits;
 }
 
 export default function OrdersPage() {
@@ -119,6 +136,30 @@ export default function OrdersPage() {
     return () => clearInterval(interval);
   }, [fetchOrders, lang]);
 
+  // آرڈر کی کتابوں کا سٹاک کم (direction = -1) یا واپس شامل (direction = 1) کریں
+  const adjustStock = async (rows: OrderItem[], direction: 1 | -1) => {
+    let missing = 0;
+    const doneIds: number[] = [];
+    for (const row of rows) {
+      const { data: found } = await supabase.from("books").select("id, stock").eq("title", row.book_title).limit(1);
+      const book = found?.[0];
+      if (!book) {
+        missing++;
+        continue;
+      }
+      const current = Number(book.stock) || 0;
+      const qty = Number(row.quantity) || 0;
+      const next = direction === -1 ? Math.max(0, current - qty) : current + qty;
+      const { error } = await supabase.from("books").update({ stock: next }).eq("id", book.id);
+      if (error) throw error;
+      doneIds.push(row.id);
+    }
+    if (doneIds.length > 0) {
+      await supabase.from("orders").update({ stock_deducted: direction === -1 }).in("id", doneIds);
+    }
+    return { missing, done: doneIds.length };
+  };
+
   const handleStatusChange = async (ids: number[], newStatus: string) => {
     try {
       const { error } = await supabase
@@ -128,12 +169,108 @@ export default function OrdersPage() {
 
       if (error) throw error;
 
-      showNotification(lang === "ur" ? "سٹیٹس اپ ڈیٹ ہو گیا ہے" : "Status updated successfully");
+      // سٹاک کا خودکار حساب: "مکمل ہوا" پر کمی، اس سے واپس جانے پر دوبارہ اضافہ
+      const group = orders.filter((o) => ids.includes(o.id));
+      let message = lang === "ur" ? "سٹیٹس اپ ڈیٹ ہو گیا ہے" : "Status updated successfully";
+      let type: "success" | "error" = "success";
+
+      if (group.length > 0 && !("stock_deducted" in group[0])) {
+        message =
+          lang === "ur"
+            ? "سٹیٹس بدل گیا، مگر سٹاک کے خودکار حساب کے لیے پہلے SQL چلائیں"
+            : "Status updated; run the SQL first for automatic stock";
+        type = "error";
+      } else if (newStatus === "مکمل ہوا") {
+        const todo = group.filter((o) => !o.stock_deducted);
+        if (todo.length > 0) {
+          const r = await adjustStock(todo, -1);
+          message =
+            lang === "ur"
+              ? `مکمل ہوا — ${r.done} کتب کا سٹاک کم ہو گیا${r.missing > 0 ? `، ${r.missing} کتب نام سے نہیں ملیں (ان کا سٹاک نہیں گھٹا)` : ""}`
+              : `Completed — stock reduced for ${r.done} item(s)${r.missing > 0 ? `, ${r.missing} not found by title` : ""}`;
+          if (r.missing > 0) type = "error";
+        }
+      } else {
+        const back = group.filter((o) => o.stock_deducted);
+        if (back.length > 0) {
+          const r = await adjustStock(back, 1);
+          message =
+            lang === "ur"
+              ? `سٹیٹس بدل گیا — ${r.done} کتب کا سٹاک واپس شامل ہو گیا`
+              : `Status updated — stock restored for ${r.done} item(s)`;
+        }
+      }
+
+      showNotification(message, type);
       fetchOrders();
     } catch (err) {
       console.error("Error updating status:", err);
       showNotification(lang === "ur" ? "سٹیٹس اپ ڈیٹ کرنے میں ناکامی ہوئی" : "Failed to update status", "error");
     }
+  };
+
+  // ڈیلیوری چارجز اور کورئیر / ٹریکنگ نمبر
+  const [shipEdit, setShipEdit] = useState<Record<string, { courier: string; tracking: string; delivery: string }>>({});
+  const [shipBusy, setShipBusy] = useState<string | null>(null);
+
+  const groupDelivery = (items: OrderItem[]) => items.reduce((sum, o) => sum + (Number(o.delivery_charge) || 0), 0);
+
+  const saveShipping = async (group: OrderGroup) => {
+    const edit = shipEdit[group.key];
+    if (!edit) return;
+    const ids = group.items.map((o) => o.id);
+    setShipBusy(group.key);
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({ courier_name: edit.courier.trim() || null, tracking_number: edit.tracking.trim() || null })
+        .in("id", ids);
+      if (error) throw error;
+
+      const newDel = parseFloat(edit.delivery);
+      const oldDel = groupDelivery(group.items);
+      if (!isNaN(newDel) && newDel >= 0 && newDel !== oldDel) {
+        const holder =
+          group.items.find((o) => (Number(o.delivery_charge) || 0) > 0) || [...group.items].sort((a, b) => a.id - b.id)[0];
+        const otherRows = oldDel - (Number(holder.delivery_charge) || 0);
+        const delta = newDel - oldDel;
+        const { error: e2 } = await supabase
+          .from("orders")
+          .update({
+            delivery_charge: newDel - otherRows,
+            total_amount: (Number(holder.total_amount) || Number(holder.book_price) || 0) + delta,
+          })
+          .eq("id", holder.id);
+        if (e2) throw e2;
+      }
+      setShipEdit((prev) => {
+        const next = { ...prev };
+        delete next[group.key];
+        return next;
+      });
+      showNotification(lang === "ur" ? "ڈیلیوری کی معلومات محفوظ ہو گئیں" : "Delivery info saved");
+      fetchOrders();
+    } catch (err) {
+      console.error(err);
+      showNotification(lang === "ur" ? "محفوظ نہیں ہو سکا (کیا SQL چلائی ہے؟)" : "Could not save (did you run the SQL?)", "error");
+    }
+    setShipBusy(null);
+  };
+
+  const sendTrackingMessage = (first: OrderItem) => {
+    const courier = first.courier_name || "";
+    const tracking = first.tracking_number || "";
+    const text =
+      `السلام علیکم *${first.customer_name}*!\n` +
+      `مکتبۃ الزھراء کی طرف سے: آپ کا آرڈر روانہ کر دیا گیا ہے۔\n\n` +
+      (courier ? `کورئیر: *${courier}*\n` : "") +
+      (tracking ? `ٹریکنگ نمبر: *${tracking}*\n` : "") +
+      `\nجزاک اللہ خیراً\n*مکتبۃ الزھراء* — 0305-5232889`;
+    const number = toWhatsappNumber(first.customer_phone);
+    const url = number
+      ? `https://wa.me/${number}?text=${encodeURIComponent(text)}`
+      : `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank");
   };
 
   const handleDeleteGroup = async (ids: number[]) => {
@@ -397,6 +534,12 @@ export default function OrdersPage() {
             </div>
           )}
 
+          <datalist id="courier-list">
+            {COURIERS.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+
           {!loaded ? (
             <div className="grid grid-cols-1 gap-3.5">
               {[1, 2, 3].map((i) => (
@@ -488,6 +631,74 @@ export default function OrdersPage() {
                             </span>
                           </div>
                         </div>
+
+                        {(() => {
+                          const shipAvailable = "tracking_number" in first;
+                          const ed = shipEdit[group.key] ?? {
+                            courier: first.courier_name || "",
+                            tracking: first.tracking_number || "",
+                            delivery: String(groupDelivery(group.items)),
+                          };
+                          const inputCls = `rounded-lg border px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
+                            darkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-200 text-slate-800"
+                          }`;
+                          if (!shipAvailable) {
+                            return (
+                              <p className="text-[11px] text-amber-600">
+                                ڈیلیوری / ٹریکنگ کے لیے پہلے Supabase میں orders.sql چلائیں۔
+                              </p>
+                            );
+                          }
+                          return (
+                            <div className={`rounded-lg border p-2.5 ${darkMode ? "border-slate-800 bg-slate-800/40" : "border-slate-100 bg-slate-50/60"}`}>
+                              <p className={`text-[11px] font-semibold mb-1.5 ${darkMode ? "text-slate-300" : "text-slate-600"}`}>
+                                🚚 ڈیلیوری اور کورئیر
+                              </p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <input
+                                  list="courier-list"
+                                  value={ed.courier}
+                                  onChange={(e) => setShipEdit((prev) => ({ ...prev, [group.key]: { ...ed, courier: e.target.value } }))}
+                                  placeholder="کورئیر (TCS وغیرہ)"
+                                  className={`${inputCls} w-36`}
+                                />
+                                <input
+                                  value={ed.tracking}
+                                  onChange={(e) => setShipEdit((prev) => ({ ...prev, [group.key]: { ...ed, tracking: e.target.value } }))}
+                                  placeholder="ٹریکنگ نمبر"
+                                  dir="ltr"
+                                  className={`${inputCls} w-40`}
+                                />
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={ed.delivery}
+                                  onChange={(e) => setShipEdit((prev) => ({ ...prev, [group.key]: { ...ed, delivery: e.target.value } }))}
+                                  placeholder="ڈیلیوری چارجز"
+                                  className={`${inputCls} w-28`}
+                                />
+                                <button
+                                  onClick={() => saveShipping(group)}
+                                  disabled={shipBusy === group.key || !shipEdit[group.key]}
+                                  className="rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-xs font-semibold hover:bg-emerald-700 transition disabled:opacity-40"
+                                >
+                                  {shipBusy === group.key ? "..." : "محفوظ کریں"}
+                                </button>
+                                {first.tracking_number && (
+                                  <button
+                                    onClick={() => sendTrackingMessage(first)}
+                                    className="rounded-lg bg-[#25D366] text-white px-3 py-1.5 text-xs font-semibold hover:bg-[#20BD5A] transition"
+                                  >
+                                    💬 ٹریکنگ گاہک کو بھیجیں
+                                  </button>
+                                )}
+                              </div>
+                              <p className="mt-1 text-[10px] text-slate-400">
+                                ڈیلیوری چارجز بدلنے پر آرڈر کی کل رقم بھی خود بدل جاتی ہے۔
+                              </p>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       <div className={`flex items-center gap-2 pt-3 lg:pt-0 border-t lg:border-t-0 ${darkMode ? "border-slate-800" : "border-slate-100"}`}>

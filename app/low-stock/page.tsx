@@ -36,6 +36,24 @@ export default function LowStockPage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [alerts, setAlerts] = useState<{ id: number; book_title: string; phone: string; created_at: string }[]>([]);
+
+  const fetchAlerts = useCallback(async () => {
+    const { data } = await supabase.from("stock_alerts").select("*").order("created_at", { ascending: false });
+    if (data) setAlerts(data);
+  }, []);
+
+  const removeAlert = async (id: number) => {
+    await supabase.from("stock_alerts").delete().eq("id", id);
+    setAlerts((prev) => prev.filter((a) => a.id !== id));
+  };
+
+  const alertWhatsApp = (title: string, phone: string) => {
+    let p = phone.replace(/\D/g, "");
+    if (p.startsWith("0")) p = "92" + p.slice(1);
+    const msg = "السلام علیکم! آپ نے کتاب «" + title + "» کے لیے اطلاع کا کہا تھا — وہ اب مکتبہ الزھراء میں دستیاب ہے۔";
+    window.open("https://wa.me/" + p + "?text=" + encodeURIComponent(msg), "_blank");
+  };
 
   // سٹاک کی حد: 1000 یا زیادہ قیمت والی کتاب کے لیے 2، اس سے کم قیمت والی کے لیے 3
   const isLowStock = (book: Book) => {
@@ -65,7 +83,8 @@ export default function LowStockPage() {
 
   useEffect(() => {
     fetchLowStockBooks();
-  }, [fetchLowStockBooks]);
+    fetchAlerts();
+  }, [fetchLowStockBooks, fetchAlerts]);
 
   const handleLogout = async () => {
     document.cookie = "maktaba-auth=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 UTC";
@@ -246,6 +265,34 @@ export default function LowStockPage() {
             ))}
           </div>
         )}
+
+        {/* سٹاک آنے پر اطلاع کی درخواستیں */}
+        <div className="mt-8">
+          <h2 className="text-base font-bold text-slate-900">🔔 اطلاع کی درخواستیں ({alerts.length})</h2>
+          <p className="text-xs text-slate-500 mt-0.5 mb-3">گاہکوں نے ان کتب کے آنے پر اطلاع مانگی ہے</p>
+          {alerts.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-xs text-slate-400">کوئی درخواست نہیں</div>
+          ) : (
+            <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+              {alerts.map((a) => (
+                <div key={a.id} className="p-3 flex items-center justify-between gap-2 text-xs">
+                  <div className="min-w-0">
+                    <p className="font-bold text-slate-800 truncate">{a.book_title}</p>
+                    <p className="text-slate-500" dir="ltr">{a.phone}</p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button onClick={() => alertWhatsApp(a.book_title, a.phone)} className="rounded-lg bg-[#25D366] text-white px-3 py-1.5 font-semibold">
+                      💬 اطلاع دیں
+                    </button>
+                    <button onClick={() => removeAlert(a.id)} className="rounded-lg border border-slate-200 text-slate-500 px-3 py-1.5">
+                      ہو گیا
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
     </main>
   );

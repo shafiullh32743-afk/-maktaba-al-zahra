@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   LayoutDashboard,
@@ -27,6 +27,7 @@ import {
   AlertCircle,
   Eye,
   Share2,
+  Camera,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -44,6 +45,7 @@ interface Book {
   title: string;
   price: number;
   stock: number;
+  barcode?: string | null;
 }
 
 interface SelectedItem {
@@ -79,6 +81,17 @@ interface LineItem {
   unit_price: number;
   total_price: number;
   books?: { title: string };
+}
+
+// پاکستانی نمبر کو واٹس ایپ کے فارمیٹ (92...) میں بدلیں
+function toWhatsappNumber(phone?: string) {
+  let digits = (phone || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("920")) digits = "92" + digits.slice(3);
+  else if (digits.startsWith("0")) digits = "92" + digits.slice(1);
+  else if (digits.length === 10 && digits.startsWith("3")) digits = "92" + digits;
+  return digits;
 }
 
 function generateInvoiceNumber(): string {
@@ -130,6 +143,16 @@ export default function InvoicesPage() {
   const [walkInName, setWalkInName] = useState("");
   const [remarks, setRemarks] = useState("");
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
+  const selectedItemsRef = useRef<SelectedItem[]>([]);
+  selectedItemsRef.current = selectedItems;
+
+  // بارکوڈ سکین
+  const [barcodeInput, setBarcodeInput] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [scanMsg, setScanMsg] = useState("");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scannerRef = useRef<any>(null);
+  const lastScanRef = useRef<{ code: string; time: number }>({ code: "", time: 0 });
   const [manualSubtotal, setManualSubtotal] = useState("");
   const [discountAmount, setDiscountAmount] = useState("0");
   const [discountMode, setDiscountMode] = useState<"amount" | "percent">("amount");
@@ -179,7 +202,7 @@ export default function InvoicesPage() {
 
     const { data: booksData } = await supabase
       .from("books")
-      .select("id, title, price, stock");
+      .select("id, title, price, stock, barcode");
     if (booksData) setBooks(booksData as Book[]);
 
     setLoaded(true);
@@ -257,6 +280,119 @@ export default function InvoicesPage() {
 
   const handleRemoveItem = (index: number) => {
     setSelectedItems(selectedItems.filter((_, i) => i !== index));
+  };
+
+  // بارکوڈ سے کتاب بل میں شامل کریں (ہر سکین پر تعداد 1)
+  const addBookByCode = (rawCode: string) => {
+    const code = rawCode.trim();
+    if (!code) return;
+    const m = code.match(/^MZ(\d+)$/i);
+    const book =
+      books.find((b) => (b.barcode || "").trim() === code) || (m ? books.find((b) => b.id === parseInt(m[1])) : undefined);
+    if (!book) {
+      setScanMsg(`❌ بارکوڈ ${code} والی کتاب نہیں ملی`);
+      return;
+    }
+    const current = selectedItemsRef.current;
+    const idx = current.findIndex((it) => it.book_id === book.id);
+    const newQty = idx > -1 ? current[idx].quantity + 1 : 1;
+    if (newQty > book.stock) {
+      setScanMsg(`⚠️ "${book.title}" کا سٹاک صرف ${book.stock} ہے`);
+      return;
+    }
+    let next: SelectedItem[];
+    if (idx > -1) {
+      next = current.map((it, i) =>
+        i === idx ? { ...it, quantity: newQty, total_price: newQty * book.price } : it
+      );
+    } else {
+      next = [
+        ...current,
+        { book_id: book.id, title: book.title, quantity: 1, unit_price: book.price, total_price: book.price },
+      ];
+    }
+    selectedItemsRef.current = next;
+    setSelectedItems(next);
+    setScanMsg(`✅ ${book.title} — تعداد ${newQty}`);
+  };
+
+  const stopScanner = async () => {
+    try {
+      if (scannerRef.current) {
+        await scannerRef.current.stop();
+        await scannerRef.current.clear();
+      }
+    } catch {}
+    scannerRef.current = null;
+    setScanning(false);
+  };
+
+  const startScanner = async () => {
+    setScanMsg("");
+    setScanning(true);
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      await new Promise((r) => setTimeout(r, 150));
+      const scanner = new Html5Qrcode("invoice-barcode-reader");
+      scannerRef.current = scanner;
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 240, height: 120 } },
+        (decodedText: string) => {
+          // ایک ہی بارکوڈ بار بار نہ پڑھے
+          const now = Date.now();
+          if (lastScanRef.current.code === decodedText && now - lastScanRef.current.time < 2000) return;
+          lastScanRef.current = { code: decodedText, time: now };
+          addBookByCode(decodedText);
+        },
+        () => {}
+      );
+    } catch {
+      scannerRef.current = null;
+      setScanning(false);
+      setScanMsg("کیمرا نہیں کھل سکا۔ براؤزر/ایپ کو کیمرے کی اجازت دیں۔");
+    }
+  };
+
+  useEffect(() => {
+    if (!showModal) stopScanner();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showModal]);
+
+  useEffect(() => {
+    return () => {
+      stopScanner();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // واٹس ایپ پر بقایا کی یاددہانی
+  const sendDuesReminder = (name: string, phone: string, invs: Invoice[]) => {
+    const dues = invs
+      .map((inv) => ({ inv, bal: (Number(inv.total_amount) || 0) - (Number(inv.amount_paid) || 0) }))
+      .filter((x) => x.inv.payment_status !== "paid" && x.bal > 0);
+    if (dues.length === 0) return;
+    const total = dues.reduce((sum, x) => sum + x.bal, 0);
+    const line = "━━━━━━━━━━━━━━━";
+    const text =
+      `السلام علیکم *${name}*!\n` +
+      `مکتبۃ الزھراء کی طرف سے یاددہانی: آپ کے ذمے درج ذیل رقم باقی ہے:\n\n` +
+      dues
+        .map(
+          (x, i) =>
+            `${i + 1}. بل #${x.inv.invoice_number} (${new Date(x.inv.created_at).toLocaleDateString("en-GB")}): Rs ${Math.round(x.bal).toLocaleString()}`
+        )
+        .join("\n") +
+      `\n${line}\n` +
+      `*کل بقایا: Rs ${Math.round(total).toLocaleString()}*\n` +
+      `${line}\n` +
+      `براہِ کرم سہولت کے مطابق ادائیگی فرما دیں۔ جزاک اللہ خیراً\n` +
+      `*مکتبۃ الزھراء* — 0305-5232889`;
+    const number = toWhatsappNumber(phone);
+    const url = number
+      ? `https://wa.me/${number}?text=${encodeURIComponent(text)}`
+      : `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, "_blank");
   };
 
   // دستی کتاب: نام، تعداد اور قیمت خود لکھیں (سٹاک میں کمی نہیں ہوتی)
@@ -928,6 +1064,17 @@ export default function InvoicesPage() {
                 </button>
                 {open && (
                 <div className="border-t border-slate-100 p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {group.balance > 0 && (
+                    <div className="col-span-full flex items-center justify-between gap-2 rounded-lg bg-rose-50 border border-rose-200 px-3 py-2">
+                      <p className="text-xs font-semibold text-rose-700">کل بقایا: {Math.round(group.balance).toLocaleString()} روپے</p>
+                      <button
+                        onClick={() => sendDuesReminder(group.name, group.phone, group.invoices)}
+                        className="rounded-lg bg-[#25D366] text-white px-3 py-1.5 text-[11px] font-semibold hover:bg-[#20BD5A] transition"
+                      >
+                        💬 واٹس ایپ پر یاددہانی بھیجیں
+                      </button>
+                    </div>
+                  )}
             {group.invoices.map((inv) => {
               const status = statusLabel(inv.payment_status);
               const balance = inv.total_amount - inv.amount_paid;
@@ -976,6 +1123,15 @@ export default function InvoicesPage() {
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-1.5">
+                    {inv.payment_status !== "paid" && balance > 0 && (
+                      <button
+                        onClick={() => sendDuesReminder(cust.name, cust.phone, [inv])}
+                        className="px-2.5 py-1 rounded-lg bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 transition text-[11px] font-semibold"
+                        title="واٹس ایپ پر اس بل کی یاددہانی"
+                      >
+                        💬 یاددہانی
+                      </button>
+                    )}
                     {inv.payment_status !== "paid" && (
                       <button
                         onClick={() => handleMarkPaid(inv)}
@@ -1301,6 +1457,39 @@ export default function InvoicesPage() {
                     </button>
                   </div>
                 </div>
+              </div>
+
+              <div className="bg-sky-50/60 border border-sky-200 p-3 rounded-lg">
+                <label className="text-xs font-bold text-sky-800 mb-1.5 block">📷 بارکوڈ سے کتاب شامل کریں</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={barcodeInput}
+                    onChange={(e) => setBarcodeInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addBookByCode(barcodeInput);
+                        setBarcodeInput("");
+                      }
+                    }}
+                    dir="ltr"
+                    placeholder="سکینر سے سکین کریں یا بارکوڈ لکھ کر Enter دبائیں"
+                    className="flex-1 min-w-0 rounded-lg border border-slate-200 p-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={scanning ? stopScanner : startScanner}
+                    className={`flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-semibold transition ${
+                      scanning ? "bg-rose-600 text-white hover:bg-rose-700" : "bg-sky-600 text-white hover:bg-sky-700"
+                    }`}
+                  >
+                    <Camera size={14} />
+                    {scanning ? "بند" : "کیمرا"}
+                  </button>
+                </div>
+                {scanning && <div id="invoice-barcode-reader" className="mt-2 w-full overflow-hidden rounded-lg" />}
+                {scanMsg && <p className="mt-1.5 text-[11px] text-slate-600">{scanMsg}</p>}
               </div>
 
               <div className="bg-amber-50/60 border border-amber-200 p-3 rounded-lg">

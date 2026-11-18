@@ -68,7 +68,7 @@ export default function ReturnsPage() {
   const [reason, setReason] = useState("damaged");
   const [conditionNotes, setConditionNotes] = useState("");
   const [refundAmount, setRefundAmount] = useState("");
-  const [restoreStock, setRestoreStock] = useState(false);
+  const [stockAction, setStockAction] = useState<"none" | "add" | "remove">("none");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
@@ -105,7 +105,7 @@ export default function ReturnsPage() {
     setReason("damaged");
     setConditionNotes("");
     setRefundAmount("");
-    setRestoreStock(false);
+    setStockAction("none");
     setSaveError(null);
   };
 
@@ -134,11 +134,12 @@ export default function ReturnsPage() {
       return;
     }
 
-    if (restoreStock) {
-      const book = books.find((b) => b.id === bookId);
-      if (book) {
-        await supabase.from("books").update({ stock: (book.stock || 0) + qty }).eq("id", bookId);
-      }
+    // سٹاک میں تبدیلی: تازہ ترین سٹاک پڑھ کر جمع یا منفی کریں
+    if (stockAction !== "none") {
+      const { data: row } = await supabase.from("books").select("stock").eq("id", bookId).single();
+      const current = Number(row?.stock) || 0;
+      const next = stockAction === "add" ? current + qty : Math.max(0, current - qty);
+      await supabase.from("books").update({ stock: next }).eq("id", bookId);
     }
 
     setSaving(false);
@@ -499,17 +500,38 @@ export default function ReturnsPage() {
                 />
               </div>
 
-              <label className="flex items-center gap-2 pt-1 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={restoreStock}
-                  onChange={(e) => setRestoreStock(e.target.checked)}
-                  className="w-3.5 h-3.5 rounded text-emerald-600 focus:ring-emerald-500"
-                />
-                <span className="text-slate-600 text-[11px]">
-                  یہ کتاب دوبارہ قابلِ فروخت ہے (سٹاک میں شامل کریں)
-                </span>
-              </label>
+              <div className="pt-1">
+                <p className="block text-slate-700 mb-1.5 font-semibold">سٹاک میں کیا کرنا ہے؟</p>
+                <div className="space-y-1.5">
+                  {[
+                    { v: "none", label: "سٹاک میں کوئی تبدیلی نہیں" },
+                    { v: "add", label: "کتاب دوبارہ قابلِ فروخت ہے (سٹاک میں شامل کریں)" },
+                    { v: "remove", label: "کتاب خراب ہے (سٹاک سے کم کریں)" },
+                  ].map((opt) => (
+                    <label key={opt.v} className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="stockAction"
+                        checked={stockAction === opt.v}
+                        onChange={() => setStockAction(opt.v as "none" | "add" | "remove")}
+                        className="w-3.5 h-3.5 text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span className="text-slate-600 text-[11px]">{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+                {stockAction !== "none" && selectedBookId && (
+                  <p className="mt-1.5 text-[10px] text-slate-400">
+                    موجودہ سٹاک: {books.find((b) => b.id === parseInt(selectedBookId))?.stock ?? 0}
+                    {" ← "}
+                    {(() => {
+                      const cur = books.find((b) => b.id === parseInt(selectedBookId))?.stock ?? 0;
+                      const q = parseInt(quantity) || 0;
+                      return stockAction === "add" ? cur + q : Math.max(0, cur - q);
+                    })()}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="mt-5 flex gap-2 justify-end">
