@@ -1239,7 +1239,7 @@ function BooksPageInner() {
         const language = row[4];
         if (!title || typeof title !== "string" || title.trim() === "") continue;
 
-        const base = generateSlugFromTitle(title.toString().trim());
+        const base = generateSlugFromTitle(title.toString().trim() + (author ? " " + author.toString().trim() : ""));
         const combinedExisting = books.map((b) => ({ id: b.id, slug: b.slug || "" } as Book));
         let slug = makeUniqueSlug(base, combinedExisting, null);
         while (usedSlugsThisBatch.includes(slug)) {
@@ -2532,7 +2532,10 @@ ${itemsList}
                     onChange={(e) => {
                       setNewTitle(e.target.value);
                       if (!editingId) {
-                        setNewSlug(generateSlugFromTitle(e.target.value));
+                        const prevAuto = generateSlugFromTitle(newTitle + " " + newAuthor);
+                        if (!newSlug || newSlug === prevAuto) {
+                          setNewSlug(generateSlugFromTitle(e.target.value + " " + newAuthor));
+                        }
                       }
                     }}
                     placeholder="مثلاً: كیف عاملہم"
@@ -2546,7 +2549,15 @@ ${itemsList}
                   <input
                     type="text"
                     value={newAuthor}
-                    onChange={(e) => setNewAuthor(e.target.value)}
+                    onChange={(e) => {
+                      setNewAuthor(e.target.value);
+                      if (!editingId) {
+                        const prevAuto = generateSlugFromTitle(newTitle + " " + newAuthor);
+                        if (!newSlug || newSlug === prevAuto) {
+                          setNewSlug(generateSlugFromTitle(newTitle + " " + e.target.value));
+                        }
+                      }
+                    }}
                     placeholder="مثلاً: صالح المنجد"
                     className={`w-full rounded-lg border p-2 text-xs ${darkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-200"}`}
                   />

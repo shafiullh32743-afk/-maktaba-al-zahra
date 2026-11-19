@@ -21,6 +21,7 @@ import {
   Star,
   Wallet,
   TrendingUp,
+  Download,
 } from "lucide-react";
 
 // یہ نیچے والی پٹی صرف لاگ اِن شدہ ایڈمن کو، اور صرف موبائل پر نظر آتی ہے
@@ -44,6 +45,7 @@ const moreItems = [
   { href: "/reviews", label: "ریویوز", icon: Star },
   { href: "/expenses", label: "اخراجات", icon: Wallet },
   { href: "/reports", label: "رپورٹس", icon: TrendingUp },
+  { href: "/backup", label: "بیک اپ", icon: Download },
 ];
 
 type PushState = "checking" | "unsupported" | "denied" | "off" | "on" | "busy";

@@ -650,7 +650,8 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
                     {book.image_url ? (
                       <img
                         src={book.image_url}
-                        alt={book.title}
+                        alt={`${book.title} — ${book.author}`}
+                        title={book.title}
                         className="w-full h-full object-cover"
                       />
                     ) : (

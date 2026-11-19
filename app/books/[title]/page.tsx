@@ -73,7 +73,13 @@ export async function generateMetadata({
       url,
       siteName: "مكتبہ الزھراء",
       type: "website",
-      images: book.image_url ? [{ url: book.image_url }] : [],
+      images: book.image_url ? [{ url: book.image_url, alt: `${book.title} — ${book.author}` }] : [],
+    },
+    twitter: {
+      card: book.image_url ? "summary_large_image" : "summary",
+      title: book.title,
+      description,
+      images: book.image_url ? [book.image_url] : [],
     },
   };
 }
@@ -108,7 +114,8 @@ export default async function BookDetailPage({
     author: { "@type": "Person", name: book.author },
     url: bookUrl(book),
   };
-  if (book.image_url) jsonLd.image = book.image_url;
+  if (book.image_url) jsonLd.image = [book.image_url];
+  jsonLd.description = `${book.title} — ${book.author}`;
   if (book.price) {
     jsonLd.offers = {
       "@type": "Offer",

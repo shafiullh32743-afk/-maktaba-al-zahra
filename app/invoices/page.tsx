@@ -576,6 +576,20 @@ export default function InvoicesPage() {
     fetchData();
   };
 
+  // کئی انوائسز ایک کلک سے ادا شدہ کریں
+  const markManyPaid = async (list: Invoice[], label: string) => {
+    const unpaid = list.filter((i) => i.payment_status !== "paid");
+    if (unpaid.length === 0) return;
+    const sum = unpaid.reduce((t, i) => t + ((Number(i.total_amount) || 0) - (Number(i.amount_paid) || 0)), 0);
+    if (!window.confirm(`${label}: ${unpaid.length} انوائسز (بقایا ${Math.round(sum).toLocaleString()} روپے) ادا شدہ کر دیں؟`)) return;
+    await Promise.all(
+      unpaid.map((i) =>
+        supabase.from("invoices").update({ payment_status: "paid", amount_paid: i.total_amount }).eq("id", i.id)
+      )
+    );
+    fetchData();
+  };
+
   const openStockModal = async (invoice: Invoice) => {
     setStockInvoice(invoice);
     setStockLines([]);
@@ -1025,6 +1039,20 @@ export default function InvoicesPage() {
           </select>
         </div>
 
+        {loaded && totalOutstanding > 0 && (
+          <div className="mb-3 flex items-center justify-between gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+            <p className="text-xs font-semibold text-amber-800">
+              {filterStatus || search.trim() ? "نظر آنے والی انوائسز میں" : "کل"} بقایا
+            </p>
+            <button
+              onClick={() => markManyPaid(filteredInvoices, "نظر آنے والی")}
+              className="rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-[11px] font-semibold hover:bg-emerald-700 transition"
+            >
+              ✅ تمام غیر ادا شدہ کو ادا شدہ کریں
+            </button>
+          </div>
+        )}
+
         {!loaded ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -1072,6 +1100,12 @@ export default function InvoicesPage() {
                         className="rounded-lg bg-[#25D366] text-white px-3 py-1.5 text-[11px] font-semibold hover:bg-[#20BD5A] transition"
                       >
                         💬 واٹس ایپ پر یاددہانی بھیجیں
+                      </button>
+                      <button
+                        onClick={() => markManyPaid(group.invoices, group.name)}
+                        className="rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-[11px] font-semibold hover:bg-emerald-700 transition"
+                      >
+                        ✅ سب ادا شدہ
                       </button>
                     </div>
                   )}

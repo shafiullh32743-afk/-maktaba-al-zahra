@@ -25,6 +25,7 @@ import {
   Plus,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import BillUpload from "./BillUpload";
 
 interface Supplier {
   id: number;
@@ -162,6 +163,7 @@ export default function SuppliersPage() {
   const [bookSearch, setBookSearch] = useState("");
   const [showOtherSupplierBooks, setShowOtherSupplierBooks] = useState(false);
   const [orderNo, setOrderNo] = useState("");
+  const [billOpen, setBillOpen] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
 
   // دستی کتب، محفوظ آرڈرز اور موصولی
@@ -332,7 +334,7 @@ export default function SuppliersPage() {
     const fromList: OrderLine[] = supplierBooks(orderSupplier.id)
       .map((b) => ({ b, qty: parseInt(qtyMap[b.id] || "0", 10) || 0 }))
       .filter((x) => x.qty > 0);
-    const fromManual: OrderLine[] = manualLines.map((m) => ({
+    const fromManual: OrderLine[] = manualLines.filter((m) => m.title.trim() && m.qty > 0).map((m) => ({
       b: { id: 0, title: m.title, author: m.author || undefined },
       qty: m.qty,
       manual: true,
@@ -1104,6 +1106,14 @@ export default function SuppliersPage() {
             </button>
             <h3 className="text-base font-bold text-slate-800 mb-3">{orderSupplier.name}</h3>
 
+            <button
+              type="button"
+              onClick={() => setBillOpen(true)}
+              className="mb-3 w-full rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-700 py-2 text-xs font-semibold hover:bg-emerald-100 transition"
+            >
+              📷 سپلائر کا بل اپلوڈ کریں (خود بخود کتابیں اور سٹاک)
+            </button>
+
             {linksError && (
               <div className="mb-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-xs px-3 py-2">
                 {linksError}
@@ -1533,24 +1543,46 @@ export default function SuppliersPage() {
                       </div>
                       {manualLines.length > 0 && (
                         <ul className="mt-2 divide-y divide-amber-100">
-                          {manualLines.map((m, i) => (
-                            <li key={i} className="flex items-center justify-between gap-2 py-1.5 text-xs">
-                              <span className="truncate">
-                                {m.title}
-                                {m.author ? <span className="text-slate-400"> — {m.author}</span> : null}
-                              </span>
-                              <span className="flex items-center gap-2 shrink-0">
-                                <b>{m.qty}</b>
-                                <button
-                                  type="button"
-                                  onClick={() => setManualLines((prev) => prev.filter((_, j) => j !== i))}
-                                  className="text-rose-500 hover:text-rose-700"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </span>
-                            </li>
-                          ))}
+                          {manualLines.map((m, i) => {
+                            const upd = (patch: Partial<{ title: string; author: string; qty: number }>) =>
+                              setManualLines((prev) => prev.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+                            return (
+                              <li key={i} className="py-2 space-y-1.5">
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    value={m.title}
+                                    onChange={(e) => upd({ title: e.target.value })}
+                                    placeholder="کتاب کا نام"
+                                    className="flex-1 min-w-0 rounded-lg border border-slate-200 p-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setManualLines((prev) => prev.filter((_, j) => j !== i))}
+                                    className="text-rose-500 hover:text-rose-700 shrink-0"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    value={m.author}
+                                    onChange={(e) => upd({ author: e.target.value })}
+                                    placeholder="مصنف (اختیاری)"
+                                    className="flex-1 min-w-0 rounded-lg border border-slate-200 p-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                                  />
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={m.qty}
+                                    onChange={(e) => upd({ qty: parseInt(e.target.value) || 0 })}
+                                    className="w-16 rounded-lg border border-slate-200 p-1.5 text-xs text-center bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                                  />
+                                </div>
+                              </li>
+                            );
+                          })}
                         </ul>
                       )}
                     </div>
@@ -1835,6 +1867,17 @@ export default function SuppliersPage() {
             </div>
           </div>
         </div>
+      )}
+      {billOpen && orderSupplier && (
+        <BillUpload
+          supplier={{ id: orderSupplier.id, name: orderSupplier.name }}
+          allBooks={allBooks}
+          links={links}
+          onClose={() => setBillOpen(false)}
+          onDone={() => {
+            fetchBooksAndLinks();
+          }}
+        />
       )}
     </main>
   );
