@@ -582,6 +582,8 @@ function BooksPageInner() {
   const [inStockOnly, setInStockOnly] = useState(false);
   const [showWishlistOnly, setShowWishlistOnly] = useState(false);
   const [showFilterSidebar, setShowFilterSidebar] = useState(false);
+  const [stockTab, setStockTab] = useState<"all" | "in" | "low" | "out" | "noimg">("all");
+  const [sortBy, setSortBy] = useState("default");
 
   // PDF: ڈاؤن لوڈ / شیئر / پرنٹ
   const [showPdfOptions, setShowPdfOptions] = useState(false);
@@ -1189,6 +1191,18 @@ function BooksPageInner() {
     fetchBooks();
   };
 
+  // کارڈ ہی سے سٹاک کم/زیادہ کرنے کا تیز طریقہ
+  const quickStock = async (book: Book, delta: number) => {
+    const next = Math.max(0, (book.stock ?? 0) + delta);
+    if (next === (book.stock ?? 0)) return;
+    setBooks((prev) => prev.map((b) => (b.id === book.id ? { ...b, stock: next } : b)));
+    const { error } = await supabase.from("books").update({ stock: next }).eq("id", book.id);
+    if (error) {
+      setBooks((prev) => prev.map((b) => (b.id === book.id ? { ...b, stock: book.stock } : b)));
+      alert("سٹاک محفوظ نہیں ہوا: " + error.message);
+    }
+  };
+
   const handleEditClick = (book: Book) => {
     setEditingId(book.id);
     setNewTitle(book.title);
@@ -1595,11 +1609,39 @@ ${itemsList}
     inStockOnly ||
     showWishlistOnly;
 
+  const shownBooks = (() => {
+    const list = filteredBooks.filter((b) => {
+      const st = b.stock ?? 0;
+      if (stockTab === "in") return st > 5;
+      if (stockTab === "low") return st > 0 && st <= 5;
+      if (stockTab === "out") return st <= 0;
+      if (stockTab === "noimg") return !b.image_url;
+      return true;
+    });
+    const arr = [...list];
+    if (sortBy === "new") arr.sort((a, b) => Number(b.id) - Number(a.id));
+    else if (sortBy === "name") arr.sort((a, b) => String(a.title).localeCompare(String(b.title), "ur"));
+    else if (sortBy === "priceAsc") arr.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
+    else if (sortBy === "priceDesc") arr.sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
+    else if (sortBy === "stock") arr.sort((a, b) => (a.stock ?? 0) - (b.stock ?? 0));
+    return arr;
+  })();
+  const statTotal = books.length;
+  const statIn = books.filter((b) => (b.stock ?? 0) > 5).length;
+  const statLow = books.filter((b) => (b.stock ?? 0) > 0 && (b.stock ?? 0) <= 5).length;
+  const statOut = books.filter((b) => (b.stock ?? 0) <= 0).length;
+  const statNoImg = books.filter((b) => !b.image_url).length;
+  const statValue = books.reduce((s2, b) => s2 + (Number(b.price) || 0) * (b.stock ?? 0), 0);
+  const softBtn = darkMode
+    ? "bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800"
+    : "bg-white border-slate-100 text-slate-600 hover:bg-emerald-50/50 shadow-[0_1px_8px_rgba(15,23,42,0.05)]";
+  const fieldCls = darkMode ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-100 shadow-[0_1px_8px_rgba(15,23,42,0.04)]";
+
   return (
     <main
       dir={lang === "ur" ? "rtl" : "ltr"}
       className={`min-h-screen flex flex-col font-sans transition-colors duration-200 ${
-        darkMode ? "bg-slate-950 text-slate-100" : "bg-slate-50/60 text-slate-800"
+        darkMode ? "bg-slate-950 text-slate-100" : "bg-gradient-to-b from-emerald-50/70 via-slate-50 to-slate-50 text-slate-800"
       }`}
     >
       {/* 1. فلوٹنگ WhatsApp بٹن */}
@@ -1617,7 +1659,7 @@ ${itemsList}
       </a>
 
       {/* اوپر کا بینر و نائٹ/لینگویج سوئچ */}
-      <div className={`${darkMode ? "bg-emerald-950" : "bg-emerald-800"} text-white text-xs py-2 px-4 flex flex-col md:flex-row items-center justify-between gap-2 text-center font-medium`}>
+      <div className={`${darkMode ? "bg-emerald-950" : "bg-gradient-to-l from-emerald-700 to-teal-600"} text-white text-xs py-2 px-4 flex flex-col md:flex-row items-center justify-between gap-2 text-center font-medium`}>
         <div className="flex-1 flex items-center justify-center gap-2 flex-wrap">
           <span>{t.welcomeBanner}</span>
           <span className="hidden md:inline">•</span>
@@ -1664,9 +1706,7 @@ ${itemsList}
         >
           <div className="flex items-center justify-between px-2 py-1">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm">
-                <BookOpen className="text-white" size={17} />
-              </div>
+              <img src="/logo.jpg" alt="logo" className="w-9 h-9 rounded-2xl object-cover ring-2 ring-emerald-200" />
               <h1 className={`text-base font-bold ${darkMode ? "text-white" : "text-slate-800"}`}>مكتبہ الزھراء</h1>
             </div>
             <button onClick={() => setMobileMenuOpen(false)} className="md:hidden text-slate-400 hover:text-slate-600">
@@ -1682,17 +1722,17 @@ ${itemsList}
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-2xl text-[13px] font-medium transition-all ${
                     item.active
                       ? darkMode
-                        ? "bg-emerald-900/50 text-emerald-300"
-                        : "bg-emerald-50 text-emerald-700 shadow-xs"
+                        ? "bg-emerald-900/40 text-emerald-300"
+                        : "bg-emerald-50 text-emerald-700"
                       : darkMode
                       ? "text-slate-300 hover:bg-slate-800 hover:text-white"
-                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
                   }`}
                 >
-                  <Icon size={16} className={item.active ? "text-emerald-600" : "text-slate-400"} />
+                  <Icon size={17} className={item.active ? "text-emerald-500" : "text-slate-300"} />
                   {item.label}
                 </Link>
               );
@@ -1812,15 +1852,15 @@ ${itemsList}
 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div>
-              <h2 className={`text-xl font-bold ${darkMode ? "text-white" : "text-slate-900"}`}>{t.ourBooks}</h2>
+              <h2 className={`text-xl md:text-2xl font-extrabold ${darkMode ? "text-white" : "text-slate-900"}`}>{t.ourBooks}</h2>
               <p className="text-xs text-slate-400 mt-0.5">{t.subHeading}</p>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => setShowCartModal(true)}
-                className={`relative flex items-center gap-1.5 rounded-lg px-3 py-1.5 border transition text-xs font-semibold shadow-xs ${
-                  darkMode ? "bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                className={`relative flex items-center gap-1.5 rounded-xl px-3.5 py-2 border transition text-xs font-semibold ${
+                  softBtn
                 }`}
               >
                 <ShoppingCart size={15} className="text-emerald-600" />
@@ -1832,8 +1872,8 @@ ${itemsList}
                 )}
               </button>
 
-              <label className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 border transition cursor-pointer text-xs font-semibold ${
-                darkMode ? "bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+              <label className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 border transition cursor-pointer text-xs font-semibold ${
+                softBtn
               }`}>
                 <FileSpreadsheet size={15} className="text-emerald-600" />
                 {importing ? t.importing : t.excel}
@@ -1842,8 +1882,8 @@ ${itemsList}
 
               <button
                 onClick={() => setShowPdfOptions(true)}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 border transition text-xs font-semibold ${
-                  darkMode ? "bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 border transition text-xs font-semibold ${
+                  softBtn
                 }`}
               >
                 <FileDown size={15} />
@@ -1852,8 +1892,8 @@ ${itemsList}
 
               <button
                 onClick={() => handlePrintLabels(filteredBooks)}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 border transition text-xs font-semibold ${
-                  darkMode ? "bg-slate-900 border-slate-800 text-slate-200 hover:bg-slate-800" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 border transition text-xs font-semibold ${
+                  softBtn
                 }`}
               >
                 <Printer size={15} />
@@ -1878,7 +1918,7 @@ ${itemsList}
                   setSaveError(null);
                   setShowModal(true);
                 }}
-                className="flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 transition shadow-xs text-xs font-semibold"
+                className="flex items-center gap-1.5 rounded-xl px-4 py-2 bg-gradient-to-l from-emerald-600 to-teal-500 text-white hover:opacity-90 transition shadow-md shadow-emerald-600/20 text-xs font-bold"
               >
                 <Plus size={15} />
                 <span>{t.addBook}</span>
@@ -1892,6 +1932,33 @@ ${itemsList}
             </div>
           )}
 
+          {/* کتب کا خلاصہ */}
+          <div className="mb-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            {[
+              { key: "all", label: "کل کتب", value: String(statTotal), tone: "bg-emerald-50 text-emerald-600", icon: "📚" },
+              { key: "in", label: "سٹاک میں", value: String(statIn), tone: "bg-sky-50 text-sky-600", icon: "✅" },
+              { key: "low", label: "کم سٹاک", value: String(statLow), tone: "bg-amber-50 text-amber-600", icon: "⚠️" },
+              { key: "out", label: "ختم", value: String(statOut), tone: "bg-rose-50 text-rose-500", icon: "⛔" },
+              { key: "noimg", label: "تصویر کے بغیر", value: String(statNoImg), tone: "bg-violet-50 text-violet-600", icon: "🖼️" },
+              { key: "value", label: "سٹاک کی مالیت", value: "Rs " + Math.round(statValue).toLocaleString("en-US"), tone: "bg-teal-50 text-teal-600", icon: "💰" },
+            ].map((c) => (
+              <button
+                key={c.key}
+                type="button"
+                onClick={() => c.key !== "value" && setStockTab(c.key as "all" | "in" | "low" | "out" | "noimg")}
+                className={`text-start rounded-3xl border p-3.5 transition-all hover:-translate-y-0.5 ${
+                  darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"
+                } ${stockTab === c.key ? "ring-2 ring-emerald-300" : ""}`}
+              >
+                <span className={`inline-flex w-9 h-9 items-center justify-center rounded-2xl text-base ${c.tone}`}>{c.icon}</span>
+                <p className={`mt-2 text-base md:text-lg font-extrabold truncate ${darkMode ? "text-white" : "text-slate-900"}`} dir="ltr" style={{ textAlign: lang === "ur" ? "right" : "left" }}>
+                  {c.value}
+                </p>
+                <p className="text-[11px] text-slate-400">{c.label}</p>
+              </button>
+            ))}
+          </div>
+
           {/* فلٹرز سیکشن */}
           <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
             <input
@@ -1899,16 +1966,12 @@ ${itemsList}
               placeholder={t.searchPlaceholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className={`lg:col-span-2 rounded-lg border p-2 text-xs transition shadow-xs ${
-                darkMode ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200"
-              }`}
+              className={`lg:col-span-2 rounded-xl border p-2.5 text-xs transition ${fieldCls}`}
             />
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
-              className={`rounded-lg border p-2 text-xs transition ${
-                darkMode ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200"
-              }`}
+              className={`rounded-xl border p-2.5 text-xs transition ${fieldCls}`}
             >
               <option value="">{t.allCategories}</option>
               {existingCategories.map((cat) => (
@@ -1918,9 +1981,7 @@ ${itemsList}
             <select
               value={filterAuthor}
               onChange={(e) => setFilterAuthor(e.target.value)}
-              className={`rounded-lg border p-2 text-xs transition ${
-                darkMode ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200"
-              }`}
+              className={`rounded-xl border p-2.5 text-xs transition ${fieldCls}`}
             >
               <option value="">{t.allAuthors}</option>
               {existingAuthors.map((author) => (
@@ -1931,9 +1992,7 @@ ${itemsList}
             <div className="flex gap-2">
               <button
                 onClick={() => setShowFilterSidebar(true)}
-                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg border p-2 text-xs font-medium transition ${
-                  darkMode ? "bg-slate-900 border-slate-800 text-slate-200" : "bg-white border-slate-200 text-slate-700"
-                }`}
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl border p-2.5 text-xs font-medium transition ${softBtn}`}
               >
                 <Filter size={14} /> {t.more}
               </button>
@@ -1954,6 +2013,46 @@ ${itemsList}
             </div>
           </div>
 
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  ["all", "سب"],
+                  ["in", "سٹاک میں"],
+                  ["low", "کم سٹاک"],
+                  ["out", "ختم"],
+                  ["noimg", "تصویر نہیں"],
+                ] as const
+              ).map(([k, label]) => (
+                <button
+                  key={k}
+                  onClick={() => setStockTab(k)}
+                  className={`px-3 py-1.5 rounded-full text-[11px] font-semibold border transition ${
+                    stockTab === k
+                      ? "bg-emerald-600 text-white border-emerald-600"
+                      : darkMode
+                      ? "bg-slate-900 border-slate-800 text-slate-300"
+                      : "bg-white border-slate-100 text-slate-500 hover:bg-emerald-50"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className={`rounded-xl border px-3 py-2 text-[11px] font-medium ${fieldCls}`}
+            >
+              <option value="default">ترتیب: ڈیفالٹ</option>
+              <option value="new">نئی کتب پہلے</option>
+              <option value="name">نام کے مطابق</option>
+              <option value="priceAsc">قیمت: کم سے زیادہ</option>
+              <option value="priceDesc">قیمت: زیادہ سے کم</option>
+              <option value="stock">سٹاک: کم پہلے</option>
+            </select>
+          </div>
+
           {hasActiveFilters && (
             <div className="mb-4 flex items-center gap-2 text-xs text-slate-500">
               <span>{filteredBooks.length} نتائج ملے</span>
@@ -1972,15 +2071,15 @@ ${itemsList}
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-              {filteredBooks.length === 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {shownBooks.length === 0 && (
                 <div className={`col-span-full py-12 text-center text-xs text-slate-500 rounded-xl border shadow-xs ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
                   <span className="text-3xl mb-2 block">📖</span>
                   <p>کوئی کتاب نہیں ملی</p>
                 </div>
               )}
 
-              {filteredBooks.map((book) => {
+              {shownBooks.map((book) => {
                 const ratingInfo = getBookRating(book.title);
                 const stockInfo = getStockStatus(book.stock ?? 0);
                 const outOfStock = (book.stock ?? 0) <= 0;
@@ -1991,9 +2090,9 @@ ${itemsList}
                 return (
                   <div
                     key={book.id}
-                    className={`relative rounded-xl border p-4 shadow-xs transition-all flex flex-col justify-between group ${
-                      darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
-                    } ${isSelected ? "border-emerald-500 ring-1 ring-emerald-500/20" : ""}`}
+                    className={`relative rounded-3xl border p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg flex flex-col justify-between group ${
+                      darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100 shadow-[0_2px_14px_rgba(15,23,42,0.06)]"
+                    } ${isSelected ? "border-emerald-400 ring-2 ring-emerald-200" : ""}`}
                   >
                     <div>
                       <div className="flex items-center justify-between mb-2">
@@ -2018,7 +2117,7 @@ ${itemsList}
 
                       <div
                         onClick={() => book.image_url && setZoomedImage(book.image_url)}
-                        className={`relative w-full aspect-[4/3] rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden mb-3 border border-slate-100 ${
+                        className={`relative w-full aspect-[4/3] rounded-2xl bg-gradient-to-br from-emerald-50 to-sky-50 flex items-center justify-center overflow-hidden mb-3 ${
                           book.image_url ? "cursor-pointer" : ""
                         }`}
                       >
@@ -2027,11 +2126,14 @@ ${itemsList}
                             src={book.image_url}
                             alt={book.title}
                             fill
-                            className="object-cover"
+                            className="object-cover transition-transform duration-500 group-hover:scale-105"
                             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                           />
                         ) : (
-                          <BookOpen size={36} className="text-slate-300" />
+                          <div className="flex flex-col items-center gap-1 text-slate-300">
+                            <BookOpen size={34} />
+                            <span className="text-[10px] font-semibold text-violet-400">تصویر شامل کریں</span>
+                          </div>
                         )}
                       </div>
 
@@ -2048,6 +2150,15 @@ ${itemsList}
                         )}
                       </div>
 
+                      <div className={`mb-2 flex items-center justify-between rounded-2xl px-2 py-1 ${darkMode ? "bg-slate-800" : "bg-slate-50"}`}>
+                        <span className="text-[10px] text-slate-400">سٹاک فوری تبدیل</span>
+                        <div className="flex items-center gap-1" dir="ltr">
+                          <button onClick={() => quickStock(book, -1)} className="w-6 h-6 rounded-full bg-white border border-slate-200 text-slate-600 text-sm leading-none hover:bg-rose-50 hover:text-rose-500">−</button>
+                          <span className={`min-w-6 text-center text-xs font-bold ${darkMode ? "text-white" : "text-slate-700"}`}>{book.stock ?? 0}</span>
+                          <button onClick={() => quickStock(book, 1)} className="w-6 h-6 rounded-full bg-white border border-slate-200 text-slate-600 text-sm leading-none hover:bg-emerald-50 hover:text-emerald-600">+</button>
+                        </div>
+                      </div>
+
                       <h3 className={`text-sm font-bold line-clamp-1 mb-0.5 ${darkMode ? "text-white" : "text-slate-800"}`}>{book.title}</h3>
                       <p className="text-xs text-slate-500 truncate mb-2">{book.author}</p>
 
@@ -2061,9 +2172,29 @@ ${itemsList}
                       </div>
 
                       {book.price ? (
-                        <p className="text-sm font-extrabold text-emerald-700 mb-3">
-                          {Number(book.price).toLocaleString()} {t.rupees}
-                        </p>
+                        <div className="mb-3 flex items-center justify-between gap-2">
+                          <p className="text-base font-extrabold text-emerald-600">
+                            {Number(book.price).toLocaleString()} <span className="text-[11px] font-semibold">{t.rupees}</span>
+                          </p>
+                          {(() => {
+                            const cost = Number((book as { cost_price?: number | null }).cost_price) || 0;
+                            const profit = Number(book.price) - cost;
+                            return cost > 0 ? (
+                              <span
+                                className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${
+                                  profit >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-500"
+                                }`}
+                                title="نفع فی کتاب"
+                              >
+                                نفع {Math.round(profit).toLocaleString()}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] rounded-full px-2 py-0.5 bg-slate-100 text-slate-400" title="خرید قیمت درج نہیں">
+                                خرید؟
+                              </span>
+                            );
+                          })()}
+                        </div>
                       ) : (
                         <p className="text-xs text-slate-400 italic mb-3">{t.priceNotSet}</p>
                       )}
@@ -2091,7 +2222,7 @@ ${itemsList}
                         <button
                           onClick={() => addToCart(book)}
                           disabled={outOfStock}
-                          className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 py-1.5 text-white text-xs font-semibold hover:bg-emerald-700 transition disabled:bg-slate-200 disabled:text-slate-400"
+                          className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-2 text-white text-xs font-semibold hover:bg-emerald-700 transition disabled:bg-slate-200 disabled:text-slate-400"
                         >
                           <ShoppingCart size={13} />
                           {outOfStock ? t.outOfStock : t.addToCart}
@@ -2105,15 +2236,23 @@ ${itemsList}
                         >
                           {t.review}
                         </button>
+                        <Link
+                          href={`/books/${(book as { slug?: string | null }).slug || encodeURIComponent(book.title)}`}
+                          target="_blank"
+                          className={`px-2.5 py-1 rounded-xl border text-[11px] transition ${darkMode ? "border-slate-800 text-slate-300" : "border-slate-200 text-slate-500 hover:bg-slate-50"}`}
+                          title="ویب سائٹ پر کتاب کا صفحہ دیکھیں"
+                        >
+                          👁
+                        </Link>
                         <button
                           onClick={() => handleEditClick(book)}
-                          className="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition text-[11px] font-medium"
+                          className="px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition text-[11px] font-medium"
                         >
                           {t.edit}
                         </button>
                         <button
                           onClick={() => setConfirmDeleteId(book.id)}
-                          className="px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 transition text-[11px] font-medium"
+                          className="px-2.5 py-1 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 transition text-[11px] font-medium"
                         >
                           {t.delete}
                         </button>

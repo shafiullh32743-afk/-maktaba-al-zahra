@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { cache } from "react";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import BookDetailClient from "./BookDetailClient";
 
@@ -31,6 +31,24 @@ const getBook = cache(async (rawIdentifier: string) => {
     .limit(1);
   if (byTitle && byTitle.length > 0) return byTitle[0];
 
+  // پرانے لنک: سلگ میں بعد میں مصنف وغیرہ شامل ہوا ہو تو ابتدا سے ملا لیں
+  const clean = identifier.replace(/[%_]/g, "").trim();
+  if (clean.length >= 3) {
+    const { data: byPrefix } = await supabase
+      .from("books_public")
+      .select("*")
+      .ilike("slug", `${clean}%`)
+      .limit(1);
+    if (byPrefix && byPrefix.length > 0) return byPrefix[0];
+
+    const { data: byLike } = await supabase
+      .from("books_public")
+      .select("*")
+      .ilike("title", `%${clean.replace(/-/g, " ")}%`)
+      .limit(1);
+    if (byLike && byLike.length > 0) return byLike[0];
+  }
+
   if (/^\d+$/.test(identifier)) {
     const { data: byId } = await supabase
       .from("books_public")
@@ -56,7 +74,7 @@ export async function generateMetadata({
   const book = await getBook(title);
 
   if (!book) {
-    return { title: "کتاب نہیں ملی | مكتبہ الزھراء" };
+    return { title: "کتاب نہیں ملی | مكتبہ الزھراء", robots: { index: false } };
   }
 
   const priceText = book.price ? ` قیمت: Rs ${Number(book.price).toLocaleString()}۔` : "";
@@ -73,13 +91,13 @@ export async function generateMetadata({
       url,
       siteName: "مكتبہ الزھراء",
       type: "website",
-      images: book.image_url ? [{ url: book.image_url, alt: `${book.title} — ${book.author}` }] : [],
+      images: [{ url: book.image_url || `${SITE_URL}/logo.jpg`, alt: `${book.title} — ${book.author}` }],
     },
     twitter: {
       card: book.image_url ? "summary_large_image" : "summary",
       title: book.title,
       description,
-      images: book.image_url ? [book.image_url] : [],
+      images: [book.image_url || `${SITE_URL}/logo.jpg`],
     },
   };
 }
@@ -93,6 +111,12 @@ export default async function BookDetailPage({
   const book = await getBook(title);
 
   if (!book) notFound();
+
+  // پرانا یا مختلف لنک کھلے تو مستقل (308) طور پر درست لنک پر بھیجیں، تاکہ گوگل نیا لنک سیکھ لے
+  const wanted = safeDecode(title);
+  if (book.slug && wanted.normalize("NFC") !== String(book.slug).normalize("NFC")) {
+    permanentRedirect(`/books/${encodeURIComponent(book.slug)}`);
+  }
 
   const { data: reviews } = await supabase
     .from("reviews")
@@ -114,7 +138,7 @@ export default async function BookDetailPage({
     author: { "@type": "Person", name: book.author },
     url: bookUrl(book),
   };
-  if (book.image_url) jsonLd.image = [book.image_url];
+  jsonLd.image = [book.image_url || `${SITE_URL}/logo.jpg`];
   jsonLd.description = `${book.title} — ${book.author}`;
   if (book.price) {
     jsonLd.offers = {

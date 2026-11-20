@@ -193,6 +193,30 @@ function AreaChart({ days, salesLabel, profitLabel }: { days: { day: number; rev
   );
 }
 
+function Ring({ value, max, size = 120 }: { value: number; max: number; size?: number }) {
+  const r = 42;
+  const c = 2 * Math.PI * r;
+  const pct = max > 0 ? Math.min(1, value / max) : 0;
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }} dir="ltr">
+      <svg viewBox="0 0 100 100" width={size} height={size} className="-rotate-90">
+        <circle cx={50} cy={50} r={r} fill="none" stroke="#e2e8f0" strokeOpacity={0.7} strokeWidth={10} />
+        <circle
+          cx={50}
+          cy={50}
+          r={r}
+          fill="none"
+          stroke={pct >= 1 ? "#10b981" : "#38bdf8"}
+          strokeWidth={10}
+          strokeLinecap="round"
+          strokeDasharray={`${pct * c} ${c}`}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center text-lg font-extrabold text-slate-700">{Math.round(pct * 100)}%</div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [darkMode, setDarkMode] = useState(false);
   const [lang, setLang] = useState<"ur" | "en">("ur");
@@ -205,11 +229,28 @@ export default function DashboardPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
+  const [customersList, setCustomersList] = useState<any[]>([]);
+  const [supplierList, setSupplierList] = useState<any[]>([]);
+  const [supOrders, setSupOrders] = useState<any[]>([]);
+  const [supPays, setSupPays] = useState<any[]>([]);
+  const [returnsList, setReturnsList] = useState<any[]>([]);
+  const [reviewsList, setReviewsList] = useState<any[]>([]);
+  const [alertCount, setAlertCount] = useState(0);
+  const [targetAmt, setTargetAmt] = useState(0);
+  const [backupDays, setBackupDays] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     // ایڈمن کی جانچ: لاگ ان کوکی موجود ہو تو مالی اعداد و شمار نظر آئیں گے
     setIsAdmin(/(^|;\s*)maktaba-auth=[^;]+/.test(document.cookie));
+  }, []);
+
+  useEffect(() => {
+    try {
+      setTargetAmt(Number(localStorage.getItem("maktaba-target")) || 0);
+      const lb = localStorage.getItem("maktaba-last-backup");
+      setBackupDays(lb ? Math.floor((Date.now() - new Date(lb).getTime()) / 86400000) : null);
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -243,6 +284,23 @@ export default function DashboardPage() {
 
       const { data: expensesData } = await supabase.from("expenses").select("*");
       if (expensesData) setExpenses(expensesData);
+
+      // باقی ماڈیولز: کوئی ٹیبل نہ ہو تو خاموشی سے چھوڑ دیں
+      const safe = async (table: string, setter: (rows: any[]) => void) => {
+        try {
+          const { data, error } = await supabase.from(table).select("*");
+          if (!error && data) setter(data);
+        } catch {}
+      };
+      await Promise.all([
+        safe("customers", setCustomersList),
+        safe("suppliers", setSupplierList),
+        safe("supplier_orders", setSupOrders),
+        safe("supplier_payments", setSupPays),
+        safe("returns", setReturnsList),
+        safe("reviews", setReviewsList),
+        safe("stock_alerts", (rows) => setAlertCount(rows.length)),
+      ]);
 
       setLoaded(true);
     };
@@ -442,6 +500,130 @@ export default function DashboardPage() {
     { label: lang === "ur" ? "دکان / بل" : "Shop bills", value: shopRevenue },
   ].filter((x) => x.value > 0);
 
+  // --- پورے کاروبار کا جائزہ ---
+  const customerName = new Map<any, string>(customersList.map((c) => [c.id, c.name]));
+  const spendMap = new Map<string, number>();
+  orderGroups.forEach((g) => {
+    const nm = String(g[0].customer_name || "").trim();
+    if (!nm) return;
+    const tot = Number((g.find((r: any) => r.total_amount) || g[0]).total_amount) || 0;
+    spendMap.set(nm, (spendMap.get(nm) || 0) + tot);
+  });
+  invoices.forEach((i) => {
+    const nm = customerName.get(i.customer_id);
+    if (!nm) return;
+    spendMap.set(nm, (spendMap.get(nm) || 0) + (Number(i.total_amount) || 0));
+  });
+  const topCustomers = Array.from(spendMap.entries())
+    .map(([name, total]) => ({ name, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5);
+  const topCustMax = Math.max(1, ...topCustomers.map((c) => c.total));
+
+  const supplierBalances = supplierList
+    .map((sp) => {
+      const received = supOrders.filter((o) => o.supplier_id === sp.id).reduce((s, o) => s + (Number(o.total_amount) || 0), 0);
+      const mine = supPays.filter((p) => p.supplier_id === sp.id);
+      const charges = mine.filter((p) => p.kind === "charge").reduce((s, p) => s + (Number(p.amount) || 0), 0);
+      const paid = mine.filter((p) => p.kind !== "charge").reduce((s, p) => s + (Number(p.amount) || 0), 0);
+      return { name: sp.name as string, balance: received + charges - paid };
+    })
+    .filter((x) => Math.round(x.balance) > 0)
+    .sort((a, b) => b.balance - a.balance);
+  const payableTotal = supplierBalances.reduce((s, x) => s + x.balance, 0);
+
+  const weekdayNames = lang === "ur" ? ["اتوار", "پیر", "منگل", "بدھ", "جمعرات", "جمعہ", "ہفتہ"] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const weekdaySums = [0, 0, 0, 0, 0, 0, 0];
+  const cutoff90 = Date.now() - 90 * 86400000;
+  saleEntries.forEach((e) => {
+    if (isNaN(e.date.getTime()) || e.date.getTime() < cutoff90) return;
+    weekdaySums[e.date.getDay()] += e.revenue;
+  });
+  const weekdayMax = Math.max(1, ...weekdaySums);
+  const bestDay = weekdaySums.indexOf(Math.max(...weekdaySums));
+
+  const reviewsPending = reviewsList.filter((r) => r.is_approved === false || r.approved === false || r.status === "pending").length;
+  const returnsThisMonth = returnsList.filter((r) => inThisMonth(r.created_at)).length;
+  const unpaidInvoiceCount = invoices.filter((i) => i.payment_status !== "paid").length;
+  const booksNoCost = books.filter((b) => !(Number(b.cost_price) > 0)).length;
+  const booksNoPrice = books.filter((b) => !(Number(b.price) > 0)).length;
+
+  const ago = (d: Date) => {
+    const m = Math.floor((Date.now() - d.getTime()) / 60000);
+    if (isNaN(m)) return "";
+    if (m < 1) return lang === "ur" ? "ابھی" : "now";
+    if (m < 60) return `${m} ${lang === "ur" ? "منٹ پہلے" : "min ago"}`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h} ${lang === "ur" ? "گھنٹے پہلے" : "h ago"}`;
+    const dd = Math.floor(h / 24);
+    return `${dd} ${lang === "ur" ? "دن پہلے" : "d ago"}`;
+  };
+
+  const attention = [
+    newOrderCount > 0 && { icon: "🛒", text: lang === "ur" ? `${newOrderCount} نئے آرڈرز پر کارروائی باقی ہے` : `${newOrderCount} new orders waiting`, href: "/orders", tone: "bg-sky-50 text-sky-700 border-sky-100" },
+    duesTotal > 0 && { icon: "💰", text: lang === "ur" ? `گاہکوں سے وصولی: ${money(duesTotal)} (${unpaidInvoiceCount} بل)` : `Dues to collect: ${money(duesTotal)}`, href: "/invoices", tone: "bg-rose-50 text-rose-600 border-rose-100" },
+    payableTotal > 0 && { icon: "🚚", text: lang === "ur" ? `سپلائرز کو ادائیگی: ${money(payableTotal)}` : `Owed to suppliers: ${money(payableTotal)}`, href: "/suppliers", tone: "bg-amber-50 text-amber-700 border-amber-100" },
+    lowStockBooks.length > 0 && { icon: "📦", text: lang === "ur" ? `${lowStockBooks.length} کتابوں کا سٹاک کم یا ختم` : `${lowStockBooks.length} books low/out of stock`, href: "/low-stock", tone: "bg-orange-50 text-orange-700 border-orange-100" },
+    alertCount > 0 && { icon: "🔔", text: lang === "ur" ? `${alertCount} گاہکوں نے کتاب آنے پر اطلاع مانگی ہے` : `${alertCount} back-in-stock requests`, href: "/low-stock", tone: "bg-violet-50 text-violet-700 border-violet-100" },
+    reviewsPending > 0 && { icon: "⭐", text: lang === "ur" ? `${reviewsPending} ریویوز منظوری کے منتظر` : `${reviewsPending} reviews awaiting approval`, href: "/reviews", tone: "bg-yellow-50 text-yellow-700 border-yellow-100" },
+    booksNoPrice > 0 && { icon: "🏷️", text: lang === "ur" ? `${booksNoPrice} کتابوں کی فروخت قیمت درج نہیں` : `${booksNoPrice} books have no sale price`, href: "/books", tone: "bg-slate-50 text-slate-600 border-slate-200" },
+    booksNoCost > 0 && { icon: "🧮", text: lang === "ur" ? `${booksNoCost} کتابوں کی خرید قیمت درج نہیں (نفع غلط آ سکتا ہے)` : `${booksNoCost} books have no cost price`, href: "/books", tone: "bg-slate-50 text-slate-600 border-slate-200" },
+    (backupDays === null || backupDays >= 7) && { icon: "💾", text: backupDays === null ? (lang === "ur" ? "بیک اپ ابھی نہیں لیا" : "No backup taken yet") : (lang === "ur" ? `آخری بیک اپ ${backupDays} دن پہلے لیا تھا` : `Last backup ${backupDays} days ago`), href: "/backup", tone: "bg-emerald-50 text-emerald-700 border-emerald-100" },
+  ].filter(Boolean) as { icon: string; text: string; href: string; tone: string }[];
+
+  const activity = [
+    ...orderGroups.slice(0, 6).map((g) => ({
+      date: new Date(g[0].created_at || 0),
+      icon: "🛒",
+      title: `${lang === "ur" ? "آن لائن آرڈر" : "Online order"} — ${g[0].customer_name || "—"}`,
+      sub: money(Number((g.find((r: any) => r.total_amount) || g[0]).total_amount) || 0),
+      href: "/orders",
+    })),
+    ...[...invoices]
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+      .slice(0, 6)
+      .map((i) => ({
+        date: new Date(i.created_at || 0),
+        icon: "🧾",
+        title: `${lang === "ur" ? "بل" : "Bill"} #${i.id}${customerName.get(i.customer_id) ? " — " + customerName.get(i.customer_id) : ""}`,
+        sub: money(Number(i.total_amount) || 0),
+        href: "/invoices",
+      })),
+    ...[...expenses]
+      .sort((a, b) => new Date(b.created_at || b.expense_date || 0).getTime() - new Date(a.created_at || a.expense_date || 0).getTime())
+      .slice(0, 4)
+      .map((e) => ({
+        date: new Date(e.created_at || e.expense_date || 0),
+        icon: "💸",
+        title: `${lang === "ur" ? "خرچہ" : "Expense"} — ${e.title || ""}`,
+        sub: money(Number(e.amount) || 0),
+        href: "/expenses",
+      })),
+    ...[...returnsList]
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+      .slice(0, 3)
+      .map((r) => ({
+        date: new Date(r.created_at || 0),
+        icon: "↩️",
+        title: lang === "ur" ? "واپسی / خراب مال" : "Return / damaged",
+        sub: "",
+        href: "/returns",
+      })),
+  ]
+    .filter((e) => !isNaN(e.date.getTime()))
+    .sort((a, b) => b.date.getTime() - a.date.getTime())
+    .slice(0, 8);
+
+  const changeTarget = () => {
+    const v = window.prompt(lang === "ur" ? "اس مہینے کی فروخت کا ہدف (روپے) لکھیں:" : "Monthly sales target (Rs):", targetAmt ? String(targetAmt) : "");
+    if (v === null) return;
+    const n = Math.max(0, Number(v.replace(/[^0-9.]/g, "")) || 0);
+    setTargetAmt(n);
+    try {
+      localStorage.setItem("maktaba-target", String(n));
+    } catch {}
+  };
+
   const handleLogout = async () => {
     document.cookie = "maktaba-auth=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 UTC";
     await supabase.auth.signOut();
@@ -522,6 +704,21 @@ export default function DashboardPage() {
     { label: L("کم سٹاک کتب", "Low Stock"), value: String(lowStockBooks.length), icon: PackageMinus, tone: "text-amber-600 bg-amber-50", href: "/low-stock", spark: null, color: "#fbbf24" },
   ];
 
+  const modules = [
+    { href: "/books", icon: BookOpen, tone: "bg-emerald-50 text-emerald-600", label: t.books, value: String(totalBooks), sub: `${lowStockBooks.length} ${L("کم سٹاک", "low")}` },
+    { href: "/authors", icon: PenLine, tone: "bg-violet-50 text-violet-600", label: t.authors, value: String(totalAuthors), sub: "" },
+    { href: "/categories", icon: FolderTree, tone: "bg-amber-50 text-amber-600", label: t.categories, value: String(totalCategories), sub: "" },
+    { href: "/orders", icon: ShoppingCart, tone: "bg-sky-50 text-sky-600", label: t.orders, value: String(orderGroups.length), sub: `${newOrderCount} ${L("نئے", "new")}` },
+    { href: "/customers", icon: Users, tone: "bg-teal-50 text-teal-600", label: t.customers, value: String(customersList.length), sub: "" },
+    { href: "/invoices", icon: Receipt, tone: "bg-rose-50 text-rose-500", label: t.bills, value: String(invoices.length), sub: `${unpaidInvoiceCount} ${L("غیر ادا", "unpaid")}` },
+    { href: "/suppliers", icon: Truck, tone: "bg-orange-50 text-orange-600", label: t.suppliers, value: String(supplierList.length), sub: payableTotal > 0 ? money(payableTotal) : "" },
+    { href: "/returns", icon: RotateCcw, tone: "bg-slate-100 text-slate-600", label: t.returns, value: String(returnsList.length), sub: `${returnsThisMonth} ${L("اس مہینے", "this month")}` },
+    { href: "/reviews", icon: Star, tone: "bg-yellow-50 text-yellow-600", label: t.reviews, value: String(reviewsList.length), sub: reviewsPending > 0 ? `${reviewsPending} ${L("منتظر", "pending")}` : "" },
+    { href: "/expenses", icon: Wallet, tone: "bg-pink-50 text-pink-500", label: t.expenses, value: money(thisMonthExpenseTotal), sub: L("اس مہینے", "this month") },
+    { href: "/reports", icon: TrendingUp, tone: "bg-cyan-50 text-cyan-600", label: L("رپورٹس", "Reports"), value: "PDF", sub: L("نفع / مصنف / سپلائر", "profit reports") },
+    { href: "/backup", icon: Download, tone: "bg-lime-50 text-lime-600", label: L("بیک اپ", "Backup"), value: backupDays === null ? "—" : backupDays === 0 ? L("آج", "Today") : `${backupDays}${L(" دن", "d")}`, sub: L("آخری بیک اپ", "last backup") },
+  ];
+
   const counters = [
     { label: L("سٹاک کی مالیت", "Stock Value"), value: money(totalStockValue), icon: Boxes, href: "/books", tone: "text-blue-600 bg-blue-50" },
     { label: t.books, value: String(totalBooks), icon: BookOpen, href: isAdmin ? "/books" : "/shop", tone: "text-emerald-600 bg-emerald-50" },
@@ -542,6 +739,34 @@ export default function DashboardPage() {
     );
 
   const sectionTitle = `text-sm font-bold ${strong}`;
+
+  // --- آج کا خلاصہ اور سٹاک کی صحت ---
+  const todayV = dailyMap.get(dayKey(now)) || { revenue: 0, cost: 0 };
+  const todayOrdersN = orderCountByDay.get(dayKey(now)) || 0;
+  const todayExpense = expenses
+    .filter((e) => new Date(e.expense_date || e.created_at || 0).toDateString() === dayKey(now))
+    .reduce((s2, e) => s2 + (Number(e.amount) || 0), 0);
+  const yV = dailyMap.get(dayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1))) || { revenue: 0, cost: 0 };
+  const invUnits = books.reduce((s2, b) => s2 + (Number(b.stock) || 0), 0);
+  const invCost = books.reduce((s2, b) => s2 + (Number(b.cost_price) || 0) * (Number(b.stock) || 0), 0);
+  const invSale = books.reduce((s2, b) => s2 + (Number(b.price) || 0) * (Number(b.stock) || 0), 0);
+  const cutoff60 = Date.now() - 60 * 86400000;
+  const soldRecent = new Set<string>();
+  orders.forEach((o) => {
+    if (new Date(o.created_at || 0).getTime() >= cutoff60 && o.book_title) soldRecent.add(String(o.book_title));
+  });
+  const invDate = new Map<any, number>(invoices.map((i) => [i.id, new Date(i.created_at || 0).getTime()]));
+  invoiceItems.forEach((it) => {
+    if ((invDate.get(it.invoice_id) || 0) >= cutoff60) {
+      const nm = it.book_id != null ? bookTitleById.get(it.book_id) : it.item_title;
+      if (nm) soldRecent.add(String(nm));
+    }
+  });
+  const slowBooks = books
+    .filter((b) => (Number(b.stock) || 0) > 0 && !soldRecent.has(String(b.title)))
+    .sort((a2, b2) => (Number(b2.stock) || 0) * (Number(b2.cost_price) || Number(b2.price) || 0) - (Number(a2.stock) || 0) * (Number(a2.cost_price) || Number(a2.price) || 0));
+  const slowValue = slowBooks.reduce((s2, b) => s2 + (Number(b.stock) || 0) * (Number(b.cost_price) || 0), 0);
+  const stockHealthPct = books.length > 0 ? Math.round((books.filter((b) => (Number(b.stock) || 0) > 3).length / books.length) * 100) : 0;
   const linkCls = "text-xs font-semibold text-emerald-600 hover:underline";
 
   return (
@@ -740,6 +965,56 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
+                  {/* توجہ طلب + ماہانہ ہدف */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className={`lg:col-span-2 rounded-3xl border p-5 ${card}`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className={sectionTitle}>{L("🔔 توجہ طلب کام", "🔔 Needs Attention")}</h3>
+                        <span className="text-[11px] text-slate-400">{attention.length} {L("اشارے", "items")}</span>
+                      </div>
+                      {attention.length === 0 ? (
+                        <p className="text-xs py-6 text-center text-slate-400">✅ {L("سب کچھ ٹھیک ہے، کوئی کام باقی نہیں", "All clear — nothing pending")}</p>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {attention.map((a, i) => (
+                            <Link key={i} href={a.href} className={`flex items-center gap-2.5 rounded-2xl border px-3 py-2.5 text-xs font-semibold hover:-translate-y-0.5 transition-all ${a.tone}`}>
+                              <span className="text-base">{a.icon}</span>
+                              <span className="leading-snug">{a.text}</span>
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className={`rounded-3xl border p-5 flex flex-col items-center justify-between text-center ${card}`}>
+                      <div className="w-full flex items-center justify-between">
+                        <h3 className={sectionTitle}>{L("🎯 ماہانہ ہدف", "🎯 Monthly Target")}</h3>
+                        <button onClick={changeTarget} className="text-[11px] font-semibold text-emerald-600 hover:underline">
+                          {targetAmt > 0 ? L("بدلیں", "Edit") : L("مقرر کریں", "Set")}
+                        </button>
+                      </div>
+                      {targetAmt > 0 ? (
+                        <>
+                          <div className="my-3">
+                            <Ring value={thisMonthRevenue} max={targetAmt} />
+                          </div>
+                          <p className="text-[11px] text-slate-400" dir="ltr">
+                            {money(thisMonthRevenue)} / {money(targetAmt)}
+                          </p>
+                          <p className="text-[11px] mt-1 text-slate-500">
+                            {thisMonthRevenue >= targetAmt
+                              ? L("🎉 ہدف پورا ہو گیا!", "🎉 Target reached!")
+                              : `${L("باقی", "Remaining")}: ${money(targetAmt - thisMonthRevenue)}`}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-slate-400 py-8 leading-relaxed">
+                          {L("اس مہینے کی فروخت کا ہدف مقرر کریں اور ترقی کا دائرہ دیکھیں", "Set a sales target and track progress")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
                   {/* چار خانے */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                     {kpis.map((k) => {
@@ -781,6 +1056,98 @@ export default function DashboardPage() {
                               <Icon size={20} />
                             </span>
                             <span className={`text-[11px] md:text-xs font-semibold ${darkMode ? "text-slate-200" : "text-slate-600"}`}>{a.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* آج کا خلاصہ */}
+                  <div>
+                    <h3 className={`${sectionTitle} mb-3`}>{L("آج کا خلاصہ", "Today")}</h3>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      {[
+                        { label: L("آج کی فروخت", "Today's sales"), value: money(todayV.revenue), sub: yV.revenue > 0 ? L(`کل: ${money(yV.revenue)}`, `Yesterday: ${money(yV.revenue)}`) : L("کل کوئی فروخت نہیں", "None yesterday"), tone: "bg-emerald-50 text-emerald-600", icon: "💵" },
+                        { label: L("آج کا نفع", "Today's profit"), value: money(todayV.revenue - todayV.cost - todayExpense), sub: L("خرچہ نکال کر", "after expenses"), tone: "bg-teal-50 text-teal-600", icon: "📈" },
+                        { label: L("آج کے آن لائن آرڈرز", "Online orders today"), value: String(todayOrdersN), sub: L(`نئے: ${newOrderCount}`, `New: ${newOrderCount}`), tone: "bg-sky-50 text-sky-600", icon: "🛒" },
+                        { label: L("آج کا خرچہ", "Today's expenses"), value: money(todayExpense), sub: L("دکان کے اخراجات", "shop expenses"), tone: "bg-rose-50 text-rose-500", icon: "💸" },
+                      ].map((c) => (
+                        <div key={c.label} className={`rounded-3xl border p-4 ${card}`}>
+                          <span className={`inline-flex w-9 h-9 items-center justify-center rounded-2xl text-base ${c.tone}`}>{c.icon}</span>
+                          <p className={`mt-2 text-lg font-extrabold truncate ${strong}`} dir="ltr" style={{ textAlign: lang === "ur" ? "right" : "left" }}>{c.value}</p>
+                          <p className={`text-xs font-semibold ${darkMode ? "text-slate-300" : "text-slate-600"}`}>{c.label}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5 truncate">{c.sub}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* سٹاک کی صحت */}
+                  <div className={`rounded-3xl border p-5 ${card}`}>
+                    <div className="flex items-center justify-between gap-3 mb-4">
+                      <h3 className={sectionTitle}>{L("سٹاک کی صحت اور گودام کی مالیت", "Inventory Health")}</h3>
+                      <Link href="/books" className="text-[11px] font-semibold text-emerald-600">{L("کتب دیکھیں ←", "View books →")}</Link>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {[
+                        [L("کل نسخے", "Total copies"), invUnits.toLocaleString("en-US"), "bg-sky-50 text-sky-700"],
+                        [L("خرید کی مالیت", "At cost"), money(invCost), "bg-amber-50 text-amber-700"],
+                        [L("فروخت کی مالیت", "At sale price"), money(invSale), "bg-emerald-50 text-emerald-700"],
+                        [L("ممکنہ نفع", "Potential profit"), money(Math.max(0, invSale - invCost)), "bg-violet-50 text-violet-700"],
+                      ].map(([l2, v2, tone]) => (
+                        <div key={l2} className={`rounded-2xl p-3 ${tone}`}>
+                          <p className="text-[11px] opacity-70">{l2}</p>
+                          <p className="mt-0.5 text-sm font-extrabold truncate" dir="ltr">{v2}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between text-[11px] mb-1.5">
+                        <span className="text-slate-500">{L("صحت مند سٹاک (3 سے زیادہ نسخے والی کتب)", "Healthy stock (more than 3 copies)")}</span>
+                        <span className="font-bold text-emerald-600">{stockHealthPct}%</span>
+                      </div>
+                      <div className={`h-2.5 rounded-full overflow-hidden ${darkMode ? "bg-slate-800" : "bg-slate-100"}`}>
+                        <div className="h-full rounded-full bg-gradient-to-l from-emerald-400 to-teal-500" style={{ width: `${stockHealthPct}%` }} />
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <p className={`text-xs font-bold mb-2 ${strong}`}>
+                        {L("🐌 سست کتب — 60 دن میں نہیں بکیں", "🐌 Slow movers — not sold in 60 days")}
+                        <span className="font-normal text-slate-400"> ({slowBooks.length}{slowValue > 0 ? ` • ${money(slowValue)}` : ""})</span>
+                      </p>
+                      {slowBooks.length === 0 ? (
+                        <p className="text-[11px] text-slate-400">{L("ماشاءاللہ، ہر کتاب بک رہی ہے۔", "Everything is selling.")}</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {slowBooks.slice(0, 8).map((b) => (
+                            <span key={b.id} className={`text-[11px] rounded-full px-2.5 py-1 border ${darkMode ? "bg-slate-800 border-slate-700 text-slate-300" : "bg-slate-50 border-slate-100 text-slate-600"}`}>
+                              {b.title} <span className="text-slate-400">×{Number(b.stock) || 0}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* پورا کاروبار ایک نظر میں */}
+                  <div>
+                    <h3 className={`${sectionTitle} mb-3`}>{L("پورا کاروبار ایک نظر میں", "Business Overview")}</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {modules.map((m) => {
+                        const Icon = m.icon;
+                        return (
+                          <Link key={m.href} href={m.href} className={`group rounded-3xl border p-4 hover:-translate-y-0.5 transition-all ${card}`}>
+                            <div className="flex items-center justify-between">
+                              <span className={`p-2.5 rounded-2xl ${m.tone}`}>
+                                <Icon size={17} />
+                              </span>
+                              <ArrowUpRight size={14} className="text-slate-300 group-hover:text-emerald-500 transition-colors" />
+                            </div>
+                            <p className={`mt-3 text-lg font-extrabold truncate ${strong}`} dir="ltr" style={{ textAlign: lang === "ur" ? "right" : "left" }}>
+                              {m.value}
+                            </p>
+                            <p className={`text-xs font-semibold ${darkMode ? "text-slate-300" : "text-slate-600"}`}>{m.label}</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5 h-3.5 truncate">{m.sub}</p>
                           </Link>
                         );
                       })}
@@ -907,6 +1274,74 @@ export default function DashboardPage() {
                     />
                   </div>
 
+                  {/* ہفتے کے دن + بہترین گاہک + سپلائرز کا بقایا */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className={`rounded-3xl border p-5 ${card}`}>
+                      <h3 className={`${sectionTitle} mb-1`}>{L("ہفتے کے دنوں کی فروخت", "Sales by Weekday")}</h3>
+                      <p className="text-[11px] text-slate-400 mb-4">
+                        {L("پچھلے 90 دن", "Last 90 days")} — {L("بہترین دن", "Best day")}: <b className="text-emerald-600">{weekdaySums[bestDay] > 0 ? weekdayNames[bestDay] : "—"}</b>
+                      </p>
+                      <div className="flex items-end justify-between gap-1.5 h-32" dir="ltr">
+                        {weekdaySums.map((v, i) => (
+                          <div key={i} className="flex-1 flex flex-col items-center justify-end h-full gap-1.5 min-w-0">
+                            <div
+                              className={`w-full max-w-7 rounded-t-lg ${i === bestDay && v > 0 ? "bg-emerald-400" : "bg-sky-200"}`}
+                              style={{ height: `${Math.max(4, (v / weekdayMax) * 100)}%` }}
+                              title={money(v)}
+                            />
+                            <span className="text-[9px] text-slate-400 truncate w-full text-center">{weekdayNames[i]}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className={`rounded-3xl border p-5 ${card}`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className={sectionTitle}>{L("🏆 بہترین گاہک", "🏆 Top Customers")}</h3>
+                        <Link href="/customers" className={linkCls}>{L("سب", "All")}</Link>
+                      </div>
+                      {topCustomers.length === 0 ? (
+                        <p className="text-xs py-8 text-center text-slate-400">{L("ابھی کوئی ریکارڈ نہیں", "No data yet")}</p>
+                      ) : (
+                        <ul className="space-y-3">
+                          {topCustomers.map((c, i) => (
+                            <li key={c.name}>
+                              <div className="flex items-center justify-between gap-2 text-xs mb-1">
+                                <span className={`truncate font-semibold ${darkMode ? "text-slate-200" : "text-slate-700"}`}>{i + 1}. {c.name}</span>
+                                <span className="shrink-0 text-slate-400" dir="ltr">{money(c.total)}</span>
+                              </div>
+                              <div className={`h-1.5 rounded-full overflow-hidden ${darkMode ? "bg-slate-800" : "bg-slate-100"}`}>
+                                <div className="h-full rounded-full" style={{ width: `${(c.total / topCustMax) * 100}%`, background: PALETTE[i % PALETTE.length] }} />
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    <div className={`rounded-3xl border p-5 ${card}`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className={sectionTitle}>{L("🚚 سپلائرز کا بقایا", "🚚 Supplier Payables")}</h3>
+                        <Link href="/suppliers" className={linkCls}>{L("سب", "All")}</Link>
+                      </div>
+                      {supplierBalances.length === 0 ? (
+                        <p className="text-xs py-8 text-center text-slate-400">✅ {L("کوئی بقایا نہیں", "Nothing owed")}</p>
+                      ) : (
+                        <>
+                          <p className={`text-xl font-extrabold mb-3 ${strong}`} dir="ltr" style={{ textAlign: lang === "ur" ? "right" : "left" }}>{money(payableTotal)}</p>
+                          <div className={`divide-y ${darkMode ? "divide-slate-800" : "divide-slate-100"}`}>
+                            {supplierBalances.slice(0, 4).map((sp) => (
+                              <div key={sp.name} className="py-2 flex items-center justify-between gap-2 text-xs">
+                                <span className={`truncate ${darkMode ? "text-slate-300" : "text-slate-600"}`}>{sp.name}</span>
+                                <b className="shrink-0 text-amber-600" dir="ltr">{money(sp.balance)}</b>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
                   {/* حالیہ آرڈرز + کم سٹاک */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div className={`rounded-3xl border p-5 ${card}`}>
@@ -971,6 +1406,34 @@ export default function DashboardPage() {
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  {/* حالیہ سرگرمی */}
+                  <div className={`rounded-3xl border p-5 ${card}`}>
+                    <h3 className={`${sectionTitle} mb-4`}>{L("🕒 حالیہ سرگرمی", "🕒 Recent Activity")}</h3>
+                    {activity.length === 0 ? (
+                      <p className="text-xs py-6 text-center text-slate-400">{L("ابھی کوئی سرگرمی نہیں", "No activity yet")}</p>
+                    ) : (
+                      <ol className="relative space-y-4 border-slate-100" style={{ borderInlineStartWidth: 2, paddingInlineStart: 18 }}>
+                        {activity.map((a, i) => (
+                          <li key={i} className="relative">
+                            <span
+                              className={`absolute top-0.5 w-6 h-6 rounded-full flex items-center justify-center text-xs ${darkMode ? "bg-slate-800" : "bg-slate-50"}`}
+                              style={{ insetInlineStart: -31 }}
+                            >
+                              {a.icon}
+                            </span>
+                            <Link href={a.href} className="flex items-center justify-between gap-3 group">
+                              <div className="min-w-0">
+                                <p className={`text-[13px] font-semibold truncate group-hover:text-emerald-600 transition-colors ${darkMode ? "text-slate-200" : "text-slate-700"}`}>{a.title}</p>
+                                <p className="text-[11px] text-slate-400" dir="ltr" style={{ textAlign: lang === "ur" ? "right" : "left" }}>{a.sub}</p>
+                              </div>
+                              <span className="shrink-0 text-[10px] text-slate-400">{ago(a.date)}</span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
                   </div>
 
                   {/* ماہانہ جدول */}

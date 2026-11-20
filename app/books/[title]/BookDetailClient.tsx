@@ -59,6 +59,7 @@ interface Book {
   image_url?: string;
   views?: number;
    weight?: number;
+  stock?: number;
 }
 
 interface Review {
@@ -91,6 +92,25 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
   const [cartCount, setCartCount] = useState(0);
   const [addedToCart, setAddedToCart] = useState(false);
   const [viewCount, setViewCount] = useState(initialBook.views ?? 0);
+  const [sameAuthor, setSameAuthor] = useState<Book[]>([]);
+  const [qty, setQty] = useState(1);
+
+  useEffect(() => {
+    // اسی مصنف کی دیگر کتب
+    let alive = true;
+    supabase
+      .from("books_public")
+      .select("*")
+      .eq("author", initialBook.author)
+      .neq("id", initialBook.id)
+      .limit(4)
+      .then(({ data }) => {
+        if (alive && data) setSameAuthor(data as Book[]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [initialBook.id, initialBook.author]);
 
   // ایڈٹ اور اپ ڈیٹ کے لیے سٹیٹس (States)
   const [isEditing, setIsEditing] = useState(false);
@@ -132,7 +152,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
 
   const handleAddToCart = () => {
     if (!book) return;
-    addToCart({
+    for (let i = 0; i < qty; i++) addToCart({
       id: book.id,
       title: book.title,
       author: book.author,
@@ -189,7 +209,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
 
   const handleWhatsAppOrder = () => {
     if (!book) return;
-    const message = "Assalam o Alaikum! Main yeh kitab khareedna chahta hoon: " + book.title;
+    const message = "Assalam o Alaikum! Main yeh kitab khareedna chahta hoon: " + book.title + (qty > 1 ? " (" + qty + " copies)" : "") + " — " + window.location.href;
     const url = "https://wa.me/923055232889?text=" + encodeURIComponent(message);
     window.open(url, "_blank");
   };
@@ -253,7 +273,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
   ];
 
   return (
-    <main className="min-h-screen flex bg-slate-50/60 font-sans" dir="rtl">
+    <main className="min-h-screen flex bg-gradient-to-b from-emerald-50/60 via-slate-50 to-slate-50 font-sans" dir="rtl">
       {isAdmin && mobileMenuOpen && (
         <div
           onClick={() => setMobileMenuOpen(false)}
@@ -336,7 +356,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
 
         {/* عوامی (کسٹمر) ہیڈر - لاگ اِن کے بغیر دیکھنے والوں کے لیے */}
         {!isAdmin && (
-          <div className="flex items-center justify-between mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+          <div className="flex items-center justify-between mb-4 bg-white/90 backdrop-blur p-3 rounded-2xl border border-slate-100 shadow-[0_2px_14px_rgba(15,23,42,0.06)] sticky top-2 z-30">
             <Link href="/" className="flex items-center gap-2.5">
               <img src="/logo.jpg" alt="مكتبہ الزھراء" className="w-8 h-8 rounded-lg object-cover shadow-sm" />
               <h1 className="text-sm md:text-base font-bold text-slate-800">مكتبہ الزھراء</h1>
@@ -372,6 +392,13 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
             >
               <ArrowRight size={15} /> واپس کتب کی فہرست
             </Link>
+            {book && (
+              <p className="hidden md:flex items-center gap-1.5 text-[11px] text-slate-400 flex-1 mx-3 truncate">
+                <Link href="/shop" className="hover:text-emerald-600">دکان</Link> /
+                <span>{book.category}</span> /
+                <span className="text-slate-600 font-semibold truncate">{book.title}</span>
+              </p>
+            )}
 
             {book && isAdmin && (
               <div className="flex items-center gap-2">
@@ -481,11 +508,11 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
           ) : (
             <>
               {/* کتاب کا مرکزی ڈسپلے کارڈ */}
-              <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-0">
+              <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_6px_30px_rgba(15,23,42,0.08)] overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-0">
                 <div className="lg:col-span-7 p-6 lg:p-8 flex flex-col justify-between order-2 lg:order-1">
                   <div>
                     <div className="flex items-center justify-between gap-4">
-                      <span className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 border border-blue-100">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 border border-emerald-100">
                         <Tag size={12} /> {book.category}
                       </span>
 
@@ -515,7 +542,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
                       </div>
                     </div>
 
-                    <h1 className="mt-4 text-2xl font-bold text-slate-900 leading-snug">{book.title}</h1>
+                    <h1 className="mt-4 text-2xl md:text-3xl font-extrabold text-slate-900 leading-snug">{book.title}</h1>
 
                     <p className="mt-2 text-slate-600 flex items-center gap-2 text-sm font-medium">
                       <User size={16} className="text-blue-600" />
@@ -535,11 +562,27 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
                     </p>
 
                     {book.price ? (
-                      <div className="mt-5 inline-flex items-baseline gap-1 rounded-xl bg-blue-50 border border-blue-100 px-4 py-2">
-                        <span className="text-xs font-semibold text-blue-500">Rs</span>
-                        <span className="text-2xl font-bold text-blue-700 tracking-tight">
-                          {Number(book.price).toLocaleString()}
-                        </span>
+                      <div className="mt-5 flex flex-wrap items-center gap-3">
+                        <div className="inline-flex items-baseline gap-1 rounded-2xl bg-gradient-to-l from-emerald-50 to-teal-50 border border-emerald-100 px-5 py-2.5">
+                          <span className="text-xs font-semibold text-emerald-500">Rs</span>
+                          <span className="text-3xl font-extrabold text-emerald-700 tracking-tight">
+                            {Number(book.price).toLocaleString()}
+                          </span>
+                        </div>
+                        {book.stock !== undefined && book.stock !== null && (
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold border ${
+                              book.stock <= 0
+                                ? "bg-rose-50 text-rose-600 border-rose-100"
+                                : book.stock <= 5
+                                ? "bg-amber-50 text-amber-700 border-amber-100"
+                                : "bg-emerald-50 text-emerald-700 border-emerald-100"
+                            }`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${book.stock <= 0 ? "bg-rose-500" : book.stock <= 5 ? "bg-amber-500" : "bg-emerald-500"}`} />
+                            {book.stock <= 0 ? "فی الحال دستیاب نہیں" : book.stock <= 5 ? `صرف ${book.stock} نسخے باقی` : "سٹاک میں موجود"}
+                          </span>
+                        )}
                       </div>
                     ) : (
                       <div className="mt-5 inline-block bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg text-xs font-semibold">
@@ -548,7 +591,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
                     )}
 
                     {/* اعتماد کے بیجز */}
-                    <div className="mt-5 bg-slate-50 border border-slate-100 rounded-xl p-3.5 space-y-2">
+                    <div className="mt-5 bg-slate-50/80 border border-slate-100 rounded-2xl p-4 space-y-2.5">
                       <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
                         <Truck size={15} className="text-blue-600 shrink-0" />
                         پاکستان بھر میں تیز ترسیل
@@ -561,13 +604,29 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
                         <BadgeCheck size={15} className="text-blue-600 shrink-0" />
                         مستند اور معتبر بک سٹور
                       </div>
+                      <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                        <Gift size={15} className="text-blue-600 shrink-0" />
+                        کیش آن ڈلیوری اور واٹس ایپ پر آرڈر کی سہولت
+                      </div>
                     </div>
 
                     {!isAdmin && (
-                      <div className="mt-5 flex flex-col sm:flex-row gap-2.5">
+                      <div className="mt-5 flex items-center gap-3">
+                        <span className="text-xs font-semibold text-slate-500">تعداد:</span>
+                        <div className="flex items-center gap-1 bg-slate-50 border border-slate-100 rounded-full p-1" dir="ltr">
+                          <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:bg-rose-50">−</button>
+                          <span className="min-w-8 text-center text-sm font-bold text-slate-800">{qty}</span>
+                          <button onClick={() => setQty((q) => Math.min(book.stock && book.stock > 0 ? book.stock : 20, q + 1))} className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:bg-emerald-50">+</button>
+                        </div>
+                        {book.price ? <span className="text-xs text-slate-400">کل: <b className="text-slate-700">Rs {(Number(book.price) * qty).toLocaleString()}</b></span> : null}
+                      </div>
+                    )}
+
+                    {!isAdmin && (
+                      <div className="mt-4 flex flex-col sm:flex-row gap-2.5">
                         <button
                           onClick={handleAddToCart}
-                          className={`flex-1 font-semibold py-2.5 px-5 rounded-lg flex items-center justify-center gap-2 text-xs shadow-xs transition ${
+                          className={`flex-1 font-bold py-3 px-5 rounded-2xl flex items-center justify-center gap-2 text-sm shadow-md shadow-blue-600/20 transition ${
                             addedToCart
                               ? "bg-emerald-600 text-white"
                               : "bg-blue-600 hover:bg-blue-700 text-white"
@@ -585,7 +644,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
                         </button>
                         <button
                           onClick={handleWhatsAppOrder}
-                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-5 rounded-lg flex items-center justify-center gap-2 text-xs shadow-xs transition"
+                          className="flex-1 bg-gradient-to-l from-emerald-600 to-teal-500 hover:opacity-90 text-white font-bold py-3 px-5 rounded-2xl flex items-center justify-center gap-2 text-sm shadow-md shadow-emerald-600/20 transition"
                         >
                           <MessageCircle size={16} /> واٹس ایپ پر آرڈر کریں
                         </button>
@@ -627,7 +686,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
                       </h3>
                       <div className="space-y-2 max-h-48 overflow-y-auto pl-1">
                         {reviews.map((r) => (
-                          <div key={r.id} className="rounded-lg bg-slate-50 p-3 border border-slate-100">
+                          <div key={r.id} className="rounded-2xl bg-slate-50 p-3 border border-slate-100">
                             <div className="flex items-center justify-between">
                               <span className="font-semibold text-slate-800 text-xs">{r.customer_name}</span>
                               <div className="flex items-center gap-0.5">
@@ -645,8 +704,8 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
                 </div>
 
                 {/* تصویر والا حصہ */}
-                <div className="lg:col-span-5 bg-slate-50/50 p-6 flex items-center justify-center border-b lg:border-b-0 lg:border-r border-slate-100 order-1 lg:order-2">
-                  <div className="relative h-80 w-52 rounded-xl overflow-hidden shadow-sm border border-slate-200">
+                <div className="lg:col-span-5 bg-gradient-to-br from-emerald-50 via-sky-50 to-violet-50 p-8 flex items-center justify-center border-b lg:border-b-0 lg:border-r border-slate-100 order-1 lg:order-2">
+                  <div className="relative h-96 w-64 rounded-2xl overflow-hidden shadow-[0_20px_50px_rgba(15,23,42,0.25)] border-4 border-white lg:-rotate-2 hover:rotate-0 transition-transform duration-500">
                     {book.image_url ? (
                       <img
                         src={book.image_url}
@@ -664,6 +723,32 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
                 </div>
               </div>
 
+              {/* اسی مصنف کی دیگر کتب */}
+              {sameAuthor.length > 0 && (
+                <div className="mt-8">
+                  <h3 className="text-sm font-bold text-slate-800 mb-3">{book.author} کی دیگر کتابیں</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {sameAuthor.map((rb) => (
+                      <Link
+                        key={rb.id}
+                        href={`/books/${rb.slug || encodeURIComponent(rb.title)}`}
+                        className="bg-white rounded-2xl border border-slate-100 p-3 shadow-[0_2px_12px_rgba(15,23,42,0.06)] hover:-translate-y-1 hover:shadow-lg transition-all block"
+                      >
+                        <div className="relative h-28 w-full rounded-xl bg-slate-50 flex items-center justify-center overflow-hidden">
+                          {rb.image_url ? (
+                            <img src={rb.image_url} alt={`${rb.title} — ${rb.author}`} loading="lazy" className="w-full h-full object-cover" />
+                          ) : (
+                            <BookOpen size={24} className="text-slate-300" />
+                          )}
+                        </div>
+                        <p className="mt-2 text-xs font-semibold text-slate-800 line-clamp-1">{rb.title}</p>
+                        {rb.price ? <p className="mt-1 text-[11px] font-bold text-emerald-600">Rs {Number(rb.price).toLocaleString()}</p> : null}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* متعلقہ کتب (Related Books) */}
               {relatedBooks.length > 0 && (
                 <div className="mt-8">
@@ -673,7 +758,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
                       <Link
                         key={rb.id}
                         href={`/books/${rb.slug || encodeURIComponent(rb.title)}`}
-                        className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs hover:border-slate-300 transition block"
+                        className="bg-white rounded-2xl border border-slate-100 p-3 shadow-[0_2px_12px_rgba(15,23,42,0.06)] hover:-translate-y-1 hover:shadow-lg transition-all block"
                       >
                         <div className="relative h-28 w-full rounded-lg bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-100">
                           {rb.image_url ? (
@@ -697,9 +782,25 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
           )}
         </div>
 
+        {/* موبائل پر نیچے چپکی ہوئی خریداری پٹی */}
+        {!isAdmin && book && !isEditing && (
+          <div className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-slate-100 p-3 flex items-center gap-2 shadow-[0_-4px_20px_rgba(15,23,42,0.08)]">
+            <div className="min-w-0">
+              <p className="text-[11px] text-slate-400 truncate max-w-28">{book.title}</p>
+              {book.price ? <p className="text-sm font-extrabold text-emerald-600">Rs {(Number(book.price) * qty).toLocaleString()}</p> : null}
+            </div>
+            <button onClick={handleAddToCart} className="flex-1 bg-blue-600 text-white font-bold text-xs py-3 rounded-2xl">
+              {addedToCart ? "شامل ہو گئی ✓" : "ٹوکری میں شامل کریں"}
+            </button>
+            <button onClick={handleWhatsAppOrder} className="p-3 rounded-2xl bg-emerald-600 text-white" aria-label="واٹس ایپ">
+              <MessageCircle size={18} />
+            </button>
+          </div>
+        )}
+
         {/* عوامی فوٹر - صرف کسٹمرز کے لیے */}
         {!isAdmin && (
-          <footer className="mt-10 pt-6 border-t border-slate-200 flex flex-col items-center gap-2.5">
+          <footer className="mt-10 mb-16 lg:mb-0 pt-6 border-t border-slate-200 flex flex-col items-center gap-2.5">
             <img src="/logo.jpg" alt="مكتبہ الزھراء" className="h-9 w-auto rounded-md opacity-90" />
             <p className="text-slate-400 text-xs text-center">
               © 2026 مكتبہ الزھراء. جملہ حقوق محفوظ ہیں۔
