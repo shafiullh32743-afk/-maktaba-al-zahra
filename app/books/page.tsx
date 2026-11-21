@@ -48,6 +48,7 @@ import {
   Moon,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { effectivePrice, isOnSale, salePercent } from "@/lib/sale";
 import * as XLSX from "xlsx";
 
 interface Book {
@@ -59,6 +60,8 @@ interface Book {
   weight?: number;
   stock?: number;
   cost_price?: number;
+  sale_price?: number | null;
+  sale_ends_at?: string | null;
   slug?: string;
   image_url?: string;
   language?: string;
@@ -582,7 +585,11 @@ function BooksPageInner() {
   const [inStockOnly, setInStockOnly] = useState(false);
   const [showWishlistOnly, setShowWishlistOnly] = useState(false);
   const [showFilterSidebar, setShowFilterSidebar] = useState(false);
-  const [stockTab, setStockTab] = useState<"all" | "in" | "low" | "out" | "noimg">("all");
+  const [stockTab, setStockTab] = useState<"all" | "in" | "low" | "out" | "noimg" | "sale">("all");
+  const [saleTargets, setSaleTargets] = useState<number[] | null>(null);
+  const [salePct, setSalePct] = useState("");
+  const [saleEnd, setSaleEnd] = useState("");
+  const [saleBusy, setSaleBusy] = useState(false);
   const [sortBy, setSortBy] = useState("default");
 
   // PDF: ڈاؤن لوڈ / شیئر / پرنٹ
@@ -1191,6 +1198,47 @@ function BooksPageInner() {
     fetchBooks();
   };
 
+  // سیل لگانا / ختم کرنا
+  const openSale = (ids: number[]) => {
+    const first = books.find((b) => b.id === ids[0]);
+    setSalePct(ids.length === 1 && first && isOnSale(first) ? String(salePercent(first)) : "");
+    setSaleEnd(ids.length === 1 && first?.sale_ends_at ? String(first.sale_ends_at).slice(0, 10) : "");
+    setSaleTargets(ids);
+  };
+  const applySale = async (clear: boolean) => {
+    if (!saleTargets || saleTargets.length === 0) return;
+    const pct = Number(salePct);
+    if (!clear && (!(pct > 0) || pct >= 100)) {
+      alert("رعایت کی فیصد 1 سے 99 کے درمیان لکھیں");
+      return;
+    }
+    setSaleBusy(true);
+    const updates = saleTargets
+      .map((id) => books.find((b) => b.id === id))
+      .filter((b): b is Book => !!b && (clear || Number(b.price) > 0))
+      .map((b) => ({
+        id: b.id,
+        sale_price: clear ? null : Math.max(1, Math.round(Number(b.price) * (1 - pct / 100))),
+        sale_ends_at: clear ? null : saleEnd || null,
+      }));
+    const results = await Promise.all(
+      updates.map((u) => supabase.from("books").update({ sale_price: u.sale_price, sale_ends_at: u.sale_ends_at }).eq("id", u.id))
+    );
+    const failed = results.find((r) => r.error);
+    setSaleBusy(false);
+    if (failed?.error) {
+      alert("سیل محفوظ نہیں ہو سکی: " + failed.error.message + "\n(کیا Supabase میں sale.sql چلائی تھی؟)");
+      return;
+    }
+    setBooks((prev) =>
+      prev.map((b) => {
+        const u = updates.find((x) => x.id === b.id);
+        return u ? { ...b, sale_price: u.sale_price, sale_ends_at: u.sale_ends_at } : b;
+      })
+    );
+    setSaleTargets(null);
+  };
+
   // کارڈ ہی سے سٹاک کم/زیادہ کرنے کا تیز طریقہ
   const quickStock = async (book: Book, delta: number) => {
     const next = Math.max(0, (book.stock ?? 0) + delta);
@@ -1304,7 +1352,7 @@ function BooksPageInner() {
         {
           id: book.id,
           title: book.title,
-          price: book.price || 0,
+          price: effectivePrice(book) || book.price || 0,
           weight: book.weight || 1,
           costPrice: book.cost_price || 0,
           stock: book.stock || 0,
@@ -1616,6 +1664,7 @@ ${itemsList}
       if (stockTab === "low") return st > 0 && st <= 5;
       if (stockTab === "out") return st <= 0;
       if (stockTab === "noimg") return !b.image_url;
+      if (stockTab === "sale") return isOnSale(b);
       return true;
     });
     const arr = [...list];
@@ -1945,7 +1994,7 @@ ${itemsList}
               <button
                 key={c.key}
                 type="button"
-                onClick={() => c.key !== "value" && setStockTab(c.key as "all" | "in" | "low" | "out" | "noimg")}
+                onClick={() => c.key !== "value" && setStockTab(c.key as "all" | "in" | "low" | "out" | "noimg" | "sale")}
                 className={`text-start rounded-3xl border p-3.5 transition-all hover:-translate-y-0.5 ${
                   darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"
                 } ${stockTab === c.key ? "ring-2 ring-emerald-300" : ""}`}
@@ -2022,6 +2071,7 @@ ${itemsList}
                   ["low", "کم سٹاک"],
                   ["out", "ختم"],
                   ["noimg", "تصویر نہیں"],
+                  ["sale", "🔥 سیل پر"],
                 ] as const
               ).map(([k, label]) => (
                 <button
@@ -2039,6 +2089,13 @@ ${itemsList}
                 </button>
               ))}
             </div>
+            <button
+              onClick={() => shownBooks.length > 0 && openSale(shownBooks.map((b) => b.id))}
+              className="px-3 py-2 rounded-xl text-[11px] font-bold bg-gradient-to-l from-rose-500 to-orange-400 text-white shadow-md shadow-rose-500/20 hover:opacity-90 transition"
+              title="موجودہ فہرست کی تمام کتب پر سیل"
+            >
+              🔥 موجودہ فہرست پر سیل ({shownBooks.length})
+            </button>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
@@ -2173,12 +2230,15 @@ ${itemsList}
 
                       {book.price ? (
                         <div className="mb-3 flex items-center justify-between gap-2">
-                          <p className="text-base font-extrabold text-emerald-600">
-                            {Number(book.price).toLocaleString()} <span className="text-[11px] font-semibold">{t.rupees}</span>
+                          <p className={`text-base font-extrabold ${isOnSale(book) ? "text-rose-500" : "text-emerald-600"}`}>
+                            {effectivePrice(book).toLocaleString()} <span className="text-[11px] font-semibold">{t.rupees}</span>
+                            {isOnSale(book) && (
+                              <span className="ms-1.5 text-[10px] font-medium text-slate-400 line-through">{Number(book.price).toLocaleString()}</span>
+                            )}
                           </p>
                           {(() => {
                             const cost = Number((book as { cost_price?: number | null }).cost_price) || 0;
-                            const profit = Number(book.price) - cost;
+                            const profit = effectivePrice(book) - cost;
                             return cost > 0 ? (
                               <span
                                 className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${
@@ -2235,6 +2295,13 @@ ${itemsList}
                           className={`flex-1 py-1 rounded-lg border text-[11px] transition ${darkMode ? "border-slate-800 text-slate-300" : "border-slate-200 text-slate-600"}`}
                         >
                           {t.review}
+                        </button>
+                        <button
+                          onClick={() => openSale([book.id])}
+                          className={`px-2.5 py-1 rounded-xl border text-[11px] font-semibold transition ${isOnSale(book) ? "bg-rose-500 border-rose-500 text-white" : "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100"}`}
+                          title="سیل / ڈسکاؤنٹ"
+                        >
+                          {isOnSale(book) ? `🔥 -${salePercent(book)}%` : "🏷 سیل"}
                         </button>
                         <Link
                           href={`/books/${(book as { slug?: string | null }).slug || encodeURIComponent(book.title)}`}
@@ -2333,6 +2400,12 @@ ${itemsList}
                   لیبلز
                 </button>
                 <button
+                  onClick={() => openSale(selectedIds)}
+                  className="px-3 py-1.5 bg-rose-500 text-white rounded-lg font-semibold hover:opacity-90 transition"
+                >
+                  🏷 سیل لگائیں
+                </button>
+                <button
                   onClick={() => setConfirmBulkDelete(true)}
                   disabled={bulkProcessing}
                   className="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-600 rounded-lg font-semibold hover:bg-rose-100 transition"
@@ -2342,6 +2415,77 @@ ${itemsList}
                 <button onClick={clearSelection} className="text-slate-400 hover:text-slate-600 underline text-xs">
                   منسوخ
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* سیل کا ڈائیلاگ */}
+        {saleTargets && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-3xl border border-slate-100 p-6 w-full max-w-sm shadow-2xl text-slate-800">
+              <h3 className="text-base font-extrabold">🔥 سیل / ڈسکاؤنٹ</h3>
+              <p className="text-[11px] text-slate-400 mt-1">{saleTargets.length} کتب پر لاگو ہوگی۔ اصل قیمت محفوظ رہتی ہے، سیل ختم ہونے پر خود واپس آ جاتی ہے۔</p>
+
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                {[10, 15, 20, 25, 30, 50].map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setSalePct(String(p))}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition ${salePct === String(p) ? "bg-rose-500 text-white border-rose-500" : "bg-white border-slate-200 text-slate-600 hover:bg-rose-50"}`}
+                  >
+                    {p}%
+                  </button>
+                ))}
+              </div>
+
+              <label className="block mt-4 text-xs font-semibold text-slate-600">رعایت کی فیصد</label>
+              <input
+                type="number"
+                min={1}
+                max={99}
+                value={salePct}
+                onChange={(e) => setSalePct(e.target.value)}
+                placeholder="مثلاً 20"
+                className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm"
+                dir="ltr"
+              />
+
+              <label className="block mt-3 text-xs font-semibold text-slate-600">سیل کی آخری تاریخ (اختیاری)</label>
+              <input
+                type="date"
+                value={saleEnd}
+                onChange={(e) => setSaleEnd(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm"
+                dir="ltr"
+              />
+
+              {saleTargets.length === 1 && (() => {
+                const b = books.find((x) => x.id === saleTargets[0]);
+                const pct = Number(salePct);
+                return b && Number(b.price) > 0 && pct > 0 && pct < 100 ? (
+                  <p className="mt-3 text-xs rounded-xl bg-rose-50 text-rose-600 px-3 py-2">
+                    {Number(b.price).toLocaleString()} ← <b>{Math.max(1, Math.round(Number(b.price) * (1 - pct / 100))).toLocaleString()}</b> روپے
+                  </p>
+                ) : null;
+              })()}
+
+              <div className="mt-5 flex gap-2">
+                <button
+                  onClick={() => applySale(false)}
+                  disabled={saleBusy}
+                  className="flex-1 rounded-xl bg-gradient-to-l from-rose-500 to-orange-400 text-white py-2.5 text-xs font-bold disabled:opacity-50"
+                >
+                  {saleBusy ? "..." : "سیل لگائیں"}
+                </button>
+                <button
+                  onClick={() => applySale(true)}
+                  disabled={saleBusy}
+                  className="px-3 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50"
+                >
+                  سیل ختم کریں
+                </button>
+                <button onClick={() => setSaleTargets(null)} className="px-3 text-xs text-slate-400">بند</button>
               </div>
             </div>
           </div>

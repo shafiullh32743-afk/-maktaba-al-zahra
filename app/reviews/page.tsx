@@ -74,7 +74,7 @@ export default function ReviewsPage() {
   ];
 
   return (
-    <main className="min-h-screen flex bg-slate-50/60 font-sans" dir="rtl">
+    <main className="min-h-screen flex bg-gradient-to-b from-emerald-50/70 via-slate-50 to-slate-50 font-sans" dir="rtl">
       {/* Mobile Backdrop */}
       {mobileMenuOpen && (
         <div
@@ -91,9 +91,7 @@ export default function ReviewsPage() {
       >
         <div className="flex items-center justify-between px-2 py-1">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm">
-              <BookOpen className="text-white" size={17} />
-            </div>
+            <img src="/logo.jpg" alt="logo" className="w-9 h-9 rounded-2xl object-cover ring-2 ring-emerald-200" />
             <h1 className="text-base font-bold text-slate-800">مكتبہ الزھراء</h1>
           </div>
           <button
@@ -113,9 +111,9 @@ export default function ReviewsPage() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                className={`flex items-center justify-between px-3 py-2.5 rounded-2xl text-[13px] font-medium transition-colors ${
                   item.active
-                    ? "bg-emerald-50 text-emerald-700 shadow-xs"
+                    ? "bg-emerald-50 text-emerald-700 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                 }`}
               >
@@ -124,7 +122,7 @@ export default function ReviewsPage() {
                   <span>{item.label}</span>
                 </div>
                 {item.badge && item.badge > 0 ? (
-                  <span className="bg-emerald-600 text-white text-[10px] font-bold rounded-full px-1.5 py-0.2">
+                  <span className="bg-gradient-to-l from-emerald-600 to-teal-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.2">
                     {item.badge}
                   </span>
                 ) : null}
@@ -152,7 +150,7 @@ export default function ReviewsPage() {
       {/* Main Content Area */}
       <section className="flex-1 p-4 md:p-6 max-w-7xl mx-auto">
         {/* Mobile Header */}
-        <div className="flex items-center justify-between md:hidden mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+        <div className="flex items-center justify-between md:hidden mb-4 bg-white p-3 rounded-3xl border border-slate-100 shadow-[0_2px_14px_rgba(15,23,42,0.05)]">
           <button
             onClick={() => setMobileMenuOpen(true)}
             className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
@@ -165,7 +163,7 @@ export default function ReviewsPage() {
         {/* Title & Filter Tabs Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">ریویوز ⭐</h2>
+            <h2 className="text-xl md:text-2xl font-extrabold text-slate-900">ریویوز ⭐</h2>
             <p className="text-xs text-slate-500 mt-0.5">قارئین کے تبصرے اور درجہ بندی (Rating) کی منظوری دیں</p>
           </div>
 
@@ -174,7 +172,7 @@ export default function ReviewsPage() {
               onClick={() => setFilter("pending")}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 filter === "pending"
-                  ? "bg-white text-emerald-700 shadow-xs"
+                  ? "bg-white text-emerald-700 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -184,7 +182,7 @@ export default function ReviewsPage() {
               onClick={() => setFilter("approved")}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 filter === "approved"
-                  ? "bg-white text-emerald-700 shadow-xs"
+                  ? "bg-white text-emerald-700 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -197,7 +195,7 @@ export default function ReviewsPage() {
         {!loaded ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="rounded-xl border border-slate-200 bg-white p-4 h-36 animate-pulse">
+              <div key={i} className="rounded-3xl border border-slate-100 bg-white p-4 h-36 animate-pulse">
                 <div className="h-4 bg-slate-100 rounded w-1/2 mb-3"></div>
                 <div className="h-3 bg-slate-100 rounded w-3/4 mb-2"></div>
                 <div className="h-3 bg-slate-100 rounded w-1/3"></div>
@@ -205,7 +203,7 @@ export default function ReviewsPage() {
             ))}
           </div>
         ) : visibleReviews.length === 0 ? (
-          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
+          <div className="bg-white rounded-3xl border border-slate-100 p-12 text-center shadow-[0_2px_14px_rgba(15,23,42,0.05)]">
             <MessageSquare className="mx-auto text-slate-300 mb-2" size={32} />
             <p className="text-xs text-slate-500">
               {filter === "pending" ? "کوئی نیا زیر التوا ریویو نہیں ہے" : "ابھی تک کوئی ریویو منظور نہیں کیا گیا"}
@@ -216,7 +214,7 @@ export default function ReviewsPage() {
             {visibleReviews.map((review) => (
               <div
                 key={review.id}
-                className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all flex flex-col justify-between"
+                className="rounded-3xl border border-slate-100 bg-white p-4 shadow-[0_2px_14px_rgba(15,23,42,0.05)] hover:-translate-y-0.5 hover:shadow-lg transition-all flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -252,14 +250,14 @@ export default function ReviewsPage() {
                     <>
                       <button
                         onClick={() => handleReject(review.id)}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 text-rose-600 hover:bg-rose-50 text-xs font-medium transition"
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-xl border border-slate-100 text-rose-600 hover:bg-rose-50 text-xs font-medium transition"
                       >
                         <Trash2 size={13} />
                         مسترد
                       </button>
                       <button
                         onClick={() => handleApprove(review.id)}
-                        className="flex items-center gap-1 px-3 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-semibold transition shadow-xs"
+                        className="flex items-center gap-1 px-3 py-1 rounded-xl bg-gradient-to-l from-emerald-600 to-teal-500 text-white hover:bg-emerald-700 text-xs font-semibold transition shadow-[0_2px_14px_rgba(15,23,42,0.05)]"
                       >
                         <Check size={13} />
                         منظور کریں
@@ -268,7 +266,7 @@ export default function ReviewsPage() {
                   ) : (
                     <button
                       onClick={() => handleReject(review.id)}
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 text-rose-600 hover:bg-rose-50 text-xs font-medium transition"
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-xl border border-slate-100 text-rose-600 hover:bg-rose-50 text-xs font-medium transition"
                     >
                       <Trash2 size={13} />
                       حذف کریں

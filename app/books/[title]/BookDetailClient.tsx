@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { addToCart, getCartCount } from "@/lib/cart";
+import { effectivePrice, isOnSale, salePercent, saleActive } from "@/lib/sale";
 
 // فیس بک کا آئیکن (lucide-react میں شامل نہیں، اس لیے خود بنایا گیا ہے)
 function FacebookIcon({ size = 15 }: { size?: number }) {
@@ -58,6 +59,8 @@ interface Book {
   price?: number;
   image_url?: string;
   views?: number;
+  sale_price?: number | null;
+  sale_ends_at?: string | null;
    weight?: number;
   stock?: number;
 }
@@ -156,7 +159,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
       id: book.id,
       title: book.title,
       author: book.author,
-      price: book.price,
+      price: effectivePrice(book) || book.price,
       slug: book.slug,
       image_url: book.image_url,
        weight: book.weight,
@@ -250,6 +253,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
     setIsLiked((prev) => !prev);
   };
 
+  const unitPrice = book ? effectivePrice(book) : 0;
   const avgRating =
     reviews.length > 0
       ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
@@ -566,9 +570,18 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
                         <div className="inline-flex items-baseline gap-1 rounded-2xl bg-gradient-to-l from-emerald-50 to-teal-50 border border-emerald-100 px-5 py-2.5">
                           <span className="text-xs font-semibold text-emerald-500">Rs</span>
                           <span className="text-3xl font-extrabold text-emerald-700 tracking-tight">
-                            {Number(book.price).toLocaleString()}
+                            {unitPrice.toLocaleString()}
                           </span>
+                          {isOnSale(book) && (
+                            <span className="ms-2 text-sm text-slate-400 line-through">Rs {Number(book.price).toLocaleString()}</span>
+                          )}
                         </div>
+                        {isOnSale(book) && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-500 text-white px-3 py-1.5 text-[11px] font-extrabold shadow-md shadow-rose-500/30">
+                            🔥 سیل — {salePercent(book)}% رعایت
+                            {book.sale_ends_at && saleActive(book.sale_ends_at) ? <span className="font-medium opacity-90"> • {String(book.sale_ends_at).slice(0, 10)} تک</span> : null}
+                          </span>
+                        )}
                         {book.stock !== undefined && book.stock !== null && (
                           <span
                             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold border ${
@@ -618,7 +631,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
                           <span className="min-w-8 text-center text-sm font-bold text-slate-800">{qty}</span>
                           <button onClick={() => setQty((q) => Math.min(book.stock && book.stock > 0 ? book.stock : 20, q + 1))} className="w-8 h-8 rounded-full bg-white border border-slate-200 text-slate-600 hover:bg-emerald-50">+</button>
                         </div>
-                        {book.price ? <span className="text-xs text-slate-400">کل: <b className="text-slate-700">Rs {(Number(book.price) * qty).toLocaleString()}</b></span> : null}
+                        {book.price ? <span className="text-xs text-slate-400">کل: <b className="text-slate-700">Rs {(unitPrice * qty).toLocaleString()}</b></span> : null}
                       </div>
                     )}
 
@@ -787,7 +800,7 @@ export default function BookDetailClient({ initialBook, initialReviews, initialR
           <div className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-slate-100 p-3 flex items-center gap-2 shadow-[0_-4px_20px_rgba(15,23,42,0.08)]">
             <div className="min-w-0">
               <p className="text-[11px] text-slate-400 truncate max-w-28">{book.title}</p>
-              {book.price ? <p className="text-sm font-extrabold text-emerald-600">Rs {(Number(book.price) * qty).toLocaleString()}</p> : null}
+              {book.price ? <p className="text-sm font-extrabold text-emerald-600">Rs {(unitPrice * qty).toLocaleString()}</p> : null}
             </div>
             <button onClick={handleAddToCart} className="flex-1 bg-blue-600 text-white font-bold text-xs py-3 rounded-2xl">
               {addedToCart ? "شامل ہو گئی ✓" : "ٹوکری میں شامل کریں"}

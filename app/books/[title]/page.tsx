@@ -3,6 +3,7 @@ import { cache } from "react";
 import { notFound, permanentRedirect } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import BookDetailClient from "./BookDetailClient";
+import { effectivePrice, isOnSale } from "@/lib/sale";
 
 const SITE_URL = "https://maktaba-al-zahra-books.vercel.app";
 
@@ -77,7 +78,7 @@ export async function generateMetadata({
     return { title: "کتاب نہیں ملی | مكتبہ الزھراء", robots: { index: false } };
   }
 
-  const priceText = book.price ? ` قیمت: Rs ${Number(book.price).toLocaleString()}۔` : "";
+  const priceText = book.price ? ` قیمت: Rs ${effectivePrice(book).toLocaleString()}${isOnSale(book) ? " (سیل)" : ""}۔` : "";
   const description = `${book.title} — ${book.author}۔${priceText} مكتبہ الزھراء سے آن لائن آرڈر کریں۔`;
   const url = bookUrl(book);
 
@@ -143,8 +144,9 @@ export default async function BookDetailPage({
   if (book.price) {
     jsonLd.offers = {
       "@type": "Offer",
-      price: book.price,
+      price: effectivePrice(book),
       priceCurrency: "PKR",
+      ...(isOnSale(book) && book.sale_ends_at ? { priceValidUntil: String(book.sale_ends_at).slice(0, 10) } : {}),
       availability:
         (book.stock ?? 0) > 0
           ? "https://schema.org/InStock"

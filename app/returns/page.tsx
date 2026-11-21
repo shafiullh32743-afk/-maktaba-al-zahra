@@ -170,7 +170,7 @@ export default function ReturnsPage() {
   ];
 
   return (
-    <main dir="rtl" className="min-h-screen flex bg-slate-50/60 font-sans">
+    <main dir="rtl" className="min-h-screen flex bg-gradient-to-b from-emerald-50/70 via-slate-50 to-slate-50 font-sans">
       {/* Mobile Backdrop */}
       {mobileMenuOpen && (
         <div
@@ -187,9 +187,7 @@ export default function ReturnsPage() {
       >
         <div className="flex items-center justify-between px-2 py-1">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm">
-              <BookOpen className="text-white" size={17} />
-            </div>
+            <img src="/logo.jpg" alt="logo" className="w-9 h-9 rounded-2xl object-cover ring-2 ring-emerald-200" />
             <h1 className="text-base font-bold text-slate-800">مكتبہ الزھراء</h1>
           </div>
           <button
@@ -209,9 +207,9 @@ export default function ReturnsPage() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-2xl text-[13px] font-medium transition-colors ${
                   item.active
-                    ? "bg-emerald-50 text-emerald-700 shadow-xs"
+                    ? "bg-emerald-50 text-emerald-700 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                 }`}
               >
@@ -241,7 +239,7 @@ export default function ReturnsPage() {
       {/* Main Content Area */}
       <section className="flex-1 p-4 md:p-6 max-w-7xl mx-auto">
         {/* Mobile Header */}
-        <div className="flex items-center justify-between md:hidden mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+        <div className="flex items-center justify-between md:hidden mb-4 bg-white p-3 rounded-3xl border border-slate-100 shadow-[0_2px_14px_rgba(15,23,42,0.05)]">
           <button
             onClick={() => setMobileMenuOpen(true)}
             className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
@@ -254,7 +252,7 @@ export default function ReturnsPage() {
         {/* Title & Actions Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">واپسی / خراب کتب 🔄</h2>
+            <h2 className="text-xl md:text-2xl font-extrabold text-slate-900">واپسی / خراب کتب 🔄</h2>
             <p className="text-xs text-slate-500 mt-0.5">خراب یا واپس شدہ کتب کا تفصیلی ریکارڈ</p>
           </div>
 
@@ -263,7 +261,7 @@ export default function ReturnsPage() {
               resetForm();
               setShowModal(true);
             }}
-            className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition shadow-xs"
+            className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-l from-emerald-600 to-teal-500 text-white text-xs font-semibold hover:opacity-90 transition shadow-[0_2px_14px_rgba(15,23,42,0.05)]"
           >
             <Plus size={15} />
             <span>نیا ریکارڈ شامل کریں</span>
@@ -274,11 +272,11 @@ export default function ReturnsPage() {
         {!loaded ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="h-32 rounded-xl border border-slate-200 bg-white p-4 animate-pulse" />
+              <div key={i} className="h-32 rounded-3xl border border-slate-100 bg-white p-4 animate-pulse" />
             ))}
           </div>
         ) : returns.length === 0 ? (
-          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
+          <div className="bg-white rounded-3xl border border-slate-100 p-12 text-center shadow-[0_2px_14px_rgba(15,23,42,0.05)]">
             <span className="text-4xl mb-2 block">📦</span>
             <p className="text-xs text-slate-500">ابھی کوئی ریکارڈ موجود نہیں</p>
           </div>
@@ -287,7 +285,7 @@ export default function ReturnsPage() {
             {returns.map((r) => (
               <div
                 key={r.id}
-                className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col justify-between shadow-xs hover:border-slate-300 hover:shadow-sm transition-all group"
+                className="bg-white rounded-3xl border border-slate-100 p-4 flex flex-col justify-between shadow-[0_2px_14px_rgba(15,23,42,0.05)] hover:-translate-y-0.5 hover:shadow-lg transition-all group"
               >
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-2">
@@ -342,19 +340,19 @@ export default function ReturnsPage() {
       {/* Delete Confirmation Modal */}
       {confirmDeleteId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-xl border border-slate-200 p-5 w-full max-w-sm shadow-xl text-center relative animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-3xl border border-slate-100 p-5 w-full max-w-sm shadow-xl text-center relative animate-in fade-in zoom-in-95 duration-150">
             <h3 className="text-sm font-bold text-slate-800">ریکارڈ حذف کریں؟</h3>
             <p className="text-slate-500 text-xs mt-1.5">کیا آپ واقعی یہ ریکارڈ حذف کرنا چاہتے ہیں؟</p>
             <div className="mt-4 flex gap-2">
               <button
                 onClick={() => handleDelete(confirmDeleteId)}
-                className="flex-1 rounded-lg bg-rose-600 text-white py-1.5 text-xs font-semibold hover:bg-rose-700 transition"
+                className="flex-1 rounded-xl bg-rose-600 text-white py-1.5 text-xs font-semibold hover:bg-rose-700 transition"
               >
                 حذف کریں
               </button>
               <button
                 onClick={() => setConfirmDeleteId(null)}
-                className="flex-1 rounded-lg border border-slate-200 text-slate-600 py-1.5 text-xs font-medium hover:bg-slate-50 transition"
+                className="flex-1 rounded-xl border border-slate-100 text-slate-600 py-1.5 text-xs font-medium hover:bg-slate-50 transition"
               >
                 منسوخ
               </button>
@@ -366,7 +364,7 @@ export default function ReturnsPage() {
       {/* Add Record Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-xl border border-slate-200 p-5 w-full max-w-md shadow-xl relative animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-100 p-5 w-full max-w-md shadow-xl relative animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => {
                 setShowModal(false);
@@ -408,7 +406,7 @@ export default function ReturnsPage() {
                       placeholder="کتاب یا مصنف کے نام سے تلاش کریں..."
                       value={bookSearch}
                       onChange={(e) => setBookSearch(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      className="w-full rounded-xl border border-slate-100 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                     />
                     <div className="mt-1.5 max-h-44 overflow-y-auto rounded-lg border border-slate-100">
                       {(() => {
@@ -444,7 +442,7 @@ export default function ReturnsPage() {
                 <select
                   value={selectedCustomerId}
                   onChange={(e) => setSelectedCustomerId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
+                  className="w-full rounded-xl border border-slate-100 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
                 >
                   <option value="">کوئی کسٹمر منتخب نہیں</option>
                   {customers.map((c) => (
@@ -461,7 +459,7 @@ export default function ReturnsPage() {
                   type="number"
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  className="w-full rounded-xl border border-slate-100 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 />
               </div>
 
@@ -470,7 +468,7 @@ export default function ReturnsPage() {
                 <select
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
+                  className="w-full rounded-xl border border-slate-100 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white"
                 >
                   <option value="damaged">خراب</option>
                   <option value="customer_return">کسٹمر کی واپسی</option>
@@ -486,7 +484,7 @@ export default function ReturnsPage() {
                   value={conditionNotes}
                   onChange={(e) => setConditionNotes(e.target.value)}
                   rows={2}
-                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none"
+                  className="w-full rounded-xl border border-slate-100 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none"
                 />
               </div>
 
@@ -496,7 +494,7 @@ export default function ReturnsPage() {
                   type="number"
                   value={refundAmount}
                   onChange={(e) => setRefundAmount(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  className="w-full rounded-xl border border-slate-100 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 />
               </div>
 
@@ -540,14 +538,14 @@ export default function ReturnsPage() {
                   setShowModal(false);
                   resetForm();
                 }}
-                className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition"
+                className="px-3.5 py-1.5 rounded-xl border border-slate-100 text-slate-600 text-xs font-medium hover:bg-slate-50 transition"
               >
                 منسوخ
               </button>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition disabled:opacity-50"
+                className="px-4 py-1.5 rounded-xl bg-gradient-to-l from-emerald-600 to-teal-500 text-white text-xs font-semibold hover:opacity-90 transition disabled:opacity-50"
               >
                 {saving ? "محفوظ ہو رہا ہے..." : "شامل کریں"}
               </button>

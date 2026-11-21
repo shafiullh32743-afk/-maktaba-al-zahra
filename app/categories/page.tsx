@@ -148,7 +148,7 @@ export default function CategoriesPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setDarkMode(!darkMode)}
-            className="p-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white transition flex items-center gap-1 text-[11px] px-2"
+            className="p-1 rounded bg-emerald-700 hover:bg-gradient-to-l from-emerald-600 to-teal-500 text-white transition flex items-center gap-1 text-[11px] px-2"
             title="Toggle Dark/Light Mode"
           >
             {darkMode ? <Sun size={14} /> : <Moon size={14} />}
@@ -157,7 +157,7 @@ export default function CategoriesPage() {
 
           <button
             onClick={() => setLang(lang === "ur" ? "en" : "ur")}
-            className="p-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white transition flex items-center gap-1 text-[11px] px-2 font-bold"
+            className="p-1 rounded bg-emerald-700 hover:bg-gradient-to-l from-emerald-600 to-teal-500 text-white transition flex items-center gap-1 text-[11px] px-2 font-bold"
             title="Switch Language"
           >
             <Globe size={14} />
@@ -178,7 +178,7 @@ export default function CategoriesPage() {
         {/* Sidebar */}
         <aside
           className={`w-60 min-h-screen md:h-screen md:sticky md:top-0 border-r border-l ${
-            darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
+            darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"
           } p-4 flex flex-col fixed inset-y-0 ${
             lang === "ur" ? "right-0" : "left-0"
           } z-50 transform transition-transform duration-300 shadow-sm ${
@@ -191,9 +191,7 @@ export default function CategoriesPage() {
         >
           <div className="flex items-center justify-between px-2 py-1">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm">
-                <BookOpen className="text-white" size={17} />
-              </div>
+              <img src="/logo.jpg" alt="logo" className="w-9 h-9 rounded-2xl object-cover ring-2 ring-emerald-200" />
               <h1 className={`text-base font-bold ${darkMode ? "text-white" : "text-slate-800"}`}>مكتبہ الزھراء</h1>
             </div>
             <button
@@ -213,11 +211,11 @@ export default function CategoriesPage() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-2xl text-[13px] font-medium transition-colors ${
                     item.active
                       ? darkMode
                         ? "bg-emerald-900/50 text-emerald-300"
-                        : "bg-emerald-50 text-emerald-700 shadow-xs"
+                        : "bg-emerald-50 text-emerald-700 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"
                       : darkMode
                       ? "text-slate-300 hover:bg-slate-800 hover:text-white"
                       : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
@@ -249,7 +247,7 @@ export default function CategoriesPage() {
         {/* Main Content Area */}
         <section className="flex-1 p-4 md:p-6 max-w-7xl mx-auto min-w-0">
           {/* Mobile Header */}
-          <div className={`flex items-center justify-between md:hidden mb-4 p-3 rounded-xl border ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
+          <div className={`flex items-center justify-between md:hidden mb-4 p-3 rounded-xl border ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"}`}>
             <button
               onClick={() => setMobileMenuOpen(true)}
               className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
@@ -279,14 +277,14 @@ export default function CategoriesPage() {
           {!loaded ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className={`rounded-xl border p-4 h-36 animate-pulse ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
+                <div key={i} className={`rounded-xl border p-4 h-36 animate-pulse ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"}`}>
                   <div className="h-5 bg-slate-200/20 rounded w-1/3 mb-3"></div>
                   <div className="h-4 bg-slate-200/20 rounded w-2/3 mb-2"></div>
                 </div>
               ))}
             </div>
           ) : categories.length === 0 ? (
-            <div className={`rounded-xl border p-12 text-center shadow-xs ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
+            <div className={`rounded-xl border p-12 text-center shadow-[0_2px_14px_rgba(15,23,42,0.05)] ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"}`}>
               <FolderTree className="mx-auto text-slate-400 mb-2" size={32} />
               <p className="text-xs text-slate-400">{t.noCategoriesYet}</p>
             </div>
@@ -295,7 +293,7 @@ export default function CategoriesPage() {
               {categories.map((cat) => (
                 <div
                   key={cat}
-                  className={`rounded-xl border p-4 shadow-xs transition-all flex flex-col justify-between group ${
+                  className={`rounded-xl border p-4 shadow-[0_2px_14px_rgba(15,23,42,0.05)] transition-all flex flex-col justify-between group ${
                     darkMode ? "bg-slate-900 border-slate-800 hover:border-slate-700" : "bg-white border-slate-200 hover:border-slate-300"
                   }`}
                 >
@@ -350,7 +348,7 @@ export default function CategoriesPage() {
           {editingCategory && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
               <div className={`rounded-xl border shadow-xl w-full max-w-md p-5 relative animate-in fade-in zoom-in-95 duration-150 ${
-                darkMode ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200"
+                darkMode ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-100 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"
               }`}>
                 <button
                   onClick={() => setEditingCategory(null)}
@@ -377,7 +375,7 @@ export default function CategoriesPage() {
                       value={newCategoryName}
                       onChange={(e) => setNewCategoryName(e.target.value)}
                       className={`w-full px-3 py-2 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 ${
-                        darkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-200"
+                        darkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-white border-slate-100 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"
                       }`}
                       autoFocus
                     />
@@ -387,14 +385,14 @@ export default function CategoriesPage() {
                     <button
                       type="button"
                       onClick={() => setEditingCategory(null)}
-                      className="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-400 hover:bg-slate-50/10"
+                      className="px-3.5 py-1.5 rounded-xl border border-slate-100 text-xs font-medium text-slate-400 hover:bg-slate-50/10"
                     >
                       {t.cancel}
                     </button>
                     <button
                       type="submit"
                       disabled={renaming}
-                      className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                      className="px-4 py-1.5 rounded-xl bg-gradient-to-l from-emerald-600 to-teal-500 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50"
                     >
                       {renaming ? t.saving : t.save}
                     </button>

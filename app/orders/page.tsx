@@ -394,7 +394,7 @@ export default function OrdersPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setDarkMode(!darkMode)}
-            className="p-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white transition flex items-center gap-1 text-[11px] px-2"
+            className="p-1 rounded bg-emerald-700 hover:bg-gradient-to-l from-emerald-600 to-teal-500 text-white transition flex items-center gap-1 text-[11px] px-2"
           >
             {darkMode ? <Sun size={14} /> : <Moon size={14} />}
             <span>{darkMode ? "Light" : "Dark"}</span>
@@ -402,7 +402,7 @@ export default function OrdersPage() {
 
           <button
             onClick={() => setLang(lang === "ur" ? "en" : "ur")}
-            className="p-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white transition flex items-center gap-1 text-[11px] px-2 font-bold"
+            className="p-1 rounded bg-emerald-700 hover:bg-gradient-to-l from-emerald-600 to-teal-500 text-white transition flex items-center gap-1 text-[11px] px-2 font-bold"
           >
             <Globe size={14} />
             <span>{lang === "ur" ? "English" : "اردو"}</span>
@@ -433,7 +433,7 @@ export default function OrdersPage() {
         {/* Sidebar */}
         <aside
           className={`w-60 min-h-screen md:h-screen md:sticky md:top-0 border-l border-r ${
-            darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"
+            darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"
           } p-4 flex flex-col fixed inset-y-0 ${
             lang === "ur" ? "right-0" : "left-0"
           } z-50 flex-shrink-0 transform transition-transform duration-300 shadow-sm ${
@@ -446,9 +446,7 @@ export default function OrdersPage() {
         >
           <div className="flex items-center justify-between px-2 py-1">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm">
-                <BookOpen className="text-white" size={17} />
-              </div>
+              <img src="/logo.jpg" alt="logo" className="w-9 h-9 rounded-2xl object-cover ring-2 ring-emerald-200" />
               <h1 className={`text-base font-bold ${darkMode ? "text-white" : "text-slate-800"}`}>مكتبہ الزھراء</h1>
             </div>
             <button
@@ -468,11 +466,11 @@ export default function OrdersPage() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                  className={`flex items-center gap-2.5 px-3 py-2.5 rounded-2xl text-[13px] font-medium transition-colors ${
                     item.active
                       ? darkMode
                         ? "bg-emerald-900/50 text-emerald-300"
-                        : "bg-emerald-50 text-emerald-700 shadow-xs"
+                        : "bg-emerald-50 text-emerald-700 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"
                       : darkMode
                       ? "text-slate-300 hover:bg-slate-800 hover:text-white"
                       : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
@@ -501,7 +499,7 @@ export default function OrdersPage() {
         {/* Main Content Area */}
         <section className="flex-1 p-4 md:p-6 max-w-7xl mx-auto min-w-0">
           {/* Mobile Header */}
-          <div className={`flex items-center justify-between md:hidden mb-4 p-3 rounded-xl border ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
+          <div className={`flex items-center justify-between md:hidden mb-4 p-3 rounded-xl border ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"}`}>
             <button
               onClick={() => setMobileMenuOpen(true)}
               className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
@@ -518,7 +516,7 @@ export default function OrdersPage() {
               <p className="text-xs text-slate-400 mt-0.5">{t.subtitle}</p>
             </div>
 
-            <div className={`flex items-center gap-3 border px-3.5 py-2 rounded-xl shadow-xs ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
+            <div className={`flex items-center gap-3 border px-3.5 py-2 rounded-xl shadow-[0_2px_14px_rgba(15,23,42,0.05)] ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"}`}>
               <PackageCheck className="text-emerald-600" size={18} />
               <div>
                 <p className="text-[10px] text-slate-400 font-medium">{t.totalOrders}</p>
@@ -528,7 +526,7 @@ export default function OrdersPage() {
           </div>
 
           {newOrderAlert && (
-            <div className="mb-6 flex items-center gap-3 rounded-xl bg-emerald-600 text-white px-4 py-3 shadow-md animate-pulse text-xs">
+            <div className="mb-6 flex items-center gap-3 rounded-xl bg-gradient-to-l from-emerald-600 to-teal-500 text-white px-4 py-3 shadow-md animate-pulse text-xs">
               <Bell size={18} className="text-amber-300" />
               <span className="font-semibold">{newOrderAlert}</span>
             </div>
@@ -543,11 +541,11 @@ export default function OrdersPage() {
           {!loaded ? (
             <div className="grid grid-cols-1 gap-3.5">
               {[1, 2, 3].map((i) => (
-                <div key={i} className={`h-32 rounded-xl border p-4 animate-pulse ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`} />
+                <div key={i} className={`h-32 rounded-xl border p-4 animate-pulse ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"}`} />
               ))}
             </div>
           ) : groups.length === 0 ? (
-            <div className={`rounded-xl border p-12 text-center shadow-xs ${darkMode ? "bg-slate-900 border-slate-800 text-slate-400" : "bg-white border-slate-200 text-slate-500"}`}>
+            <div className={`rounded-xl border p-12 text-center shadow-[0_2px_14px_rgba(15,23,42,0.05)] ${darkMode ? "bg-slate-900 border-slate-800 text-slate-400" : "bg-white border-slate-200 text-slate-500"}`}>
               <span className="text-4xl mb-2 block">🛒</span>
               <p className="text-xs">{t.noOrders}</p>
             </div>
@@ -565,7 +563,7 @@ export default function OrdersPage() {
                 return (
                   <div
                     key={group.key}
-                    className={`rounded-xl border p-4 shadow-xs transition-all ${
+                    className={`rounded-xl border p-4 shadow-[0_2px_14px_rgba(15,23,42,0.05)] transition-all ${
                       darkMode ? "bg-slate-900 border-slate-800 hover:border-slate-700" : "bg-white border-slate-200 hover:border-slate-300"
                     }`}
                   >
@@ -680,7 +678,7 @@ export default function OrdersPage() {
                                 <button
                                   onClick={() => saveShipping(group)}
                                   disabled={shipBusy === group.key || !shipEdit[group.key]}
-                                  className="rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-xs font-semibold hover:bg-emerald-700 transition disabled:opacity-40"
+                                  className="rounded-xl bg-gradient-to-l from-emerald-600 to-teal-500 text-white px-3 py-1.5 text-xs font-semibold hover:opacity-90 transition disabled:opacity-40"
                                 >
                                   {shipBusy === group.key ? "..." : "محفوظ کریں"}
                                 </button>

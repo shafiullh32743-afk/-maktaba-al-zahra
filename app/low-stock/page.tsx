@@ -108,7 +108,7 @@ export default function LowStockPage() {
   ];
 
   return (
-    <main className="min-h-screen flex bg-slate-50/60 font-sans" dir="rtl">
+    <main className="min-h-screen flex bg-gradient-to-b from-emerald-50/70 via-slate-50 to-slate-50 font-sans" dir="rtl">
       {/* Mobile Backdrop */}
       {mobileMenuOpen && (
         <div
@@ -125,9 +125,7 @@ export default function LowStockPage() {
       >
         <div className="flex items-center justify-between px-2 py-1">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center shadow-sm">
-              <BookOpen className="text-white" size={17} />
-            </div>
+            <img src="/logo.jpg" alt="logo" className="w-9 h-9 rounded-2xl object-cover ring-2 ring-emerald-200" />
             <h1 className="text-base font-bold text-slate-800">مكتبہ الزھراء</h1>
           </div>
           <button
@@ -147,9 +145,9 @@ export default function LowStockPage() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                className={`flex items-center justify-between px-3 py-2.5 rounded-2xl text-[13px] font-medium transition-colors ${
                   item.active
-                    ? "bg-emerald-50 text-emerald-700 shadow-xs"
+                    ? "bg-emerald-50 text-emerald-700 shadow-[0_2px_14px_rgba(15,23,42,0.05)]"
                     : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                 }`}
               >
@@ -183,7 +181,7 @@ export default function LowStockPage() {
       {/* Main Content Area */}
       <section className="flex-1 p-4 md:p-6 max-w-7xl mx-auto">
         {/* Mobile Header */}
-        <div className="flex items-center justify-between md:hidden mb-4 bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+        <div className="flex items-center justify-between md:hidden mb-4 bg-white p-3 rounded-3xl border border-slate-100 shadow-[0_2px_14px_rgba(15,23,42,0.05)]">
           <button
             onClick={() => setMobileMenuOpen(true)}
             className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100"
@@ -196,7 +194,7 @@ export default function LowStockPage() {
         {/* Title Bar */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">کم سٹاک والی کتب ⚠️</h2>
+            <h2 className="text-xl md:text-2xl font-extrabold text-slate-900">کم سٹاک والی کتب ⚠️</h2>
             <p className="text-xs text-slate-500 mt-0.5">وہ کتب جن کا سٹاک 3 یا اس سے کم رہ گیا ہے</p>
           </div>
         </div>
@@ -205,7 +203,7 @@ export default function LowStockPage() {
         {!loaded ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="rounded-xl border border-slate-200 bg-white p-4 h-36 animate-pulse">
+              <div key={i} className="rounded-3xl border border-slate-100 bg-white p-4 h-36 animate-pulse">
                 <div className="h-4 bg-slate-100 rounded w-1/2 mb-3"></div>
                 <div className="h-3 bg-slate-100 rounded w-3/4 mb-2"></div>
                 <div className="h-3 bg-slate-100 rounded w-1/3"></div>
@@ -213,7 +211,7 @@ export default function LowStockPage() {
             ))}
           </div>
         ) : books.length === 0 ? (
-          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-xs">
+          <div className="bg-white rounded-3xl border border-slate-100 p-12 text-center shadow-[0_2px_14px_rgba(15,23,42,0.05)]">
             <span className="text-4xl mb-2 block">✅</span>
             <p className="text-xs text-slate-500">فی الحال تمام کتب کا سٹاک مکمل ہے</p>
           </div>
@@ -222,7 +220,7 @@ export default function LowStockPage() {
             {books.map((book) => (
               <div
                 key={book.id}
-                className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all flex flex-col justify-between"
+                className="rounded-3xl border border-slate-100 bg-white p-4 shadow-[0_2px_14px_rgba(15,23,42,0.05)] hover:-translate-y-0.5 hover:shadow-lg transition-all flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-2">
@@ -271,9 +269,9 @@ export default function LowStockPage() {
           <h2 className="text-base font-bold text-slate-900">🔔 اطلاع کی درخواستیں ({alerts.length})</h2>
           <p className="text-xs text-slate-500 mt-0.5 mb-3">گاہکوں نے ان کتب کے آنے پر اطلاع مانگی ہے</p>
           {alerts.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-xs text-slate-400">کوئی درخواست نہیں</div>
+            <div className="bg-white rounded-3xl border border-slate-100 p-6 text-center text-xs text-slate-400">کوئی درخواست نہیں</div>
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+            <div className="bg-white rounded-3xl border border-slate-100 divide-y divide-slate-100">
               {alerts.map((a) => (
                 <div key={a.id} className="p-3 flex items-center justify-between gap-2 text-xs">
                   <div className="min-w-0">
@@ -284,7 +282,7 @@ export default function LowStockPage() {
                     <button onClick={() => alertWhatsApp(a.book_title, a.phone)} className="rounded-lg bg-[#25D366] text-white px-3 py-1.5 font-semibold">
                       💬 اطلاع دیں
                     </button>
-                    <button onClick={() => removeAlert(a.id)} className="rounded-lg border border-slate-200 text-slate-500 px-3 py-1.5">
+                    <button onClick={() => removeAlert(a.id)} className="rounded-xl border border-slate-100 text-slate-500 px-3 py-1.5">
                       ہو گیا
                     </button>
                   </div>

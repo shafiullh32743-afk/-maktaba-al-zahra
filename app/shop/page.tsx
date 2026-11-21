@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BookOpen, Search, MessageCircle, Tag, ShoppingBag, ShoppingCart, Check, Star, MapPin, Phone, X, Globe, Moon, Sun } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { addToCart, getCartCount } from "@/lib/cart";
+import { effectivePrice, isOnSale, salePercent } from "@/lib/sale";
 
 interface Book {
   id: string;
@@ -13,6 +14,8 @@ interface Book {
   author: string;
   category: string;
   price?: number;
+  sale_price?: number | null;
+  sale_ends_at?: string | null;
   stock?: number;
   image_url?: string;
  weight?: number;
@@ -39,6 +42,8 @@ export default function ShopPage() {
   const [filterAuthor, setFilterAuthor] = useState("");
   const [cartCount, setCartCount] = useState(0);
   const [addedId, setAddedId] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState("default");
+  const [onlySale, setOnlySale] = useState(false);
 
   // سٹاک آنے پر اطلاع کے لیے
   const [alertBook, setAlertBook] = useState<string | null>(null);
@@ -213,7 +218,7 @@ export default function ShopPage() {
       id: book.id,
       title: book.title,
       author: book.author,
-      price: book.price,
+      price: effectivePrice(book) || book.price,
       slug: book.slug,
       image_url: book.image_url,
       weight: book.weight,
@@ -247,6 +252,15 @@ export default function ShopPage() {
     setAlertDone(true);
   };
 
+  const saleList = books.filter((b) => isOnSale(b) && !(typeof b.stock === "number" && b.stock <= 0)).slice(0, 10);
+  const shownBooks = (() => {
+    const arr = filteredBooks.filter((b) => !onlySale || isOnSale(b));
+    if (sortBy === "priceAsc") arr.sort((a, b) => effectivePrice(a) - effectivePrice(b));
+    else if (sortBy === "priceDesc") arr.sort((a, b) => effectivePrice(b) - effectivePrice(a));
+    else if (sortBy === "popular") arr.sort((a, b) => (b.views || 0) - (a.views || 0));
+    else if (sortBy === "name") arr.sort((a, b) => a.title.localeCompare(b.title, "ur"));
+    return arr;
+  })();
   const showHighlights = !search && !filterCategory && !filterAuthor;
   const newBooksList = books.filter((b) => !(typeof b.stock === "number" && b.stock <= 0)).slice(0, 8);
   const popularList = [...books]
@@ -273,7 +287,12 @@ export default function ShopPage() {
                 )}
               </div>
               <p className={`mt-2 text-[11px] font-bold line-clamp-2 leading-snug ${darkMode ? "text-gray-100" : "text-gray-800"}`}>{b.title}</p>
-              {b.price ? <p className="mt-1 text-[11px] font-extrabold text-emerald-500">Rs {Number(b.price).toLocaleString()}</p> : null}
+              {b.price ? (
+                <p className="mt-1 text-[11px] font-extrabold text-emerald-500">
+                  Rs {effectivePrice(b).toLocaleString()}
+                  {isOnSale(b) && <span className="ms-1 text-[9px] font-semibold text-gray-400 line-through">{Number(b.price).toLocaleString()}</span>}
+                </p>
+              ) : null}
             </Link>
           ))}
         </div>
@@ -311,7 +330,7 @@ export default function ShopPage() {
       </a>
 
       {/* ہیڈر */}
-      <header className={`sticky top-0 z-30 shadow-md text-white ${darkMode ? "bg-gray-900" : "bg-emerald-800"}`}>
+      <header className={`sticky top-0 z-30 shadow-md text-white ${darkMode ? "bg-gray-900" : "bg-gradient-to-l from-emerald-800 to-teal-700"}`}>
         <div className="max-w-6xl mx-auto px-5 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
             <img src="/logo.jpg" alt="مكتبہ الزھراء" className="h-10 w-auto rounded-md" />
@@ -363,9 +382,51 @@ export default function ShopPage() {
       </header>
 
       <section className="max-w-6xl mx-auto px-5 py-8">
-        <div className="mb-6">
-          <h1 className={`text-2xl md:text-3xl font-bold ${darkMode ? "text-gray-100" : "text-gray-900"}`}>{t.heading}</h1>
-          <p className={`mt-1 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>{t.subHeading}</p>
+        {/* نمایاں بینر */}
+        <div className={`relative overflow-hidden rounded-3xl p-6 md:p-10 mb-5 ${darkMode ? "bg-gradient-to-br from-emerald-950 to-gray-900 text-white" : "bg-gradient-to-br from-emerald-700 via-teal-600 to-sky-600 text-white shadow-[0_10px_40px_rgba(16,185,129,0.25)]"}`}>
+          <div className="absolute -top-16 -left-10 w-56 h-56 rounded-full bg-white/10 blur-2xl" />
+          <div className="absolute -bottom-20 right-10 w-64 h-64 rounded-full bg-amber-300/20 blur-2xl" />
+          <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+            <div className="max-w-xl">
+              <h1 className="text-2xl md:text-4xl font-extrabold leading-snug">{t.heading}</h1>
+              <p className="mt-2 text-sm md:text-base text-white/85 leading-relaxed">{t.subHeading}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button onClick={() => { setOnlySale(true); }} className="inline-flex items-center gap-1.5 rounded-full bg-white text-rose-600 px-4 py-2 text-xs font-extrabold shadow-md hover:scale-105 transition">
+                  🔥 {lang === "ur" ? "سیل والی کتب" : "Books on sale"}{saleList.length > 0 ? ` (${books.filter((b) => isOnSale(b)).length})` : ""}
+                </button>
+                <Link href="/track" className="inline-flex items-center gap-1.5 rounded-full bg-white/15 border border-white/30 px-4 py-2 text-xs font-bold hover:bg-white/25 transition">
+                  📦 {t.trackOrder}
+                </Link>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2.5 text-center shrink-0">
+              {[
+                [books.length, lang === "ur" ? "کتب" : "Books"],
+                [categories.length, lang === "ur" ? "زمرے" : "Categories"],
+                [authors.length, lang === "ur" ? "مصنفین" : "Authors"],
+              ].map(([n, l]) => (
+                <div key={String(l)} className="rounded-2xl bg-white/15 border border-white/20 px-4 py-3 backdrop-blur">
+                  <p className="text-xl md:text-2xl font-extrabold">{n}</p>
+                  <p className="text-[11px] text-white/80">{l}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* اعتماد کی پٹی */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-6">
+          {[
+            ["🚚", lang === "ur" ? "پورے پاکستان میں ترسیل" : "Nationwide delivery"],
+            ["💵", lang === "ur" ? "کیش آن ڈلیوری" : "Cash on delivery"],
+            ["✅", lang === "ur" ? "اصل اور معتبر کتب" : "Genuine books"],
+            ["💬", lang === "ur" ? "واٹس ایپ پر فوری مدد" : "WhatsApp support"],
+          ].map(([ic, tx]) => (
+            <div key={String(tx)} className={`flex items-center gap-2 rounded-2xl border px-3 py-2.5 text-[11px] md:text-xs font-semibold ${darkMode ? "bg-gray-900 border-gray-800 text-gray-300" : "bg-white border-gray-100 text-gray-600 shadow-[0_2px_12px_rgba(15,23,42,0.05)]"}`}>
+              <span className="text-base">{ic}</span>
+              {tx}
+            </div>
+          ))}
         </div>
 
         {/* سرچ اور فلٹر */}
@@ -414,8 +475,52 @@ export default function ShopPage() {
           </select>
         </div>
 
+        {/* زمروں کے چپس + ترتیب */}
+        <div className="mb-6 flex flex-col gap-3">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {["", ...categories].map((cat) => (
+              <button
+                key={cat || "all"}
+                onClick={() => setFilterCategory(cat)}
+                className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold border transition ${
+                  filterCategory === cat
+                    ? "bg-emerald-600 border-emerald-600 text-white shadow-md shadow-emerald-600/20"
+                    : darkMode
+                    ? "bg-gray-900 border-gray-700 text-gray-300"
+                    : "bg-white border-gray-200 text-gray-600 hover:bg-emerald-50"
+                }`}
+              >
+                {cat || t.allCategories}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setOnlySale((v) => !v)}
+              className={`rounded-full px-4 py-1.5 text-xs font-bold border transition ${onlySale ? "bg-rose-500 border-rose-500 text-white" : darkMode ? "bg-gray-900 border-gray-700 text-gray-300" : "bg-white border-gray-200 text-rose-500 hover:bg-rose-50"}`}
+            >
+              🔥 {lang === "ur" ? "صرف سیل" : "Sale only"}
+            </button>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className={`rounded-full border px-4 py-1.5 text-xs font-semibold ${darkMode ? "bg-gray-900 border-gray-700 text-gray-200" : "bg-white border-gray-200 text-gray-700"}`}
+            >
+              <option value="default">{lang === "ur" ? "ترتیب: نئی پہلے" : "Sort: Newest"}</option>
+              <option value="popular">{lang === "ur" ? "مقبول پہلے" : "Most popular"}</option>
+              <option value="priceAsc">{lang === "ur" ? "قیمت: کم سے زیادہ" : "Price: low to high"}</option>
+              <option value="priceDesc">{lang === "ur" ? "قیمت: زیادہ سے کم" : "Price: high to low"}</option>
+              <option value="name">{lang === "ur" ? "نام کے مطابق" : "By name"}</option>
+            </select>
+            <span className={`text-xs ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
+              {shownBooks.length} {lang === "ur" ? "کتب" : "books"}
+            </span>
+          </div>
+        </div>
+
         {loaded && showHighlights && (
           <>
+            {renderStrip(lang === "ur" ? "🔥 سیل — خاص رعایت" : "🔥 On Sale", saleList)}
             {renderStrip(t.newBooks, newBooksList)}
             {renderStrip(t.popularBooks, popularList)}
           </>
@@ -432,29 +537,34 @@ export default function ShopPage() {
               </div>
             ))}
           </div>
-        ) : filteredBooks.length === 0 ? (
+        ) : shownBooks.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <span className="text-6xl mb-4">📖</span>
             <p className={darkMode ? "text-gray-400 text-lg" : "text-gray-500 text-lg"}>{t.noBooks}</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-            {filteredBooks.map((book) => {
+            {shownBooks.map((book) => {
               const outOfStock = typeof book.stock === "number" && book.stock <= 0;
               const rating = getBookRating(book.title);
               return (
                 <div
                   key={book.id}
-                  className={`rounded-2xl border p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col ${
-                    darkMode ? "bg-gray-900 border-gray-700" : "bg-white border-gray-200"
+                  className={`relative rounded-3xl border p-4 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 flex flex-col ${
+                    darkMode ? "bg-gray-900 border-gray-700" : "bg-white border-gray-100 shadow-[0_2px_16px_rgba(15,23,42,0.06)]"
                   }`}
                 >
+                  {isOnSale(book) && (
+                    <span className="absolute top-2.5 right-2.5 z-10 rounded-full bg-rose-500 text-white text-[10px] font-extrabold px-2.5 py-1 shadow-md shadow-rose-500/30">
+                      🔥 -{salePercent(book)}%
+                    </span>
+                  )}
                   <Link href={`/books/${book.slug || encodeURIComponent(book.title)}`} className="block">
-                    <div className={`h-40 w-full rounded-xl flex items-center justify-center border overflow-hidden ${
+                    <div className={`h-40 w-full rounded-2xl flex items-center justify-center border overflow-hidden ${
                       darkMode ? "bg-gradient-to-br from-gray-800 to-gray-900 border-gray-700" : "bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200"
                     }`}>
                       {book.image_url ? (
-                        <img src={book.image_url} alt={book.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                        <img src={book.image_url} alt={book.title} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-500 hover:scale-105" />
                       ) : (
                         <BookOpen className="text-amber-300" size={36} />
                       )}
@@ -480,7 +590,15 @@ export default function ShopPage() {
 
                   <div className="mt-3 flex items-center justify-between">
                     {book.price ? (
-                      <span className="text-sm font-extrabold text-emerald-500">Rs {Number(book.price).toLocaleString()}</span>
+                      <span className="flex items-baseline gap-1.5">
+                        <span className={`text-sm font-extrabold ${isOnSale(book) ? "text-rose-500" : "text-emerald-500"}`}>Rs {effectivePrice(book).toLocaleString()}</span>
+                        {isOnSale(book) && (
+                          <>
+                            <span className="text-[11px] text-gray-400 line-through">{Number(book.price).toLocaleString()}</span>
+                            <span className="text-[10px] font-bold text-white bg-rose-500 rounded-full px-1.5 py-0.5">-{salePercent(book)}%</span>
+                          </>
+                        )}
+                      </span>
                     ) : (
                       <span className={`text-xs italic ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{t.priceNotSet}</span>
                     )}
