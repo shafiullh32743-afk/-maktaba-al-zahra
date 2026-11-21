@@ -6,8 +6,6 @@ import { supabase } from "@/lib/supabaseClient";
 
 const TABLES = [
   "books",
-  "authors",
-  "categories",
   "customers",
   "orders",
   "invoices",
@@ -19,7 +17,7 @@ const TABLES = [
   "supplier_payments",
   "expenses",
   "reviews",
-  "returns",
+  "book_returns",
   "stock_alerts",
 ];
 
@@ -57,13 +55,29 @@ export default function BackupPage() {
     for (const t of TABLES) {
       const { rows, error } = await fetchAll(t);
       if (error) {
-        lines.push(`⚠️ ${t}: چھوڑ دیا (${error})`);
+        lines.push(`⚠️ ${t}: چھوڑ دیا — شاید یہ ٹیبل آپ کے پاس نہیں ہے (${error})`);
       } else {
         result[t] = rows;
         lines.push(`✅ ${t}: ${rows.length} ریکارڈ`);
       }
       setLog([...lines]);
     }
+    // مصنفین اور زمرے الگ ٹیبل نہیں، کتب سے بنتے ہیں — ان کی الگ فہرست بھی فائل میں رکھ دیں
+    const bookRows = (result["books"] || []) as { author?: string | null; category?: string | null; title?: string }[];
+    const authorMap = new Map<string, number>();
+    const catMap = new Map<string, number>();
+    bookRows.forEach((b) => {
+      const a = (b.author || "").trim();
+      const c = (b.category || "").trim();
+      if (a) authorMap.set(a, (authorMap.get(a) || 0) + 1);
+      if (c) catMap.set(c, (catMap.get(c) || 0) + 1);
+    });
+    result["authors"] = Array.from(authorMap, ([name, books]) => ({ name, books }));
+    result["categories"] = Array.from(catMap, ([name, books]) => ({ name, books }));
+    lines.push(`✅ authors (کتب سے): ${authorMap.size} مصنفین`);
+    lines.push(`✅ categories (کتب سے): ${catMap.size} زمرے`);
+    setLog([...lines]);
+
     const stamp = new Date().toISOString().slice(0, 10);
     const blob = new Blob([JSON.stringify({ created_at: new Date().toISOString(), tables: result }, null, 1)], {
       type: "application/json",
@@ -93,8 +107,8 @@ export default function BackupPage() {
   };
 
   return (
-    <main dir="rtl" className="min-h-screen bg-slate-50/60 text-slate-800 font-sans">
-      <header className="bg-emerald-800 text-white">
+    <main dir="rtl" className="min-h-screen bg-gradient-to-b from-emerald-50/70 via-slate-50 to-slate-50 text-slate-800 font-sans">
+      <header className="bg-gradient-to-l from-emerald-800 to-teal-700 text-white">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="text-base font-bold">💾 بیک اپ</h1>
           <Link href="/" className="text-xs rounded-lg bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 transition">
@@ -117,13 +131,13 @@ export default function BackupPage() {
         </div>
 
         <p className="mt-4 text-xs text-slate-500 leading-relaxed">
-          نیچے کا بٹن دبائیں تو کتابوں، آرڈرز، بلوں، سپلائرز، کسٹمرز اور اخراجات سمیت تمام ڈیٹا ایک فائل میں محفوظ ہو جاتا ہے۔ فائل کو واٹس ایپ پر اپنے آپ کو بھیج دیں یا گوگل ڈرائیو میں رکھ لیں۔ ہفتے میں ایک بار بیک اپ لینا بہتر ہے۔
+          نیچے کا بٹن دبائیں تو کتابوں، مصنفین، زمروں، آرڈرز، بلوں، سپلائرز، کسٹمرز، اخراجات اور واپسی/خراب کتب سمیت تمام ڈیٹا ایک فائل میں محفوظ ہو جاتا ہے۔ فائل کو واٹس ایپ پر اپنے آپ کو بھیج دیں یا گوگل ڈرائیو میں رکھ لیں۔ ہفتے میں ایک بار بیک اپ لینا بہتر ہے۔
         </p>
 
         <button
           onClick={runBackup}
           disabled={busy}
-          className="mt-4 w-full rounded-xl bg-emerald-700 text-white py-3 text-sm font-bold hover:bg-emerald-800 transition disabled:opacity-50"
+          className="mt-4 w-full rounded-2xl bg-gradient-to-l from-emerald-600 to-teal-500 text-white py-3.5 text-sm font-bold shadow-md shadow-emerald-600/20 hover:opacity-90 transition disabled:opacity-50"
         >
           {busy ? "بیک اپ بن رہا ہے..." : "💾 ابھی بیک اپ لیں"}
         </button>
