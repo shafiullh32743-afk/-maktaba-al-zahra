@@ -902,27 +902,14 @@ export default function DashboardPage() {
 
         <section className="flex-1 p-4 md:p-8 max-w-7xl mx-auto min-w-0 w-full pb-24 md:pb-8">
           {isAdmin ? (
-            <div className="flex items-center justify-between gap-3 mb-6">
+            <>
+            <div className="flex items-center justify-between gap-3 mb-3">
               <div className="flex items-center gap-3 min-w-0">
                 <button onClick={() => setMobileMenuOpen(true)} className={`md:hidden p-2 rounded-2xl border ${card}`}>
                   <Menu size={20} />
                 </button>
                 <div className="min-w-0">
                   <h2 suppressHydrationWarning className={`text-xl md:text-2xl font-extrabold ${strong}`}>{greeting}</h2>
-                  <div suppressHydrationWarning className={`mt-1.5 inline-flex max-w-full items-center rounded-full ring-1 overflow-x-auto whitespace-nowrap ${darkMode ? "bg-slate-800 ring-slate-700" : "bg-white ring-slate-200"}`} style={{ scrollbarWidth: "none" }}>
-                    <span className={`shrink-0 px-3 py-1 text-[11px] font-semibold ${darkMode ? "text-slate-200" : "text-slate-600"}`}>
-                      📅 {dateText}
-                    </span>
-                    {hijriText && (
-                      <span className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold border-s ${darkMode ? "text-emerald-300 border-slate-700" : "text-emerald-700 border-slate-200"}`}>
-                        🌙 {hijriText}
-                        <span className="inline-flex items-center opacity-60 hover:opacity-100">
-                          <button type="button" title={L("ایک دن پیچھے", "One day back")} onClick={() => changeHijriOffset(hijriOffset - 1)} className="px-1 leading-none">−</button>
-                          <button type="button" title={L("ایک دن آگے", "One day forward")} onClick={() => changeHijriOffset(hijriOffset + 1)} className="px-1 leading-none">+</button>
-                        </span>
-                      </span>
-                    )}
-                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -976,6 +963,23 @@ export default function DashboardPage() {
                 </button>
               </div>
             </div>
+            <div suppressHydrationWarning className="grid grid-cols-2 gap-2.5 mb-6 max-w-xl">
+              <div className={`rounded-2xl border px-3.5 py-2.5 ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100 shadow-sm"}`}>
+                <p className="text-[10px] font-bold text-slate-400 tracking-wide">📅 {L("انگریزی تاریخ", "Gregorian date")}</p>
+                <p className={`mt-1 text-[13px] md:text-sm font-extrabold leading-snug ${strong}`}>{dateText}</p>
+              </div>
+              <div className={`rounded-2xl border px-3.5 py-2.5 ${darkMode ? "bg-emerald-950/40 border-emerald-900" : "bg-emerald-50/70 border-emerald-100 shadow-sm"}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[10px] font-bold text-emerald-600 tracking-wide">🌙 {L("اسلامی تاریخ", "Hijri date")}</p>
+                  <span className="inline-flex items-center rounded-full bg-white/70 text-emerald-700 text-[11px] font-bold ring-1 ring-emerald-100">
+                    <button type="button" title={L("ایک دن پیچھے", "One day back")} onClick={() => changeHijriOffset(hijriOffset - 1)} className="px-2 leading-5">−</button>
+                    <button type="button" title={L("ایک دن آگے", "One day forward")} onClick={() => changeHijriOffset(hijriOffset + 1)} className="px-2 leading-5">+</button>
+                  </span>
+                </div>
+                <p className={`mt-1 text-[13px] md:text-sm font-extrabold leading-snug ${darkMode ? "text-emerald-300" : "text-emerald-800"}`}>{hijriText}</p>
+              </div>
+            </div>
+            </>
           ) : (
             <div className="flex items-center justify-between mb-6 bg-white p-3 rounded-2xl border border-slate-100 shadow-sm">
               <Link href="/" className="flex items-center gap-2.5">
