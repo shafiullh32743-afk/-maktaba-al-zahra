@@ -218,6 +218,138 @@ function Ring({ value, max, size = 120 }: { value: number; max: number; size?: n
   );
 }
 
+
+const compact = (n: number) => {
+  const a = Math.abs(n);
+  const sign = n < 0 ? "-" : "";
+  if (a >= 1_000_000) return sign + (a / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (a >= 1_000) return sign + (a / 1_000).toFixed(a >= 10_000 ? 0 : 1).replace(/\.0$/, "") + "k";
+  return sign + Math.round(a);
+};
+
+// 6 مہینوں کے تین رنگ کے ستون: فروخت، اخراجات، نفع (اور نیچے نفع کا فیصد)
+function ComboChart({
+  months,
+  names,
+  salesLabel,
+  expLabel,
+  profitLabel,
+  dark,
+}: {
+  months: { revenue: number; expense: number; profit: number }[];
+  names: string[];
+  salesLabel: string;
+  expLabel: string;
+  profitLabel: string;
+  dark: boolean;
+}) {
+  const W = 360, H = 190, padB = 34, padT = 16, padX = 8;
+  const max = Math.max(1, ...months.map((m) => Math.max(m.revenue, m.expense, Math.abs(m.profit))));
+  const slot = (W - padX * 2) / Math.max(1, months.length);
+  const bw = Math.min(16, slot / 4);
+  const h = (v: number) => (Math.abs(v) / max) * (H - padB - padT);
+  const base = H - padB;
+  const txt = dark ? "#94a3b8" : "#94a3b8";
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" dir="ltr" role="img" aria-label="monthly chart">
+        {[0.25, 0.5, 0.75, 1].map((g) => (
+          <line key={g} x1={padX} x2={W - padX} y1={base - g * (H - padB - padT)} y2={base - g * (H - padB - padT)} stroke={dark ? "#1e293b" : "#eef2f7"} strokeWidth="1" />
+        ))}
+        <line x1={padX} x2={W - padX} y1={base} y2={base} stroke={dark ? "#334155" : "#e2e8f0"} />
+        {months.map((m, i) => {
+          const cx = padX + slot * i + slot / 2;
+          const margin = m.revenue > 0 ? Math.round((m.profit / m.revenue) * 100) : null;
+          return (
+            <g key={i}>
+              <rect x={cx - bw * 1.5 - 1} y={base - h(m.revenue)} width={bw} height={Math.max(2, h(m.revenue))} rx="3" fill="#a7f3d0" />
+              <rect x={cx - bw / 2} y={base - h(m.expense)} width={bw} height={Math.max(2, h(m.expense))} rx="3" fill="#fcd34d" />
+              <rect x={cx + bw / 2 + 1} y={base - h(m.profit)} width={bw} height={Math.max(2, h(m.profit))} rx="3" fill={m.profit < 0 ? "#fb7185" : "#10b981"} />
+              <text x={cx + bw} y={base - h(m.profit) - 4} textAnchor="middle" fontSize="8" fontWeight="700" fill={m.profit < 0 ? "#e11d48" : "#059669"}>
+                {compact(m.profit)}
+              </text>
+              <text x={cx} y={H - 18} textAnchor="middle" fontSize="9" fill={txt}>{names[i]}</text>
+              <text x={cx} y={H - 6} textAnchor="middle" fontSize="8" fontWeight="700" fill={margin === null ? txt : margin >= 0 ? "#059669" : "#e11d48"}>
+                {margin === null ? "—" : `${margin}%`}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <div className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
+        <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-emerald-200 inline-block" /> {salesLabel}</span>
+        <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-amber-300 inline-block" /> {expLabel}</span>
+        <span className="flex items-center gap-1"><i className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" /> {profitLabel}</span>
+      </div>
+    </div>
+  );
+}
+
+// اس مہینے بمقابلہ پچھلے مہینے: روزانہ جمع ہوتی فروخت
+function CompareChart({ thisCum, lastCum, dark }: { thisCum: number[]; lastCum: number[]; dark: boolean }) {
+  const W = 360, H = 170, padL = 6, padR = 6, padT = 14, padB = 20;
+  const n = Math.max(thisCum.length, lastCum.length, 2);
+  const max = Math.max(1, ...thisCum, ...lastCum);
+  const x = (i: number) => padL + (i / (n - 1)) * (W - padL - padR);
+  const y = (v: number) => H - padB - (v / max) * (H - padT - padB);
+  const line = (a: number[]) => a.map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const lastIdx = thisCum.length - 1;
+  const area = thisCum.length > 1 ? `${line(thisCum)} L${x(lastIdx).toFixed(1)},${H - padB} L${x(0).toFixed(1)},${H - padB} Z` : "";
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" dir="ltr" role="img" aria-label="month comparison">
+      <defs>
+        <linearGradient id="gCmp" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#10b981" stopOpacity="0.28" />
+          <stop offset="1" stopColor="#10b981" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {[0.25, 0.5, 0.75, 1].map((g) => (
+        <line key={g} x1={padL} x2={W - padR} y1={y(max * g)} y2={y(max * g)} stroke={dark ? "#1e293b" : "#eef2f7"} />
+      ))}
+      <path d={line(lastCum)} fill="none" stroke="#94a3b8" strokeWidth="1.8" strokeDasharray="4 4" strokeLinecap="round" />
+      {area && <path d={area} fill="url(#gCmp)" />}
+      <path d={line(thisCum)} fill="none" stroke="#10b981" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      {lastIdx >= 0 && (
+        <g>
+          <circle cx={x(lastIdx)} cy={y(thisCum[lastIdx])} r="4" fill="#10b981" stroke="#fff" strokeWidth="2" />
+          <text x={Math.min(W - 28, x(lastIdx))} y={y(thisCum[lastIdx]) - 9} textAnchor="middle" fontSize="9" fontWeight="800" fill="#059669">{compact(thisCum[lastIdx])}</text>
+        </g>
+      )}
+      {[1, 8, 15, 22, n].filter((d) => d <= n).map((d) => (
+        <text key={d} x={x(d - 1)} y={H - 6} textAnchor="middle" fontSize="9" fill="#94a3b8">{d}</text>
+      ))}
+    </svg>
+  );
+}
+
+// دن کے کس وقت زیادہ فروخت ہوتی ہے
+function HourChart({ hours, dark }: { hours: number[]; dark: boolean }) {
+  const W = 360, H = 150, padB = 18, padT = 12;
+  const max = Math.max(1, ...hours);
+  const peak = hours.indexOf(Math.max(...hours));
+  const slot = W / 24;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" dir="ltr" role="img" aria-label="sales by hour">
+      <line x1="0" x2={W} y1={H - padB} y2={H - padB} stroke={dark ? "#334155" : "#e2e8f0"} />
+      {hours.map((v, i) => {
+        const bh = (v / max) * (H - padB - padT);
+        const isPeak = v > 0 && i === peak;
+        return (
+          <g key={i}>
+            <rect x={i * slot + 2} y={H - padB - bh} width={slot - 4} height={Math.max(v > 0 ? 3 : 1.5, bh)} rx="3" fill={isPeak ? "#f59e0b" : v > 0 ? "#6ee7b7" : dark ? "#1e293b" : "#f1f5f9"} />
+            {isPeak && <text x={i * slot + slot / 2} y={H - padB - bh - 4} textAnchor="middle" fontSize="9" fontWeight="800" fill="#d97706">{compact(v)}</text>}
+          </g>
+        );
+      })}
+      {[0, 3, 6, 9, 12, 15, 18, 21].map((hr) => (
+        <text key={hr} x={hr * slot + slot / 2} y={H - 4} textAnchor="middle" fontSize="9" fill="#94a3b8">
+          {hr === 0 ? "12a" : hr < 12 ? `${hr}a` : hr === 12 ? "12p" : `${hr - 12}p`}
+        </text>
+      ))}
+    </svg>
+  );
+}
+
 export default function DashboardPage() {
   const [darkMode, setDarkMode] = useState(false);
   const [lang, setLang] = useState<"ur" | "en">("ur");
@@ -778,6 +910,44 @@ export default function DashboardPage() {
     { label: t.categories, value: String(totalCategories), icon: FolderTree, href: isAdmin ? "/categories" : "/shop", tone: "text-amber-600 bg-amber-50" },
   ];
 
+  // --- نئے تجزیے: مارجن، متوقع فروخت، بہترین دن، مہینوں کا موازنہ، اوقات ---
+  const dayOfMonth = now.getDate();
+  const daysInThisMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysInLastMonth = new Date(now.getFullYear(), now.getMonth(), 0).getDate();
+  const marginPct = thisMonthRevenue > 0 ? (thisMonthProfit / thisMonthRevenue) * 100 : null;
+  const projectedSales = dayOfMonth > 0 ? (thisMonthRevenue / dayOfMonth) * daysInThisMonth : 0;
+  const avgPerDay = dayOfMonth > 0 ? thisMonthRevenue / dayOfMonth : 0;
+  const monthRevenueOfDay = (y2: number, m2: number, d2: number) => {
+    const v = dailyMap.get(new Date(y2, m2, d2).toDateString());
+    return v ? v.revenue : 0;
+  };
+  let bestDayRev = 0, bestDayNo = 0;
+  for (let d2 = 1; d2 <= dayOfMonth; d2++) {
+    const r2 = monthRevenueOfDay(now.getFullYear(), now.getMonth(), d2);
+    if (r2 > bestDayRev) { bestDayRev = r2; bestDayNo = d2; }
+  }
+  const thisCum: number[] = [];
+  { let acc = 0; for (let d2 = 1; d2 <= dayOfMonth; d2++) { acc += monthRevenueOfDay(now.getFullYear(), now.getMonth(), d2); thisCum.push(acc); } }
+  const lastCum: number[] = [];
+  { let acc = 0; for (let d2 = 1; d2 <= daysInLastMonth; d2++) { acc += monthRevenueOfDay(lastMonthDate.getFullYear(), lastMonthDate.getMonth(), d2); lastCum.push(acc); } }
+  const lastMonthSameDay = lastCum[Math.min(dayOfMonth, lastCum.length) - 1] || 0;
+  const vsLastSameDay = growth(thisMonthRevenue, lastMonthSameDay);
+  const hourSums = Array.from({ length: 24 }, () => 0);
+  {
+    const since = now.getTime() - 90 * 86400000;
+    saleEntries.forEach((e) => {
+      const tm = e.date.getTime();
+      if (isNaN(tm) || tm < since) return;
+      hourSums[e.date.getHours()] += e.revenue;
+    });
+  }
+  const peakHour = hourSums.some((v) => v > 0) ? hourSums.indexOf(Math.max(...hourSums)) : -1;
+  const hourLabel = (h2: number) => {
+    const h12 = h2 % 12 === 0 ? 12 : h2 % 12;
+    return `${h12}:00 ${h2 < 12 ? "AM" : "PM"}`;
+  };
+  const sixMonths = [...monthlyStats].slice(0, 6).reverse();
+
   const GrowthBadge = ({ value }: { value: number | null }) =>
     value === null ? null : (
       <span
@@ -1065,6 +1235,23 @@ export default function DashboardPage() {
                           </div>
                         ))}
                       </div>
+
+                      <div className="mt-2.5 grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                        {[
+                          ["📊", L("نفع کا تناسب", "Profit margin"), marginPct === null ? "—" : `${marginPct.toFixed(1)}%`],
+                          ["🔮", L("مہینہ ختم تک متوقع فروخت", "Projected month sales"), money(projectedSales)],
+                          ["🏆", L("بہترین دن", "Best day"), bestDayNo ? `${bestDayNo} • ${money(bestDayRev)}` : "—"],
+                          ["📅", L("روزانہ اوسط فروخت", "Avg. per day"), money(avgPerDay)],
+                        ].map(([ic, label, val]) => (
+                          <div key={label} className={`rounded-2xl px-3 py-2.5 flex items-center gap-2.5 ${darkMode ? "bg-white/5" : "bg-white/60 ring-1 ring-white shadow-sm"}`}>
+                            <span className="text-lg">{ic}</span>
+                            <div className="min-w-0">
+                              <p className="text-[10px] opacity-60 truncate">{label}</p>
+                              <p className="text-[13px] font-extrabold truncate" dir="ltr">{val}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
@@ -1283,41 +1470,51 @@ export default function DashboardPage() {
                     />
                   </div>
 
+                  {/* مہینوں کا موازنہ + بہترین وقت */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div className={`rounded-3xl border p-5 ${card}`}>
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div>
+                          <h3 className={sectionTitle}>{L("اس مہینے بمقابلہ پچھلا مہینہ", "This Month vs Last Month")}</h3>
+                          <p className="text-[11px] text-slate-400 mt-0.5">{L("روزانہ جمع ہوتی فروخت", "Cumulative daily sales")}</p>
+                        </div>
+                        <GrowthBadge value={vsLastSameDay} />
+                      </div>
+                      <CompareChart thisCum={thisCum} lastCum={lastCum} dark={darkMode} />
+                      <div className="mt-2 flex items-center justify-center gap-5 text-[11px] text-slate-400">
+                        <span className="flex items-center gap-1.5"><i className="w-4 h-0.5 bg-emerald-500 inline-block rounded" /> {L("اس مہینے", "This month")}</span>
+                        <span className="flex items-center gap-1.5"><i className="w-4 h-0 border-t-2 border-dashed border-slate-400 inline-block" /> {L("پچھلا مہینہ", "Last month")}</span>
+                      </div>
+                    </div>
+                    <div className={`rounded-3xl border p-5 ${card}`}>
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div>
+                          <h3 className={sectionTitle}>{L("فروخت کا بہترین وقت", "Best Selling Hours")}</h3>
+                          <p className="text-[11px] text-slate-400 mt-0.5">{L("پچھلے 90 دن", "Last 90 days")}</p>
+                        </div>
+                        {peakHour >= 0 && (
+                          <span className="rounded-full bg-amber-50 text-amber-700 ring-1 ring-amber-200 px-2.5 py-1 text-[10px] font-bold" dir="ltr">⏰ {hourLabel(peakHour)}</span>
+                        )}
+                      </div>
+                      <HourChart hours={hourSums} dark={darkMode} />
+                    </div>
+                  </div>
+
                   {/* 6 مہینے + زیادہ بکنے والی کتب */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div className={`rounded-3xl border p-5 ${card}`}>
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className={sectionTitle}>{L("پچھلے 6 مہینے", "Last 6 Months")}</h3>
-                        <div className="flex items-center gap-3 text-[11px] text-slate-400">
-                          <span className="flex items-center gap-1">
-                            <i className="w-2.5 h-2.5 rounded-sm bg-emerald-200 inline-block" /> {t.sales}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <i className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" /> {L("نفع", "Profit")}
-                          </span>
-                        </div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className={sectionTitle}>{L("پچھلے 6 مہینے: فروخت، اخراجات اور نفع", "Last 6 Months: Sales, Expenses & Profit")}</h3>
+                        <Link href="/reports" className={linkCls}>{L("تفصیلی رپورٹ", "Detailed report")}</Link>
                       </div>
-                      <div className="flex items-end justify-between gap-2 h-44" dir="ltr">
-                        {chartMonths.map((m) => {
-                          const rev = Math.max(4, (m.revenue / chartMax) * 100);
-                          const prof = m.profit > 0 ? Math.max(4, (m.profit / chartMax) * 100) : 0;
-                          return (
-                            <div key={`${m.year}-${m.month}`} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end min-w-0">
-                              <div className="w-full flex items-end justify-center gap-1 flex-1">
-                                <div className="w-1/2 max-w-6 rounded-t-lg bg-emerald-200/80" style={{ height: `${rev}%` }} title={money(m.revenue)} />
-                                <div
-                                  className={`w-1/2 max-w-6 rounded-t-lg ${m.profit < 0 ? "bg-rose-300" : "bg-emerald-500"}`}
-                                  style={{ height: m.profit < 0 ? "4%" : `${prof}%` }}
-                                  title={money(m.profit)}
-                                />
-                              </div>
-                              <span className="text-[10px] text-slate-400 truncate w-full text-center">
-                                {(lang === "ur" ? monthNamesUr : monthNamesEn)[m.month].slice(0, lang === "ur" ? 6 : 3)}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
+                      <ComboChart
+                        months={sixMonths}
+                        names={sixMonths.map((m) => (lang === "ur" ? monthNamesUr : monthNamesEn)[m.month].slice(0, lang === "ur" ? 6 : 3))}
+                        salesLabel={t.sales}
+                        expLabel={t.expenseLabel}
+                        profitLabel={L("نفع (نیچے فیصد)", "Profit (margin % below)")}
+                        dark={darkMode}
+                      />
                     </div>
 
                     <div className={`rounded-3xl border p-5 ${card}`}>
@@ -1538,51 +1735,11 @@ export default function DashboardPage() {
                       </ol>
                     )}
                   </div>
-
-                  {/* ماہانہ جدول */}
-                  <div className={`rounded-3xl border overflow-hidden ${card}`}>
-                    <div className="flex items-center justify-between p-5 pb-3">
-                      <h3 className={sectionTitle}>{L("ہر مہینے کا نفع", "Monthly Profit")}</h3>
-                      <Link href="/reports" className={linkCls}>
-                        {L("تفصیلی رپورٹ", "Detailed report")}
-                      </Link>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs min-w-[460px]">
-                        <thead>
-                          <tr className={`text-[11px] ${darkMode ? "bg-slate-800/60 text-slate-400" : "bg-slate-50/80 text-slate-400"}`}>
-                            <th className="text-right font-semibold px-5 py-2.5">{L("مہینہ", "Month")}</th>
-                            <th className="text-right font-semibold px-3 py-2.5">{t.sales}</th>
-                            <th className="text-right font-semibold px-3 py-2.5">{t.cost}</th>
-                            <th className="text-right font-semibold px-3 py-2.5">{t.expenseLabel}</th>
-                            <th className="text-right font-semibold px-5 py-2.5">{L("نفع", "Profit")}</th>
-                          </tr>
-                        </thead>
-                        <tbody className={`divide-y ${darkMode ? "divide-slate-800" : "divide-slate-50"}`}>
-                          {monthlyStats.map((m) => (
-                            <tr key={`${m.year}-${m.month}`} className={`${darkMode ? "text-slate-200 hover:bg-slate-800/40" : "text-slate-600 hover:bg-emerald-50/30"} transition-colors`}>
-                              <td className="px-5 py-3 font-semibold">
-                                {(lang === "ur" ? monthNamesUr : monthNamesEn)[m.month]} {m.year}
-                              </td>
-                              <td className="px-3 py-3 tabular-nums">{money(m.revenue)}</td>
-                              <td className="px-3 py-3 tabular-nums">{money(m.cost)}</td>
-                              <td className="px-3 py-3 tabular-nums">{money(m.expense)}</td>
-                              <td className="px-5 py-3">
-                                <span className={`inline-block font-bold tabular-nums px-2.5 py-1 rounded-xl ${m.profit >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-500"}`}>
-                                  {m.profit < 0 ? "-" : ""}
-                                  {money(Math.abs(m.profit))}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
                 </>
               )}
 
-              {/* گنتی کے کارڈ */}
+              {/* گنتی کے کارڈ (صرف وزیٹر کے لیے؛ ایڈمن کو اوپر "پورا کاروبار" میں یہی نظر آتا ہے) */}
+              {!isAdmin && (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {counters
                   .filter((c) => isAdmin || c.label !== L("سٹاک کی مالیت", "Stock Value"))
@@ -1605,6 +1762,7 @@ export default function DashboardPage() {
                     );
                   })}
               </div>
+              )}
 
               {/* حالیہ کتب */}
               <div className={`rounded-3xl border p-5 ${card}`}>
