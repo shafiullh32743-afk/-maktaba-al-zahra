@@ -3,6 +3,10 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* پوری ایپ کے لکھائی کے سائز کا ایک ہی کنٹرول:
+     15px = ڈیفالٹ سے ذرا چھوٹا، 14px = اور چھوٹا، 16px = پرانا سائز */
+  --app-font-size: 14.5px;
 }
 
 @theme inline {
@@ -19,8 +23,41 @@
   }
 }
 
+/* Tailwind کے تمام text-xs / text-sm / text-xl وغیرہ اسی سے چھوٹے بڑے ہوتے ہیں */
+html {
+  font-size: var(--app-font-size);
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (max-width: 640px) {
+  html {
+    font-size: 14px;
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* پہلے Arial لگا ہوا تھا جو اردو فونٹ (Noto) کو دبا دیتا تھا */
+  font-family: inherit;
+  line-height: 1.55;
+  text-rendering: optimizeLegibility;
+}
+
+/* لیبلز، بٹن اور فارم کے خانے بھی اسی فونٹ اور سائز میں رہیں */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+h1, h2, h3, h4 {
+  letter-spacing: -0.01em;
+}
+
+/* نرم، پتلا سکرول بار */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
 }

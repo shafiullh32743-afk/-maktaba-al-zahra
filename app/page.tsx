@@ -29,6 +29,7 @@ import {
   Plus,
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { isOnSale, saleActive } from "@/lib/sale";
 import { getCartCount } from "@/lib/cart";
 
 
@@ -239,7 +240,17 @@ export default function DashboardPage() {
   const [targetAmt, setTargetAmt] = useState(0);
   const [backupDays, setBackupDays] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [hijriOffset, setHijriOffset] = useState(0);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [gSearch, setGSearch] = useState("");
 
+  useEffect(() => {
+    try {
+      const v = Number(localStorage.getItem("maktaba-hijri-offset") || 0);
+      if (v >= -2 && v <= 2) setHijriOffset(v);
+    } catch {}
+  }, []);
   useEffect(() => {
     // ایڈمن کی جانچ: لاگ ان کوکی موجود ہو تو مالی اعداد و شمار نظر آئیں گے
     setIsAdmin(/(^|;\s*)maktaba-auth=[^;]+/.test(document.cookie));
@@ -297,14 +308,21 @@ export default function DashboardPage() {
         safe("suppliers", setSupplierList),
         safe("supplier_orders", setSupOrders),
         safe("supplier_payments", setSupPays),
-        safe("returns", setReturnsList),
+        safe("book_returns", setReturnsList),
         safe("reviews", setReviewsList),
         safe("stock_alerts", (rows) => setAlertCount(rows.length)),
       ]);
 
       setLoaded(true);
+      setLastUpdated(new Date());
     };
     fetchAll();
+  }, [refreshTick]);
+
+  // ہر 5 منٹ بعد خود تازہ ہو جائے
+  useEffect(() => {
+    const id = setInterval(() => setRefreshTick((n) => n + 1), 300000);
+    return () => clearInterval(id);
   }, []);
 
   const now = new Date();
@@ -402,6 +420,26 @@ export default function DashboardPage() {
   const chartMonths = [...monthlyStats].slice(0, 6).reverse();
   const chartMax = Math.max(1, ...chartMonths.map((m) => m.revenue));
   const L = (ur: string, en: string) => (lang === "ur" ? ur : en);
+  const HIJRI_UR = ["محرم الحرام", "صفر المظفر", "ربیع الاول", "ربیع الثانی", "جمادی الاولیٰ", "جمادی الثانیہ", "رجب المرجب", "شعبان المعظم", "رمضان المبارک", "شوال المکرم", "ذوالقعدہ", "ذوالحجہ"];
+  const HIJRI_EN = ["Muharram", "Safar", "Rabi al-Awwal", "Rabi al-Thani", "Jumada al-Awwal", "Jumada al-Thani", "Rajab", "Sha'ban", "Ramadan", "Shawwal", "Dhu al-Qa'dah", "Dhu al-Hijjah"];
+  const hijriText = (() => {
+    try {
+      const d = new Date(now.getTime() + hijriOffset * 86400000);
+      const parts = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn", { day: "numeric", month: "numeric", year: "numeric" }).formatToParts(d);
+      const g = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+      const day = g("day"), mon = g("month"), yr = g("year");
+      if (!day || !mon || !yr) return "";
+      const name = (lang === "ur" ? HIJRI_UR : HIJRI_EN)[mon - 1] || "";
+      return lang === "ur" ? `${day} ${name} ${yr} ھ` : `${day} ${name} ${yr} AH`;
+    } catch {
+      return "";
+    }
+  })();
+  const changeHijriOffset = (v: number) => {
+    const n = Math.max(-2, Math.min(2, v));
+    setHijriOffset(n);
+    try { localStorage.setItem("maktaba-hijri-offset", String(n)); } catch {}
+  };
   const money = (n: number) => "Rs " + Math.round(n).toLocaleString("en-US");
   const dateText = now.toLocaleDateString(lang === "ur" ? "ur-PK" : "en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const statusStyle = (s: string) =>
@@ -559,6 +597,18 @@ export default function DashboardPage() {
     return `${dd} ${lang === "ur" ? "دن پہلے" : "d ago"}`;
   };
 
+  const activeSaleCount = books.filter((b) => isOnSale(b)).length;
+  const saleEndingSoon = books.filter((b) => {
+    if (!isOnSale(b) || !b.sale_ends_at || !saleActive(b.sale_ends_at)) return false;
+    const days = (new Date(String(b.sale_ends_at).slice(0, 10) + "T23:59:59").getTime() - Date.now()) / 86400000;
+    return days <= 3;
+  });
+  const hr = now.getHours();
+  const greeting = hr < 12 ? L("صبح بخیر ☀️", "Good morning ☀️") : hr < 17 ? L("السلام علیکم 👋", "Good afternoon 👋") : L("شام بخیر 🌙", "Good evening 🌙");
+  const gTerm = gSearch.trim().toLowerCase();
+  const gBooks = gTerm.length < 2 ? [] : books.filter((b) => String(b.title || "").toLowerCase().includes(gTerm) || String(b.author || "").toLowerCase().includes(gTerm)).slice(0, 6);
+  const gCustomers = gTerm.length < 2 ? [] : customersList.filter((c) => String(c.name || "").toLowerCase().includes(gTerm) || String(c.phone || "").includes(gTerm)).slice(0, 4);
+
   const attention = [
     newOrderCount > 0 && { icon: "🛒", text: lang === "ur" ? `${newOrderCount} نئے آرڈرز پر کارروائی باقی ہے` : `${newOrderCount} new orders waiting`, href: "/orders", tone: "bg-sky-50 text-sky-700 border-sky-100" },
     duesTotal > 0 && { icon: "💰", text: lang === "ur" ? `گاہکوں سے وصولی: ${money(duesTotal)} (${unpaidInvoiceCount} بل)` : `Dues to collect: ${money(duesTotal)}`, href: "/invoices", tone: "bg-rose-50 text-rose-600 border-rose-100" },
@@ -566,6 +616,8 @@ export default function DashboardPage() {
     lowStockBooks.length > 0 && { icon: "📦", text: lang === "ur" ? `${lowStockBooks.length} کتابوں کا سٹاک کم یا ختم` : `${lowStockBooks.length} books low/out of stock`, href: "/low-stock", tone: "bg-orange-50 text-orange-700 border-orange-100" },
     alertCount > 0 && { icon: "🔔", text: lang === "ur" ? `${alertCount} گاہکوں نے کتاب آنے پر اطلاع مانگی ہے` : `${alertCount} back-in-stock requests`, href: "/low-stock", tone: "bg-violet-50 text-violet-700 border-violet-100" },
     reviewsPending > 0 && { icon: "⭐", text: lang === "ur" ? `${reviewsPending} ریویوز منظوری کے منتظر` : `${reviewsPending} reviews awaiting approval`, href: "/reviews", tone: "bg-yellow-50 text-yellow-700 border-yellow-100" },
+    saleEndingSoon.length > 0 && { icon: "⏰", text: lang === "ur" ? `${saleEndingSoon.length} کتب کی سیل 3 دن میں ختم ہو رہی ہے` : `${saleEndingSoon.length} sales ending within 3 days`, href: "/books", tone: "bg-rose-50 text-rose-600 border-rose-100" },
+    activeSaleCount > 0 && { icon: "🔥", text: lang === "ur" ? `${activeSaleCount} کتب اس وقت سیل پر ہیں` : `${activeSaleCount} books currently on sale`, href: "/books", tone: "bg-orange-50 text-orange-700 border-orange-100" },
     booksNoPrice > 0 && { icon: "🏷️", text: lang === "ur" ? `${booksNoPrice} کتابوں کی فروخت قیمت درج نہیں` : `${booksNoPrice} books have no sale price`, href: "/books", tone: "bg-slate-50 text-slate-600 border-slate-200" },
     booksNoCost > 0 && { icon: "🧮", text: lang === "ur" ? `${booksNoCost} کتابوں کی خرید قیمت درج نہیں (نفع غلط آ سکتا ہے)` : `${booksNoCost} books have no cost price`, href: "/books", tone: "bg-slate-50 text-slate-600 border-slate-200" },
     (backupDays === null || backupDays >= 7) && { icon: "💾", text: backupDays === null ? (lang === "ur" ? "بیک اپ ابھی نہیں لیا" : "No backup taken yet") : (lang === "ur" ? `آخری بیک اپ ${backupDays} دن پہلے لیا تھا` : `Last backup ${backupDays} days ago`), href: "/backup", tone: "bg-emerald-50 text-emerald-700 border-emerald-100" },
@@ -856,11 +908,58 @@ export default function DashboardPage() {
                   <Menu size={20} />
                 </button>
                 <div className="min-w-0">
-                  <h2 className={`text-xl md:text-2xl font-extrabold ${strong}`}>{L("خوش آمدید 👋", "Welcome 👋")}</h2>
-                  <p suppressHydrationWarning className="text-xs mt-0.5 text-slate-400">{dateText}</p>
+                  <h2 suppressHydrationWarning className={`text-xl md:text-2xl font-extrabold ${strong}`}>{greeting}</h2>
+                  <div suppressHydrationWarning className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${darkMode ? "bg-slate-800 text-slate-200 ring-slate-700" : "bg-white text-slate-600 ring-slate-200"}`}>
+                      📅 {dateText}
+                    </span>
+                    {hijriText && (
+                      <span className={`group inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ${darkMode ? "bg-emerald-900/40 text-emerald-300 ring-emerald-800" : "bg-emerald-50 text-emerald-700 ring-emerald-200"}`}>
+                        🌙 {hijriText}
+                        <span className="inline-flex items-center gap-0.5 opacity-60 hover:opacity-100">
+                          <button type="button" title={L("ایک دن پیچھے", "One day back")} onClick={() => changeHijriOffset(hijriOffset - 1)} className="px-1 leading-none">−</button>
+                          <button type="button" title={L("ایک دن آگے", "One day forward")} onClick={() => changeHijriOffset(hijriOffset + 1)} className="px-1 leading-none">+</button>
+                        </span>
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                <div className="relative hidden md:block">
+                  <input
+                    value={gSearch}
+                    onChange={(e) => setGSearch(e.target.value)}
+                    placeholder={L("کتاب یا کسٹمر تلاش کریں...", "Search books or customers...")}
+                    className={`w-64 rounded-2xl border px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-300 ${card}`}
+                  />
+                  {(gBooks.length > 0 || gCustomers.length > 0) && (
+                    <div className={`absolute top-full mt-2 w-80 max-h-96 overflow-y-auto rounded-2xl border z-50 p-1.5 shadow-xl ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100"} ${lang === "ur" ? "right-0" : "left-0"}`}>
+                      {gBooks.map((b) => (
+                        <Link key={"b" + b.id} href={`/books/${b.slug || encodeURIComponent(b.title)}`} onClick={() => setGSearch("")} className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 hover:bg-emerald-50/60">
+                          <span className="min-w-0">
+                            <span className={`block text-xs font-bold truncate ${strong}`}>📘 {b.title}</span>
+                            <span className="block text-[10px] text-slate-400 truncate">{b.author}</span>
+                          </span>
+                          <span className="text-[10px] font-semibold text-slate-500 shrink-0" dir="ltr">Rs {Number(b.price) || 0} • {Number(b.stock) || 0}</span>
+                        </Link>
+                      ))}
+                      {gCustomers.map((c) => (
+                        <Link key={"c" + c.id} href="/customers" onClick={() => setGSearch("")} className="flex items-center justify-between gap-2 rounded-xl px-3 py-2 hover:bg-sky-50/60">
+                          <span className={`text-xs font-bold truncate ${strong}`}>👤 {c.name}</span>
+                          <span className="text-[10px] text-slate-400" dir="ltr">{c.phone || ""}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setRefreshTick((n) => n + 1)}
+                  className={`px-3 py-2.5 rounded-2xl border transition text-[11px] font-semibold ${card} text-slate-400 hover:text-emerald-600`}
+                  title={L("ڈیٹا تازہ کریں", "Refresh data")}
+                >
+                  ⟳ {lastUpdated ? lastUpdated.toLocaleTimeString(lang === "ur" ? "ur-PK" : "en-GB", { hour: "2-digit", minute: "2-digit" }) : ""}
+                </button>
                 <button
                   onClick={() => setDarkMode(!darkMode)}
                   className={`p-2.5 rounded-2xl border transition ${card} text-slate-400 hover:text-emerald-600`}

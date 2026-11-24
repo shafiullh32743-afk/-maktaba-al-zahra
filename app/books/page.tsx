@@ -586,6 +586,8 @@ function BooksPageInner() {
   const [showWishlistOnly, setShowWishlistOnly] = useState(false);
   const [showFilterSidebar, setShowFilterSidebar] = useState(false);
   const [stockTab, setStockTab] = useState<"all" | "in" | "low" | "out" | "noimg" | "sale">("all");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [visibleCount, setVisibleCount] = useState(60);
   const [saleTargets, setSaleTargets] = useState<number[] | null>(null);
   const [salePct, setSalePct] = useState("");
   const [saleEnd, setSaleEnd] = useState("");
@@ -1196,6 +1198,43 @@ function BooksPageInner() {
     setUploading(false);
     setShowModal(false);
     fetchBooks();
+  };
+
+  // فلٹر بدلنے پر فہرست دوبارہ شروع سے
+  useEffect(() => {
+    setVisibleCount(60);
+  }, [search, stockTab, sortBy]);
+
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("maktaba-books-view");
+      if (v === "list" || v === "grid") setViewMode(v);
+    } catch {}
+  }, []);
+  const changeView = (v: "grid" | "list") => {
+    setViewMode(v);
+    try {
+      localStorage.setItem("maktaba-books-view", v);
+    } catch {}
+  };
+
+  const exportShownCsv = () => {
+    const rows = [["عنوان", "مصنف", "زمرہ", "قیمت", "سیل قیمت", "خرید قیمت", "سٹاک"]].concat(
+      shownBooks.map((b) => [
+        b.title,
+        b.author || "",
+        b.category || "",
+        String(b.price ?? ""),
+        String(isOnSale(b) ? b.sale_price ?? "" : ""),
+        String(b.cost_price ?? ""),
+        String(b.stock ?? 0),
+      ])
+    );
+    const csv = "\uFEFF" + rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    a.download = "books.csv";
+    a.click();
   };
 
   // سیل لگانا / ختم کرنا
@@ -2089,6 +2128,19 @@ ${itemsList}
                 </button>
               ))}
             </div>
+            <div className={`flex rounded-xl border overflow-hidden ${darkMode ? "border-slate-800" : "border-slate-100 bg-white"}`}>
+              <button onClick={() => changeView("grid")} className={`px-3 py-2 text-[11px] font-semibold ${viewMode === "grid" ? "bg-emerald-600 text-white" : "text-slate-500"}`}>▦ کارڈز</button>
+              <button onClick={() => changeView("list")} className={`px-3 py-2 text-[11px] font-semibold ${viewMode === "list" ? "bg-emerald-600 text-white" : "text-slate-500"}`}>☰ فہرست</button>
+            </div>
+            <button
+              onClick={() => setSelectedIds(shownBooks.map((b) => b.id))}
+              className={`px-3 py-2 rounded-xl text-[11px] font-semibold border transition ${softBtn}`}
+            >
+              ☑ سب منتخب
+            </button>
+            <button onClick={exportShownCsv} className={`px-3 py-2 rounded-xl text-[11px] font-semibold border transition ${softBtn}`}>
+              ⬇ CSV
+            </button>
             <button
               onClick={() => shownBooks.length > 0 && openSale(shownBooks.map((b) => b.id))}
               className="px-3 py-2 rounded-xl text-[11px] font-bold bg-gradient-to-l from-rose-500 to-orange-400 text-white shadow-md shadow-rose-500/20 hover:opacity-90 transition"
@@ -2128,7 +2180,7 @@ ${itemsList}
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className={viewMode === "grid" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" : "flex flex-col gap-2"}>
               {shownBooks.length === 0 && (
                 <div className={`col-span-full py-12 text-center text-xs text-slate-500 rounded-xl border shadow-xs ${darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200"}`}>
                   <span className="text-3xl mb-2 block">📖</span>
@@ -2136,7 +2188,7 @@ ${itemsList}
                 </div>
               )}
 
-              {shownBooks.map((book) => {
+              {viewMode === "grid" && shownBooks.slice(0, visibleCount).map((book) => {
                 const ratingInfo = getBookRating(book.title);
                 const stockInfo = getStockStatus(book.stock ?? 0);
                 const outOfStock = (book.stock ?? 0) <= 0;
@@ -2328,6 +2380,65 @@ ${itemsList}
                   </div>
                 );
               })}
+
+              {viewMode === "list" &&
+                shownBooks.slice(0, visibleCount).map((book) => {
+                  const st = book.stock ?? 0;
+                  const cost = Number(book.cost_price) || 0;
+                  const profit = effectivePrice(book) - cost;
+                  return (
+                    <div
+                      key={book.id}
+                      className={`flex items-center gap-3 rounded-2xl border p-2.5 transition hover:shadow-md ${
+                        darkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-100 shadow-[0_1px_8px_rgba(15,23,42,0.05)]"
+                      } ${selectedIds.includes(book.id) ? "ring-2 ring-emerald-200 border-emerald-300" : ""}`}
+                    >
+                      <button onClick={() => toggleSelect(book.id)} className="text-slate-400 shrink-0">
+                        {selectedIds.includes(book.id) ? <CheckSquare size={18} className="text-emerald-600" /> : <Square size={18} />}
+                      </button>
+                      <div className="w-11 h-14 rounded-lg overflow-hidden bg-gradient-to-br from-emerald-50 to-sky-50 flex items-center justify-center shrink-0">
+                        {book.image_url ? <img src={book.image_url} alt={book.title} loading="lazy" className="w-full h-full object-cover" /> : <BookOpen size={18} className="text-slate-300" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-sm font-bold truncate ${darkMode ? "text-white" : "text-slate-800"}`}>{book.title}</p>
+                        <p className="text-[11px] text-slate-400 truncate">{book.author} • {book.category}</p>
+                      </div>
+                      <div className="hidden sm:flex items-center gap-1" dir="ltr">
+                        <button onClick={() => quickStock(book, -1)} className="w-6 h-6 rounded-full bg-white border border-slate-200 text-slate-600 text-sm leading-none hover:bg-rose-50">−</button>
+                        <span className={`min-w-7 text-center text-xs font-bold ${st <= 0 ? "text-rose-500" : st <= 5 ? "text-amber-600" : darkMode ? "text-white" : "text-slate-700"}`}>{st}</span>
+                        <button onClick={() => quickStock(book, 1)} className="w-6 h-6 rounded-full bg-white border border-slate-200 text-slate-600 text-sm leading-none hover:bg-emerald-50">+</button>
+                      </div>
+                      <div className="text-end shrink-0 w-24">
+                        <p className={`text-sm font-extrabold ${isOnSale(book) ? "text-rose-500" : "text-emerald-600"}`}>
+                          {effectivePrice(book).toLocaleString()}
+                        </p>
+                        {isOnSale(book) ? (
+                          <p className="text-[10px] text-slate-400 line-through">{Number(book.price).toLocaleString()}</p>
+                        ) : cost > 0 ? (
+                          <p className={`text-[10px] font-semibold ${profit >= 0 ? "text-emerald-500" : "text-rose-500"}`}>نفع {Math.round(profit).toLocaleString()}</p>
+                        ) : null}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={() => openSale([book.id])} className={`px-2 py-1 rounded-xl text-[11px] font-semibold border ${isOnSale(book) ? "bg-rose-500 border-rose-500 text-white" : "bg-rose-50 border-rose-200 text-rose-600"}`}>
+                          {isOnSale(book) ? `-${salePercent(book)}%` : "🏷"}
+                        </button>
+                        <button onClick={() => handleEditClick(book)} className="px-2 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-medium">✏️</button>
+                        <button onClick={() => setConfirmDeleteId(book.id)} className="px-2 py-1 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-[11px] font-medium">🗑</button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+              {shownBooks.length > visibleCount && (
+                <div className="col-span-full flex justify-center pt-2">
+                  <button
+                    onClick={() => setVisibleCount((n) => n + 60)}
+                    className="px-6 py-2.5 rounded-full bg-gradient-to-l from-emerald-600 to-teal-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 hover:opacity-90 transition"
+                  >
+                    مزید کتب دکھائیں ({shownBooks.length - visibleCount} باقی)
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

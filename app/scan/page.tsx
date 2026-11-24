@@ -63,10 +63,24 @@ export default function ScanPage() {
     if (data && data.length > 0) {
       setBook(data[0] as Book);
       setNotFound(false);
-    } else {
-      setBook(null);
-      setNotFound(true);
+      return;
     }
+    // ہمارے اپنے لیبل کا بارکوڈ (MZ + کتاب کا نمبر)
+    const own = value.match(/^MZ(\d+)$/i);
+    if (own) {
+      const { data: byId } = await supabase
+        .from("books")
+        .select("id, title, author, price, stock, barcode")
+        .eq("id", Number(own[1]))
+        .limit(1);
+      if (byId && byId.length > 0) {
+        setBook(byId[0] as Book);
+        setNotFound(false);
+        return;
+      }
+    }
+    setBook(null);
+    setNotFound(true);
   };
 
   const startScanner = async () => {
