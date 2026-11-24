@@ -909,14 +909,14 @@ export default function DashboardPage() {
                 </button>
                 <div className="min-w-0">
                   <h2 suppressHydrationWarning className={`text-xl md:text-2xl font-extrabold ${strong}`}>{greeting}</h2>
-                  <div suppressHydrationWarning className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${darkMode ? "bg-slate-800 text-slate-200 ring-slate-700" : "bg-white text-slate-600 ring-slate-200"}`}>
+                  <div suppressHydrationWarning className={`mt-1.5 inline-flex max-w-full items-center rounded-full ring-1 overflow-x-auto whitespace-nowrap ${darkMode ? "bg-slate-800 ring-slate-700" : "bg-white ring-slate-200"}`} style={{ scrollbarWidth: "none" }}>
+                    <span className={`shrink-0 px-3 py-1 text-[11px] font-semibold ${darkMode ? "text-slate-200" : "text-slate-600"}`}>
                       📅 {dateText}
                     </span>
                     {hijriText && (
-                      <span className={`group inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ${darkMode ? "bg-emerald-900/40 text-emerald-300 ring-emerald-800" : "bg-emerald-50 text-emerald-700 ring-emerald-200"}`}>
+                      <span className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold border-s ${darkMode ? "text-emerald-300 border-slate-700" : "text-emerald-700 border-slate-200"}`}>
                         🌙 {hijriText}
-                        <span className="inline-flex items-center gap-0.5 opacity-60 hover:opacity-100">
+                        <span className="inline-flex items-center opacity-60 hover:opacity-100">
                           <button type="button" title={L("ایک دن پیچھے", "One day back")} onClick={() => changeHijriOffset(hijriOffset - 1)} className="px-1 leading-none">−</button>
                           <button type="button" title={L("ایک دن آگے", "One day forward")} onClick={() => changeHijriOffset(hijriOffset + 1)} className="px-1 leading-none">+</button>
                         </span>
