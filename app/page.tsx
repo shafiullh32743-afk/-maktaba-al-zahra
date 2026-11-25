@@ -350,6 +350,141 @@ function HourChart({ hours, dark }: { hours: number[]; dark: boolean }) {
   );
 }
 
+
+// مغرب (غروبِ آفتاب) کا وقت۔ مقام نہ ملے تو ڈیفالٹ فیصل آباد
+const SHOP_LAT = 31.4504;
+const SHOP_LON = 73.135;
+function sunsetMs(d: Date, lat: number, lon: number) {
+  const rad = Math.PI / 180;
+  const jd = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12) / 86400000 + 2440587.5;
+  const n = Math.ceil(jd - 2451545.0 + 0.0008);
+  const Js = n - lon / 360;
+  const M = (357.5291 + 0.98560028 * Js) % 360;
+  const C = 1.9148 * Math.sin(M * rad) + 0.02 * Math.sin(2 * M * rad) + 0.0003 * Math.sin(3 * M * rad);
+  const lam = (M + C + 180 + 102.9372) % 360;
+  const Jt = 2451545.0 + Js + 0.0053 * Math.sin(M * rad) - 0.0069 * Math.sin(2 * lam * rad);
+  const sinD = Math.sin(lam * rad) * Math.sin(23.4397 * rad);
+  const cosD = Math.cos(Math.asin(sinD));
+  const cosW = (Math.sin(-0.833 * rad) - Math.sin(lat * rad) * sinD) / (Math.cos(lat * rad) * cosD);
+  const w = Math.acos(Math.max(-1, Math.min(1, cosW))) / rad;
+  return (Jt + w / 360 - 2440587.5) * 86400000;
+}
+
+// نفع کا پُل: فروخت ← لاگت ← اخراجات ← خالص نفع
+function WaterfallChart({ sales, cost, expense, labels, dark }: { sales: number; cost: number; expense: number; labels: [string, string, string, string]; dark: boolean }) {
+  const W = 360, H = 190, padT = 22, padB = 26, padX = 14;
+  const profit = sales - cost - expense;
+  const top = Math.max(1, sales, sales - cost);
+  const bottom = Math.min(0, profit);
+  const span = top - bottom || 1;
+  const y = (v: number) => padT + ((top - v) / span) * (H - padT - padB);
+  const slot = (W - padX * 2) / 4;
+  const bw = Math.min(46, slot - 14);
+  const bars = [
+    { from: 0, to: sales, color: "#34d399", val: sales, label: labels[0], sign: "" },
+    { from: sales - cost, to: sales, color: "#fbbf24", val: cost, label: labels[1], sign: "-" },
+    { from: profit, to: sales - cost, color: "#fb7185", val: expense, label: labels[2], sign: "-" },
+    { from: 0, to: profit, color: profit >= 0 ? "#059669" : "#e11d48", val: profit, label: labels[3], sign: "" },
+  ];
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" dir="ltr" role="img" aria-label="profit bridge">
+      <line x1={padX} x2={W - padX} y1={y(0)} y2={y(0)} stroke={dark ? "#334155" : "#e2e8f0"} />
+      {bars.map((b, i) => {
+        const cx = padX + slot * i + slot / 2;
+        const y1 = y(Math.max(b.from, b.to));
+        const y2 = y(Math.min(b.from, b.to));
+        return (
+          <g key={i}>
+            <rect x={cx - bw / 2} y={y1} width={bw} height={Math.max(2, y2 - y1)} rx="6" fill={b.color} opacity={i === 0 || i === 3 ? 1 : 0.85} />
+            <text x={cx} y={y1 - 5} textAnchor="middle" fontSize="9" fontWeight="800" fill={dark ? "#e2e8f0" : "#334155"}>{b.sign}{compact(Math.abs(b.val))}</text>
+            <text x={cx} y={H - 8} textAnchor="middle" fontSize="9.5" fill="#94a3b8">{b.label}</text>
+            {i < 3 && <line x1={cx + bw / 2} x2={cx + slot - bw / 2} y1={y(i === 0 ? sales : i === 1 ? sales - cost : profit)} y2={y(i === 0 ? sales : i === 1 ? sales - cost : profit)} stroke="#cbd5e1" strokeDasharray="3 3" />}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// پچھلے 35 دن کی فروخت کا کیلنڈر (رنگ جتنا گہرا، فروخت اتنی زیادہ)
+function HeatCalendar({ cells, dark, money }: { cells: { label: string; v: number; wd: number }[]; dark: boolean; money: (n: number) => string }) {
+  const max = Math.max(1, ...cells.map((c) => c.v));
+  const firstWd = cells.length ? cells[0].wd : 0;
+  const padded: ({ label: string; v: number; wd: number } | null)[] = [...Array(firstWd).fill(null), ...cells];
+  return (
+    <div className="grid grid-flow-col grid-rows-7 gap-1.5 justify-center" dir="ltr">
+      {padded.map((c, i) =>
+        c === null ? (
+          <span key={i} className="w-6 h-6 md:w-7 md:h-7" />
+        ) : (
+          <span
+            key={i}
+            title={`${c.label}: ${money(c.v)}`}
+            className="w-6 h-6 md:w-7 md:h-7 rounded-md"
+            style={{ background: c.v <= 0 ? (dark ? "#1e293b" : "#f1f5f9") : `rgba(16,185,129,${(0.2 + 0.8 * (c.v / max)).toFixed(2)})` }}
+          />
+        )
+      )}
+    </div>
+  );
+}
+
+// گول فیصد کا چھوٹا کارڈ
+function MiniRing({ pct, color, size = 64 }: { pct: number; color: string; size?: number }) {
+  const v = Math.max(0, Math.min(100, pct));
+  const r = 40, c = 2 * Math.PI * r;
+  return (
+    <svg viewBox="0 0 100 100" width={size} height={size} className="-rotate-90" aria-hidden>
+      <circle cx="50" cy="50" r={r} fill="none" stroke="#e2e8f0" strokeOpacity="0.6" strokeWidth="11" />
+      <circle cx="50" cy="50" r={r} fill="none" stroke={color} strokeWidth="11" strokeLinecap="round" strokeDasharray={`${(v / 100) * c} ${c}`} />
+    </svg>
+  );
+}
+
+// اس ہفتے بمقابلہ پچھلا ہفتہ
+function WeekCompare({ thisWeek, lastWeek, names, dark }: { thisWeek: number[]; lastWeek: number[]; names: string[]; dark: boolean }) {
+  const W = 360, H = 160, padB = 22, padT = 12, padX = 10;
+  const max = Math.max(1, ...thisWeek, ...lastWeek);
+  const slot = (W - padX * 2) / 7;
+  const bw = Math.min(14, slot / 3);
+  const h = (v: number) => (v / max) * (H - padB - padT);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" dir="ltr" role="img" aria-label="week comparison">
+      <line x1={padX} x2={W - padX} y1={H - padB} y2={H - padB} stroke={dark ? "#334155" : "#e2e8f0"} />
+      {thisWeek.map((v, i) => {
+        const cx = padX + slot * i + slot / 2;
+        return (
+          <g key={i}>
+            <rect x={cx - bw - 1} y={H - padB - h(lastWeek[i])} width={bw} height={Math.max(2, h(lastWeek[i]))} rx="3" fill="#cbd5e1" />
+            <rect x={cx + 1} y={H - padB - h(v)} width={bw} height={Math.max(2, h(v))} rx="3" fill="#10b981" />
+            <text x={cx} y={H - 7} textAnchor="middle" fontSize="9" fill="#94a3b8">{names[i]}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// سادہ افقی پٹیاں (مصنفین، آرڈرز کی حالت وغیرہ)
+function HBars({ items, dark }: { items: { label: string; value: number; shown: string; color: string }[]; dark: boolean }) {
+  const max = Math.max(1, ...items.map((i) => i.value));
+  return (
+    <ul className="space-y-3">
+      {items.map((it) => (
+        <li key={it.label}>
+          <div className="flex items-center justify-between gap-3 text-xs mb-1">
+            <span className={`truncate font-semibold ${dark ? "text-slate-200" : "text-slate-700"}`}>{it.label}</span>
+            <span className="shrink-0 text-slate-400" dir="ltr">{it.shown}</span>
+          </div>
+          <div className={`h-2 rounded-full overflow-hidden ${dark ? "bg-slate-800" : "bg-slate-100"}`}>
+            <div className="h-full rounded-full" style={{ width: `${Math.max(3, (it.value / max) * 100)}%`, background: it.color }} />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function DashboardPage() {
   const [darkMode, setDarkMode] = useState(false);
   const [lang, setLang] = useState<"ur" | "en">("ur");
@@ -374,9 +509,34 @@ export default function DashboardPage() {
   const [loaded, setLoaded] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
   const [hijriOffset, setHijriOffset] = useState(0);
+  const [geo, setGeo] = useState<{ lat: number; lon: number; real: boolean }>({ lat: SHOP_LAT, lon: SHOP_LON, real: false });
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [gSearch, setGSearch] = useState("");
 
+  // موجودہ مقام (جہاں ڈیش بورڈ کھولا جائے) کے مطابق مغرب کا وقت
+  const locateMe = () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const g = { lat: pos.coords.latitude, lon: pos.coords.longitude, real: true };
+        setGeo(g);
+        try { localStorage.setItem("maktaba-geo", JSON.stringify({ lat: g.lat, lon: g.lon, at: Date.now() })); } catch {}
+      },
+      () => {},
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 6 * 3600 * 1000 }
+    );
+  };
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("maktaba-geo");
+      if (raw) {
+        const g = JSON.parse(raw);
+        if (typeof g.lat === "number" && typeof g.lon === "number") setGeo({ lat: g.lat, lon: g.lon, real: true });
+      }
+    } catch {}
+    locateMe(); // ہر بار تازہ مقام (اجازت پہلی بار پوچھی جائے گی)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     try {
       const v = Number(localStorage.getItem("maktaba-hijri-offset") || 0);
@@ -554,9 +714,13 @@ export default function DashboardPage() {
   const L = (ur: string, en: string) => (lang === "ur" ? ur : en);
   const HIJRI_UR = ["محرم الحرام", "صفر المظفر", "ربیع الاول", "ربیع الثانی", "جمادی الاولیٰ", "جمادی الثانیہ", "رجب المرجب", "شعبان المعظم", "رمضان المبارک", "شوال المکرم", "ذوالقعدہ", "ذوالحجہ"];
   const HIJRI_EN = ["Muharram", "Safar", "Rabi al-Awwal", "Rabi al-Thani", "Jumada al-Awwal", "Jumada al-Thani", "Rajab", "Sha'ban", "Ramadan", "Shawwal", "Dhu al-Qa'dah", "Dhu al-Hijjah"];
+  const maghribAt = sunsetMs(now, geo.lat, geo.lon);
+  const afterMaghrib = now.getTime() >= maghribAt;
+  const maghribTimeText = new Date(maghribAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
   const hijriText = (() => {
     try {
-      const d = new Date(now.getTime() + hijriOffset * 86400000);
+      // اسلامی دن مغرب سے شروع ہوتا ہے، اس لیے مغرب کے بعد اگلے دن کی تاریخ
+      const d = new Date(now.getTime() + (hijriOffset + (afterMaghrib ? 1 : 0)) * 86400000);
       const parts = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn", { day: "numeric", month: "numeric", year: "numeric" }).formatToParts(d);
       const g = (t: string) => Number(parts.find((p) => p.type === t)?.value);
       const day = g("day"), mon = g("month"), yr = g("year");
@@ -948,6 +1112,40 @@ export default function DashboardPage() {
   };
   const sixMonths = [...monthlyStats].slice(0, 6).reverse();
 
+  // --- مزید تجزیے ---
+  const wdUr = ["اتوار", "پیر", "منگل", "بدھ", "جمعرات", "جمعہ", "ہفتہ"];
+  const wdEn = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const dayAt = (back: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() - back);
+  const revOfDate = (d3: Date) => (dailyMap.get(d3.toDateString()) || { revenue: 0, cost: 0 }).revenue;
+  const thisWeekVals = Array.from({ length: 7 }, (_, i) => revOfDate(dayAt(6 - i)));
+  const lastWeekVals = Array.from({ length: 7 }, (_, i) => revOfDate(dayAt(13 - i)));
+  const weekNames = Array.from({ length: 7 }, (_, i) => (lang === "ur" ? wdUr : wdEn)[dayAt(6 - i).getDay()].slice(0, lang === "ur" ? 4 : 3));
+  const thisWeekTotal = thisWeekVals.reduce((a, b) => a + b, 0);
+  const lastWeekTotal = lastWeekVals.reduce((a, b) => a + b, 0);
+  const weekGrowth = growth(thisWeekTotal, lastWeekTotal);
+  const heatCells = Array.from({ length: 35 }, (_, i) => {
+    const d3 = dayAt(34 - i);
+    return { label: d3.toLocaleDateString("en-GB", { day: "numeric", month: "short" }), v: revOfDate(d3), wd: d3.getDay() };
+  });
+  const authorByTitle = new Map<string, string>(books.map((b) => [b.title, b.author || "—"]));
+  const authorMap = new Map<string, number>();
+  topMap.forEach((v, title) => {
+    const a2 = authorByTitle.get(title) || "—";
+    authorMap.set(a2, (authorMap.get(a2) || 0) + v.revenue);
+  });
+  const topAuthors = Array.from(authorMap.entries())
+    .filter(([a2, v]) => a2 !== "—" && v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
+  const statusCount = new Map<string, number>();
+  orderGroups.forEach((g) => statusCount.set(g[0].status || "نیا", (statusCount.get(g[0].status || "نیا") || 0) + 1));
+  const statusColor = (st: string) => (st === "مکمل ہوا" ? "#10b981" : st === "زیر عمل" ? "#f59e0b" : st === "نیا" ? "#38bdf8" : "#94a3b8");
+  const pipeline = Array.from(statusCount.entries()).map(([label, value]) => ({ label, value, shown: String(value), color: statusColor(label) }));
+  const expenseRatio = thisMonthRevenue > 0 ? (thisMonthExpenseTotal / thisMonthRevenue) * 100 : 0;
+  const collectRate = collected + duesTotal > 0 ? (collected / (collected + duesTotal)) * 100 : 0;
+  const returnRate = monthTxCount > 0 ? (returnsThisMonth / monthTxCount) * 100 : 0;
+  const stockHealth = totalBooks > 0 ? ((totalBooks - lowStockBooks.length) / totalBooks) * 100 : 0;
+
   const GrowthBadge = ({ value }: { value: number | null }) =>
     value === null ? null : (
       <span
@@ -1147,6 +1345,12 @@ export default function DashboardPage() {
                   </span>
                 </div>
                 <p className={`mt-1 text-[13px] md:text-sm font-extrabold leading-snug ${darkMode ? "text-emerald-300" : "text-emerald-800"}`}>{hijriText}</p>
+                <p className="mt-1 text-[10px] text-emerald-600/80 leading-snug" dir="ltr" style={{ textAlign: lang === "ur" ? "right" : "left" }}>
+                  🌇 {L("مغرب", "Maghrib")} {maghribTimeText}{afterMaghrib ? ` • ${L("نئی تاریخ شروع", "new day began")}` : ""}
+                  <button type="button" onClick={locateMe} className="ms-1.5 underline decoration-dotted" title={L("مقام تازہ کریں", "Refresh location")}>
+                    📍 {geo.real ? L("آپ کا مقام", "Your location") : L("فیصل آباد (ڈیفالٹ) • مقام دیں", "Faisalabad (default) • allow location")}
+                  </button>
+                </p>
               </div>
             </div>
             </>
@@ -1497,6 +1701,84 @@ export default function DashboardPage() {
                         )}
                       </div>
                       <HourChart hours={hourSums} dark={darkMode} />
+                    </div>
+                  </div>
+
+                  {/* نفع کا پُل + اہم تناسب */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className={`lg:col-span-2 rounded-3xl border p-5 ${card}`}>
+                      <h3 className={sectionTitle}>{L("اس مہینے نفع کیسے بنا؟", "How this month's profit is built")}</h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5 mb-3">{L("فروخت میں سے لاگت اور اخراجات نکل کر خالص نفع", "Sales minus cost and expenses = net profit")}</p>
+                      <WaterfallChart sales={thisMonthRevenue} cost={thisMonthCost} expense={thisMonthExpenseTotal} labels={[t.sales, t.cost, t.expenseLabel, L("نفع", "Profit")]} dark={darkMode} />
+                    </div>
+                    <div className={`rounded-3xl border p-5 ${card}`}>
+                      <h3 className={`${sectionTitle} mb-3`}>{L("کاروبار کی صحت", "Business Health")}</h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          [L("خرچ / فروخت", "Expense ratio"), expenseRatio, "#fb7185", expenseRatio.toFixed(0) + "%"],
+                          [L("وصولی کی شرح", "Collection rate"), collectRate, "#10b981", collectRate.toFixed(0) + "%"],
+                          [L("واپسی کی شرح", "Return rate"), returnRate, "#f59e0b", returnRate.toFixed(0) + "%"],
+                          [L("سٹاک کی صحت", "Stock health"), stockHealth, "#38bdf8", stockHealth.toFixed(0) + "%"],
+                        ].map(([lb, pc, col, txt]) => (
+                          <div key={String(lb)} className="flex flex-col items-center text-center">
+                            <div className="relative">
+                              <MiniRing pct={Number(pc)} color={String(col)} />
+                              <span className={`absolute inset-0 flex items-center justify-center text-[11px] font-extrabold ${strong}`} dir="ltr">{txt}</span>
+                            </div>
+                            <p className="mt-1 text-[10px] text-slate-400 leading-tight">{lb}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* اس ہفتے بمقابلہ پچھلا ہفتہ + فروخت کیلنڈر */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div className={`rounded-3xl border p-5 ${card}`}>
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div>
+                          <h3 className={sectionTitle}>{L("اس ہفتے بمقابلہ پچھلا ہفتہ", "This Week vs Last Week")}</h3>
+                          <p className="text-[11px] text-slate-400 mt-0.5" dir="ltr" style={{ textAlign: lang === "ur" ? "right" : "left" }}>{money(thisWeekTotal)} / {money(lastWeekTotal)}</p>
+                        </div>
+                        <GrowthBadge value={weekGrowth} />
+                      </div>
+                      <WeekCompare thisWeek={thisWeekVals} lastWeek={lastWeekVals} names={weekNames} dark={darkMode} />
+                      <div className="mt-2 flex items-center justify-center gap-5 text-[11px] text-slate-400">
+                        <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" /> {L("اس ہفتے", "This week")}</span>
+                        <span className="flex items-center gap-1.5"><i className="w-2.5 h-2.5 rounded-sm bg-slate-300 inline-block" /> {L("پچھلا ہفتہ", "Last week")}</span>
+                      </div>
+                    </div>
+                    <div className={`rounded-3xl border p-5 ${card}`}>
+                      <h3 className={sectionTitle}>{L("فروخت کا کیلنڈر", "Sales Calendar")}</h3>
+                      <p className="text-[11px] text-slate-400 mt-0.5 mb-3">{L("پچھلے 35 دن؛ رنگ جتنا گہرا، فروخت اتنی زیادہ", "Last 35 days; darker = more sales")}</p>
+                      <HeatCalendar cells={heatCells} dark={darkMode} money={money} />
+                      <div className="mt-3 flex items-center justify-center gap-1.5 text-[10px] text-slate-400" dir="ltr">
+                        {L("کم", "Less")}
+                        {[0.2, 0.4, 0.6, 0.8, 1].map((a) => (
+                          <i key={a} className="w-3.5 h-3.5 rounded-sm inline-block" style={{ background: `rgba(16,185,129,${a})` }} />
+                        ))}
+                        {L("زیادہ", "More")}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* آرڈرز کی حالت + بہترین مصنفین */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div className={`rounded-3xl border p-5 ${card}`}>
+                      <h3 className={`${sectionTitle} mb-4`}>{L("آرڈرز کی موجودہ حالت", "Order Pipeline")}</h3>
+                      {pipeline.length === 0 ? (
+                        <p className="text-xs py-8 text-center text-slate-400">{L("ابھی کوئی آرڈر نہیں", "No orders yet")}</p>
+                      ) : (
+                        <HBars items={pipeline} dark={darkMode} />
+                      )}
+                    </div>
+                    <div className={`rounded-3xl border p-5 ${card}`}>
+                      <h3 className={`${sectionTitle} mb-4`}>{L("اس مہینے بہترین مصنفین (فروخت کے لحاظ سے)", "Top Authors (by sales this month)")}</h3>
+                      {topAuthors.length === 0 ? (
+                        <p className="text-xs py-8 text-center text-slate-400">{L("اس مہینے ابھی فروخت نہیں", "No sales this month")}</p>
+                      ) : (
+                        <HBars items={topAuthors.map(([label, value], i) => ({ label, value, shown: money(value), color: PALETTE[i % PALETTE.length] }))} dark={darkMode} />
+                      )}
                     </div>
                   </div>
 
