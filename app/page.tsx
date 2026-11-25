@@ -252,7 +252,7 @@ function ComboChart({
   const txt = dark ? "#94a3b8" : "#94a3b8";
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" dir="ltr" role="img" aria-label="monthly chart">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ direction: "ltr" }} role="img" aria-label="monthly chart">
         {[0.25, 0.5, 0.75, 1].map((g) => (
           <line key={g} x1={padX} x2={W - padX} y1={base - g * (H - padB - padT)} y2={base - g * (H - padB - padT)} stroke={dark ? "#1e293b" : "#eef2f7"} strokeWidth="1" />
         ))}
@@ -296,7 +296,7 @@ function CompareChart({ thisCum, lastCum, dark }: { thisCum: number[]; lastCum: 
   const lastIdx = thisCum.length - 1;
   const area = thisCum.length > 1 ? `${line(thisCum)} L${x(lastIdx).toFixed(1)},${H - padB} L${x(0).toFixed(1)},${H - padB} Z` : "";
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" dir="ltr" role="img" aria-label="month comparison">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ direction: "ltr" }} role="img" aria-label="month comparison">
       <defs>
         <linearGradient id="gCmp" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#10b981" stopOpacity="0.28" />
@@ -329,7 +329,7 @@ function HourChart({ hours, dark }: { hours: number[]; dark: boolean }) {
   const peak = hours.indexOf(Math.max(...hours));
   const slot = W / 24;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" dir="ltr" role="img" aria-label="sales by hour">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ direction: "ltr" }} role="img" aria-label="sales by hour">
       <line x1="0" x2={W} y1={H - padB} y2={H - padB} stroke={dark ? "#334155" : "#e2e8f0"} />
       {hours.map((v, i) => {
         const bh = (v / max) * (H - padB - padT);
@@ -387,7 +387,7 @@ function WaterfallChart({ sales, cost, expense, labels, dark }: { sales: number;
     { from: 0, to: profit, color: profit >= 0 ? "#059669" : "#e11d48", val: profit, label: labels[3], sign: "" },
   ];
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" dir="ltr" role="img" aria-label="profit bridge">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ direction: "ltr" }} role="img" aria-label="profit bridge">
       <line x1={padX} x2={W - padX} y1={y(0)} y2={y(0)} stroke={dark ? "#334155" : "#e2e8f0"} />
       {bars.map((b, i) => {
         const cx = padX + slot * i + slot / 2;
@@ -449,7 +449,7 @@ function WeekCompare({ thisWeek, lastWeek, names, dark }: { thisWeek: number[]; 
   const bw = Math.min(14, slot / 3);
   const h = (v: number) => (v / max) * (H - padB - padT);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" dir="ltr" role="img" aria-label="week comparison">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ direction: "ltr" }} role="img" aria-label="week comparison">
       <line x1={padX} x2={W - padX} y1={H - padB} y2={H - padB} stroke={dark ? "#334155" : "#e2e8f0"} />
       {thisWeek.map((v, i) => {
         const cx = padX + slot * i + slot / 2;
