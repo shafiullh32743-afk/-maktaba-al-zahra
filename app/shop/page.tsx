@@ -6,6 +6,7 @@ import { BookOpen, Search, MessageCircle, Tag, ShoppingBag, ShoppingCart, Check,
 import { supabase } from "@/lib/supabaseClient";
 import { addToCart, getCartCount } from "@/lib/cart";
 import { effectivePrice, isOnSale, salePercent } from "@/lib/sale";
+import { FACEBOOK_URL } from "@/lib/social";
 
 interface Book {
   id: string;
@@ -695,6 +696,17 @@ export default function ShopPage() {
             >
               {t.waMessage}
             </a>
+            {FACEBOOK_URL && (
+              <a
+                href={FACEBOOK_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#1877F2]/10 text-[#1877F2] px-3.5 py-1.5 text-[12px] font-bold hover:bg-[#1877F2]/20 transition"
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M13.5 22v-8.2h2.8l.5-3.3h-3.3V8.4c0-.9.4-1.7 1.8-1.7h1.6V3.8c-.3 0-1.3-.2-2.4-.2-2.5 0-4.2 1.5-4.2 4.3v2.6H7.5v3.3h2.8V22h3.2z" /></svg>
+                {lang === "ur" ? "فیس بک پر فالو کریں" : "Follow us on Facebook"}
+              </a>
+            )}
           </div>
         </div>
         <div className={`border-t py-4 ${darkMode ? "border-gray-800" : "border-gray-100"}`}>
