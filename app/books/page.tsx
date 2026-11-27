@@ -49,6 +49,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { effectivePrice, isOnSale, salePercent } from "@/lib/sale";
+import { SITE_URL } from "@/lib/social";
 import * as XLSX from "xlsx";
 
 interface Book {
@@ -1238,6 +1239,56 @@ function BooksPageInner() {
   };
 
   // سیل لگانا / ختم کرنا
+  // فیس بک / واٹس ایپ کے لیے تیار اردو پوسٹ (ڈائیلاگ میں دیکھیں، بدلیں، کاپی کریں)
+  const [fbPost, setFbPost] = useState<{ book: Book; text: string; link: string } | null>(null);
+  const [fbCopied, setFbCopied] = useState(false);
+  const openFbPost = (b: Book) => {
+    const slug = (b as { slug?: string | null }).slug;
+    const link = `${SITE_URL}/books/${slug || encodeURIComponent(b.title)}`;
+    const sep = "┄┄┄┄┄┄┄┄┄┄┄┄";
+    const lines: string[] = [`📚 ${b.title}`];
+    if (b.author && b.author !== "مكتبہ الزھراء" && b.author !== "مکتبہ الزھراء") lines.push(`✍️ مصنف: ${b.author}`);
+    const cat = (b.category || "").trim();
+    const lang2 = (b.language || "").trim();
+    const meta = [cat ? `📂 ${cat}` : "", lang2 ? `🌐 ${lang2}` : ""].filter(Boolean).join("   ");
+    if (meta) lines.push(meta);
+    lines.push(sep);
+    if (isOnSale(b)) {
+      lines.push(`🔥 خصوصی رعایت: ${salePercent(b)}% کم`);
+      lines.push(`❌ اصل قیمت: Rs ${Number(b.price).toLocaleString()}`);
+      lines.push(`✅ اب صرف: Rs ${effectivePrice(b).toLocaleString()}`);
+      if (b.sale_ends_at) lines.push(`⏰ آخری تاریخ: ${String(b.sale_ends_at).slice(0, 10)}`);
+    } else if (Number(b.price) > 0) {
+      lines.push(`💰 قیمت: Rs ${Number(b.price).toLocaleString()}`);
+    }
+    lines.push(sep);
+    lines.push("🚚 پورے پاکستان میں ڈلیوری");
+    lines.push("📲 آرڈر کے لیے واٹس ایپ: 0305-5232889");
+    lines.push(`🛒 آن لائن آرڈر: ${link}`);
+    lines.push(sep);
+    lines.push("مکتبہ الزھراء، فیصل آباد");
+    lines.push("اسلامی کتب کا معتبر مرکز");
+    const tag = cat ? ` #${cat.replace(/[\s\-،,]+/g, "_")}` : "";
+    lines.push(`#مکتبہ_الزھراء #اسلامی_کتب${tag}`);
+    setFbCopied(false);
+    setFbPost({ book: b, text: lines.join("\n"), link });
+  };
+  const copyFbText = async () => {
+    if (!fbPost) return;
+    try {
+      await navigator.clipboard.writeText(fbPost.text);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = fbPost.text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); } catch {}
+      document.body.removeChild(ta);
+    }
+    setFbCopied(true);
+    setTimeout(() => setFbCopied(false), 2500);
+  };
+
   const openSale = (ids: number[]) => {
     const first = books.find((b) => b.id === ids[0]);
     setSalePct(ids.length === 1 && first && isOnSale(first) ? String(salePercent(first)) : "");
@@ -2355,6 +2406,15 @@ ${itemsList}
                         >
                           {isOnSale(book) ? `🔥 -${salePercent(book)}%` : "🏷 سیل"}
                         </button>
+                        <button
+                          onClick={() => openFbPost(book)}
+                          className="px-3 py-1 rounded-xl text-[11px] font-bold text-white shadow-sm shadow-blue-600/25 hover:opacity-90 active:scale-95 transition flex items-center gap-1"
+                          style={{ background: "linear-gradient(135deg,#1877F2,#0a5bd3)" }}
+                          title="فیس بک / واٹس ایپ کے لیے تیار پوسٹ"
+                        >
+                          <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M13.5 22v-8.2h2.8l.5-3.3h-3.3V8.4c0-.9.4-1.7 1.8-1.7h1.6V3.8c-.3 0-1.3-.2-2.4-.2-2.5 0-4.2 1.5-4.2 4.3v2.6H7.5v3.3h2.8V22h3.2z" /></svg>
+                          پوسٹ
+                        </button>
                         <Link
                           href={`/books/${(book as { slug?: string | null }).slug || encodeURIComponent(book.title)}`}
                           target="_blank"
@@ -2422,6 +2482,7 @@ ${itemsList}
                         <button onClick={() => openSale([book.id])} className={`px-2 py-1 rounded-xl text-[11px] font-semibold border ${isOnSale(book) ? "bg-rose-500 border-rose-500 text-white" : "bg-rose-50 border-rose-200 text-rose-600"}`}>
                           {isOnSale(book) ? `-${salePercent(book)}%` : "🏷"}
                         </button>
+                        <button onClick={() => openFbPost(book)} title="فیس بک پوسٹ" className="px-2 py-1 rounded-xl text-white text-[11px] font-bold hover:opacity-90" style={{ background: "linear-gradient(135deg,#1877F2,#0a5bd3)" }}>📣</button>
                         <button onClick={() => handleEditClick(book)} className="px-2 py-1 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-medium">✏️</button>
                         <button onClick={() => setConfirmDeleteId(book.id)} className="px-2 py-1 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-[11px] font-medium">🗑</button>
                       </div>
@@ -2526,6 +2587,66 @@ ${itemsList}
                 <button onClick={clearSelection} className="text-slate-400 hover:text-slate-600 underline text-xs">
                   منسوخ
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* فیس بک پوسٹ کا ڈائیلاگ */}
+        {fbPost && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" onClick={() => setFbPost(null)}>
+            <div className="bg-white rounded-3xl border border-slate-100 w-full max-w-md shadow-2xl text-slate-800 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="px-5 py-4 flex items-center justify-between" style={{ background: "linear-gradient(135deg,#1877F2,#0a5bd3)" }}>
+                <div className="text-white">
+                  <h3 className="font-extrabold text-sm">فیس بک پوسٹ تیار ہے</h3>
+                  <p className="text-[11px] opacity-80 mt-0.5 line-clamp-1">{fbPost.book.title}</p>
+                </div>
+                <button onClick={() => setFbPost(null)} className="w-8 h-8 rounded-full bg-white/15 text-white hover:bg-white/25 transition" aria-label="بند">✕</button>
+              </div>
+              <div className="p-5">
+                <div className="flex gap-3 mb-3 items-center rounded-2xl bg-slate-50 border border-slate-100 p-2.5">
+                  {fbPost.book.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={fbPost.book.image_url} alt="" className="w-12 h-16 object-cover rounded-lg shrink-0" />
+                  ) : (
+                    <div className="w-12 h-16 rounded-lg bg-slate-200 shrink-0 flex items-center justify-center text-lg">📚</div>
+                  )}
+                  <p className="text-[11px] text-slate-500 leading-relaxed">لنک paste کرنے پر فیس بک خود کتاب کی تصویر، نام اور قیمت کا کارڈ بنا دے گی۔ نیچے متن بدل بھی سکتے ہیں۔</p>
+                </div>
+                <textarea
+                  value={fbPost.text}
+                  onChange={(e) => setFbPost({ ...fbPost, text: e.target.value })}
+                  rows={9}
+                  className="w-full rounded-2xl border border-slate-200 bg-white p-3 text-sm leading-7 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+                <div className="mt-3 grid grid-cols-1 gap-2">
+                  <button
+                    onClick={copyFbText}
+                    className={`w-full py-3 rounded-2xl text-sm font-extrabold text-white shadow-md transition active:scale-[0.98] ${fbCopied ? "bg-emerald-500 shadow-emerald-500/30" : "shadow-blue-600/25"}`}
+                    style={fbCopied ? undefined : { background: "linear-gradient(135deg,#1877F2,#0a5bd3)" }}
+                  >
+                    {fbCopied ? "✓ کاپی ہو گیا، اب فیس بک میں paste کریں" : "📋 پوسٹ کاپی کریں"}
+                  </button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <a
+                      href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(fbPost.link)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={copyFbText}
+                      className="py-2.5 rounded-2xl text-center text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 transition"
+                    >
+                      فیس بک کھولیں
+                    </a>
+                    <a
+                      href={`https://wa.me/?text=${encodeURIComponent(fbPost.text)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="py-2.5 rounded-2xl text-center text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 transition"
+                    >
+                      واٹس ایپ پر بھیجیں
+                    </a>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
