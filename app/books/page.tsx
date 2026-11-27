@@ -1240,38 +1240,82 @@ function BooksPageInner() {
 
   // سیل لگانا / ختم کرنا
   // فیس بک / واٹس ایپ کے لیے تیار اردو پوسٹ (ڈائیلاگ میں دیکھیں، بدلیں، کاپی کریں)
-  const [fbPost, setFbPost] = useState<{ book: Book; text: string; link: string } | null>(null);
+  const [fbPost, setFbPost] = useState<{ book: Book | null; count?: number; text: string; link: string } | null>(null);
   const [fbCopied, setFbCopied] = useState(false);
   const openFbPost = (b: Book) => {
     const slug = (b as { slug?: string | null }).slug;
     const link = `${SITE_URL}/books/${slug || encodeURIComponent(b.title)}`;
-    const sep = "┄┄┄┄┄┄┄┄┄┄┄┄";
-    const lines: string[] = [`📚 ${b.title}`];
+    const sep = "━━━━━━━━━━━━━━";
+    const sale = isOnSale(b);
+    const lines: string[] = [sale ? "🔥 خصوصی رعایت 🔥" : "✨ منتخب کتاب ✨", sep, `📖 ${b.title}`];
     if (b.author && b.author !== "مكتبہ الزھراء" && b.author !== "مکتبہ الزھراء") lines.push(`✍️ مصنف: ${b.author}`);
     const cat = (b.category || "").trim();
     const lang2 = (b.language || "").trim();
-    const meta = [cat ? `📂 ${cat}` : "", lang2 ? `🌐 ${lang2}` : ""].filter(Boolean).join("   ");
-    if (meta) lines.push(meta);
+    if (cat) lines.push(`📂 زمرہ: ${cat}`);
+    if (lang2) lines.push(`🌐 زبان: ${lang2}`);
     lines.push(sep);
-    if (isOnSale(b)) {
-      lines.push(`🔥 خصوصی رعایت: ${salePercent(b)}% کم`);
-      lines.push(`❌ اصل قیمت: Rs ${Number(b.price).toLocaleString()}`);
+    if (sale) {
+      lines.push(`🏷️ ${salePercent(b)}% رعایت`);
+      lines.push(`❌ اصل ہدیہ: Rs ${Number(b.price).toLocaleString()}`);
       lines.push(`✅ اب صرف: Rs ${effectivePrice(b).toLocaleString()}`);
       if (b.sale_ends_at) lines.push(`⏰ آخری تاریخ: ${String(b.sale_ends_at).slice(0, 10)}`);
     } else if (Number(b.price) > 0) {
-      lines.push(`💰 قیمت: Rs ${Number(b.price).toLocaleString()}`);
+      lines.push(`💰 ہدیہ: Rs ${Number(b.price).toLocaleString()}`);
     }
     lines.push(sep);
     lines.push("🚚 پورے پاکستان میں ڈلیوری");
-    lines.push("📲 آرڈر کے لیے واٹس ایپ: 0305-5232889");
-    lines.push(`🛒 آن لائن آرڈر: ${link}`);
+    lines.push("📲 واٹس ایپ پر آرڈر: 0305-5232889");
+    lines.push(`🛒 ویب سائٹ سے آرڈر:\n${link}`);
     lines.push(sep);
-    lines.push("مکتبہ الزھراء، فیصل آباد");
+    lines.push("🏛️ مکتبہ الزھراء، فیصل آباد");
     lines.push("اسلامی کتب کا معتبر مرکز");
+    lines.push("🤲 دوستوں اور اہلِ خانہ تک پہنچانے کے لیے شیئر ضرور کریں");
     const tag = cat ? ` #${cat.replace(/[\s\-،,]+/g, "_")}` : "";
     lines.push(`#مکتبہ_الزھراء #اسلامی_کتب${tag}`);
     setFbCopied(false);
     setFbPost({ book: b, text: lines.join("\n"), link });
+  };
+  // کئی کتابوں (یا ایک مصنف کی کتابوں) کی ایک ہی مشترکہ پوسٹ
+  const openFbGroupPost = (ids: number[]) => {
+    const list = books.filter((b) => ids.includes(b.id));
+    if (list.length === 0) return;
+    const sep = "━━━━━━━━━━━━━━";
+    const authors: string[] = Array.from(new Set<string>(list.map((b) => (b.author || "").trim()).filter((a) => a && a !== "مكتبہ الزھراء" && a !== "مکتبہ الزھراء")));
+    const oneAuthor = authors.length === 1 && list.every((b) => (b.author || "").trim() === authors[0]) ? authors[0] : "";
+    const onSale = list.filter((b) => isOnSale(b));
+    const lines: string[] = [onSale.length > 0 ? "🔥 خصوصی رعایت 🔥" : "✨ منتخب کتب ✨", sep];
+    if (oneAuthor) lines.push(`✍️ مصنف: ${oneAuthor}`);
+    lines.push(`📚 کل کتب: ${list.length}`);
+    if (onSale.length > 0) {
+      const pcts = onSale.map((b) => salePercent(b));
+      const lo = Math.min(...pcts), hi = Math.max(...pcts);
+      lines.push(`🏷️ ${lo === hi ? `${hi}%` : `${lo}% سے ${hi}% تک`} رعایت`);
+      const ends = onSale.map((b) => (b.sale_ends_at ? String(b.sale_ends_at).slice(0, 10) : "")).filter(Boolean).sort();
+      if (ends.length > 0) lines.push(`⏰ آخری تاریخ: ${ends[0]}`);
+    }
+    lines.push(sep);
+    const MAX = 15;
+    list.slice(0, MAX).forEach((b, i) => {
+      const name = oneAuthor || !b.author ? b.title : `${b.title} (${b.author})`;
+      if (isOnSale(b)) {
+        lines.push(`${i + 1}. ${name}\n   ❌ Rs ${Number(b.price).toLocaleString()}  ✅ Rs ${effectivePrice(b).toLocaleString()}`);
+      } else {
+        lines.push(`${i + 1}. ${name}\n   💰 Rs ${Number(b.price).toLocaleString()}`);
+      }
+    });
+    if (list.length > MAX) lines.push(`... اور مزید ${list.length - MAX} کتب`);
+    lines.push(sep);
+    lines.push("🚚 پورے پاکستان میں ڈلیوری");
+    lines.push("📲 واٹس ایپ پر آرڈر: 0305-5232889");
+    const link = oneAuthor ? `${SITE_URL}/shop?author=${encodeURIComponent(oneAuthor)}` : `${SITE_URL}/shop`;
+    lines.push(`🛒 تمام کتب یہاں دیکھیں:\n${link}`);
+    lines.push(sep);
+    lines.push("🏛️ مکتبہ الزھراء، فیصل آباد");
+    lines.push("اسلامی کتب کا معتبر مرکز");
+    lines.push("🤲 دوستوں اور اہلِ خانہ تک پہنچانے کے لیے شیئر ضرور کریں");
+    lines.push(`#مکتبہ_الزھراء #اسلامی_کتب${oneAuthor ? " #" + oneAuthor.replace(/[\s\-،,]+/g, "_") : ""}`);
+    setFbCopied(false);
+    setFbPost({ book: list.length === 1 ? list[0] : null, count: list.length, text: lines.join("\n"), link });
   };
   const copyFbText = async () => {
     if (!fbPost) return;
@@ -2578,6 +2622,13 @@ ${itemsList}
                   🏷 سیل لگائیں
                 </button>
                 <button
+                  onClick={() => openFbGroupPost(selectedIds)}
+                  className="px-3 py-1.5 text-white rounded-lg font-semibold hover:opacity-90 transition"
+                  style={{ background: "linear-gradient(135deg,#1877F2,#0a5bd3)" }}
+                >
+                  📣 فیس بک پوسٹ
+                </button>
+                <button
                   onClick={() => setConfirmBulkDelete(true)}
                   disabled={bulkProcessing}
                   className="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-600 rounded-lg font-semibold hover:bg-rose-100 transition"
@@ -2599,24 +2650,24 @@ ${itemsList}
               <div className="px-5 py-4 flex items-center justify-between" style={{ background: "linear-gradient(135deg,#1877F2,#0a5bd3)" }}>
                 <div className="text-white">
                   <h3 className="font-extrabold text-sm">فیس بک پوسٹ تیار ہے</h3>
-                  <p className="text-[11px] opacity-80 mt-0.5 line-clamp-1">{fbPost.book.title}</p>
+                  <p className="text-[11px] opacity-80 mt-0.5 line-clamp-1">{fbPost.book ? fbPost.book.title : `${fbPost.count || 0} کتابوں کی مشترکہ پوسٹ`}</p>
                 </div>
                 <button onClick={() => setFbPost(null)} className="w-8 h-8 rounded-full bg-white/15 text-white hover:bg-white/25 transition" aria-label="بند">✕</button>
               </div>
               <div className="p-5">
                 <div className="flex gap-3 mb-3 items-center rounded-2xl bg-slate-50 border border-slate-100 p-2.5">
-                  {fbPost.book.image_url ? (
+                  {fbPost.book?.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={fbPost.book.image_url} alt="" className="w-12 h-16 object-cover rounded-lg shrink-0" />
+                    <img src={fbPost.book.image_url as string} alt="" className="w-12 h-16 object-cover rounded-lg shrink-0" />
                   ) : (
                     <div className="w-12 h-16 rounded-lg bg-slate-200 shrink-0 flex items-center justify-center text-lg">📚</div>
                   )}
-                  <p className="text-[11px] text-slate-500 leading-relaxed">لنک paste کرنے پر فیس بک خود کتاب کی تصویر، نام اور قیمت کا کارڈ بنا دے گی۔ نیچے متن بدل بھی سکتے ہیں۔</p>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">{fbPost.book ? "لنک paste کرنے پر فیس بک خود کتاب کی تصویر، نام اور قیمت کا کارڈ بنا دے گی۔ نیچے متن بدل بھی سکتے ہیں۔" : "مشترکہ پوسٹ میں تمام کتب کی فہرست اور دکان کا لنک ہے۔ فیس بک پر ساتھ کوئی خوبصورت تصویر بھی لگا دیں۔ نیچے متن بدل بھی سکتے ہیں۔"}</p>
                 </div>
                 <textarea
                   value={fbPost.text}
                   onChange={(e) => setFbPost({ ...fbPost, text: e.target.value })}
-                  rows={9}
+                  rows={12}
                   className="w-full rounded-2xl border border-slate-200 bg-white p-3 text-sm leading-7 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
                 />
                 <div className="mt-3 grid grid-cols-1 gap-2">

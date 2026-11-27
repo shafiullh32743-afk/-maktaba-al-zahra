@@ -92,13 +92,14 @@ export async function generateMetadata({
       url,
       siteName: "مكتبہ الزھراء",
       type: "website",
-      images: [{ url: book.image_url || `${SITE_URL}/logo.jpg`, alt: `${book.title} — ${book.author}` }],
+      // 1200×630 کی تیار تصویر: سرورق پوری اور صاف دکھتا ہے (فیس بک اسے کاٹتی نہیں)
+      images: [{ url: `${SITE_URL}/api/og?id=${book.id}`, width: 1200, height: 630, alt: `${book.title} — ${book.author}` }],
     },
     twitter: {
-      card: book.image_url ? "summary_large_image" : "summary",
+      card: "summary_large_image",
       title: book.title,
       description,
-      images: [book.image_url || `${SITE_URL}/logo.jpg`],
+      images: [`${SITE_URL}/api/og?id=${book.id}`],
     },
   };
 }
