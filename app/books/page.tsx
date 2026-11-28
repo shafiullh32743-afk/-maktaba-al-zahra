@@ -15,6 +15,7 @@ import {
   ShoppingCart,
   Users,
   Receipt,
+  Banknote,
   Truck,
   RotateCcw,
   RotateCw,
@@ -49,7 +50,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { effectivePrice, isOnSale, salePercent } from "@/lib/sale";
-import { SITE_URL } from "@/lib/social";
+import { SITE_URL, FACEBOOK_URL } from "@/lib/social";
 import * as XLSX from "xlsx";
 
 interface Book {
@@ -1240,8 +1241,9 @@ function BooksPageInner() {
 
   // سیل لگانا / ختم کرنا
   // فیس بک / واٹس ایپ کے لیے تیار اردو پوسٹ (ڈائیلاگ میں دیکھیں، بدلیں، کاپی کریں)
-  const [fbPost, setFbPost] = useState<{ book: Book | null; count?: number; text: string; link: string; img?: string } | null>(null);
+  const [fbPost, setFbPost] = useState<{ book: Book | null; count?: number; text: string; link: string; linkLine: string; img?: string } | null>(null);
   const [fbCopied, setFbCopied] = useState(false);
+  const [fbNote, setFbNote] = useState("");
   const openFbPost = (b: Book) => {
     const slug = (b as { slug?: string | null }).slug;
     const link = `${SITE_URL}/books/${slug || encodeURIComponent(b.title)}`;
@@ -1265,7 +1267,6 @@ function BooksPageInner() {
     lines.push(sep);
     lines.push("🚚 پورے پاکستان میں ڈلیوری");
     lines.push("📲 واٹس ایپ پر آرڈر: 0305-5232889");
-    lines.push(`🛒 ویب سائٹ سے آرڈر:\n${link}`);
     lines.push(sep);
     lines.push("🏛️ مکتبہ الزھراء، فیصل آباد");
     lines.push("اسلامی کتب کا معتبر مرکز");
@@ -1273,7 +1274,8 @@ function BooksPageInner() {
     const tag = cat ? ` #${cat.replace(/[\s\-،,]+/g, "_")}` : "";
     lines.push(`#مکتبہ_الزھراء #اسلامی_کتب${tag}`);
     setFbCopied(false);
-    setFbPost({ book: b, text: lines.join("\n"), link });
+    setFbNote("");
+    setFbPost({ book: b, text: lines.join("\n"), link, linkLine: `🛒 ویب سائٹ سے آرڈر:\n${link}`, img: `/api/og?id=${b.id}` });
   };
   // کئی کتابوں (یا ایک مصنف کی کتابوں) کی ایک ہی مشترکہ پوسٹ
   const openFbGroupPost = (ids: number[]) => {
@@ -1308,17 +1310,95 @@ function BooksPageInner() {
     lines.push("🚚 پورے پاکستان میں ڈلیوری");
     lines.push("📲 واٹس ایپ پر آرڈر: 0305-5232889");
     const link = oneAuthor ? `${SITE_URL}/shop?author=${encodeURIComponent(oneAuthor)}` : `${SITE_URL}/shop`;
-    lines.push(`🛒 تمام کتب یہاں دیکھیں:\n${link}`);
     lines.push(sep);
     lines.push("🏛️ مکتبہ الزھراء، فیصل آباد");
     lines.push("اسلامی کتب کا معتبر مرکز");
     lines.push("🤲 دوستوں اور اہلِ خانہ تک پہنچانے کے لیے شیئر ضرور کریں");
     lines.push(`#مکتبہ_الزھراء #اسلامی_کتب${oneAuthor ? " #" + oneAuthor.replace(/[\s\-،,]+/g, "_") : ""}`);
     setFbCopied(false);
+    setFbNote("");
     const pcts2 = onSale.map((b) => salePercent(b));
     const pctText = pcts2.length === 0 ? "" : Math.min(...pcts2) === Math.max(...pcts2) ? String(Math.max(...pcts2)) : `${Math.min(...pcts2)}-${Math.max(...pcts2)}`;
     const img = `/api/og-multi?ids=${list.slice(0, 4).map((b) => b.id).join(",")}&n=${list.length}${pctText ? `&p=${pctText}` : ""}`;
-    setFbPost({ book: list.length === 1 ? list[0] : null, count: list.length, text: lines.join("\n"), link, img });
+    setFbPost({ book: list.length === 1 ? list[0] : null, count: list.length, text: lines.join("\n"), link, linkLine: `🛒 تمام کتب یہاں دیکھیں:\n${link}`, img });
+  };
+  const toggleFbLink = (on: boolean) => {
+    if (!fbPost) return;
+    const has = fbPost.text.includes(fbPost.link);
+    let t = fbPost.text;
+    if (on && !has) {
+      const ls = t.split("\n");
+      const i = ls.findIndex((l) => l.startsWith("📲"));
+      ls.splice(i >= 0 ? i + 1 : ls.length, 0, fbPost.linkLine);
+      t = ls.join("\n");
+    } else if (!on && has) {
+      t = t.replace(`${fbPost.linkLine}\n`, "").replace(fbPost.linkLine, "");
+    }
+    setFbPost({ ...fbPost, text: t });
+  };
+  const flashFbNote = (msg: string) => {
+    setFbNote(msg);
+    setTimeout(() => setFbNote(""), 3500);
+  };
+  const copyFbImage = async () => {
+    if (!fbPost?.img) return;
+    try {
+      const res = await fetch(fbPost.img);
+      const blob = await res.blob();
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type || "image/png"]: blob })]);
+      flashFbNote("✓ تصویر کاپی ہو گئی، فیس بک کے پوسٹ باکس میں Ctrl+V دبائیں");
+    } catch {
+      window.open(fbPost.img, "_blank");
+      flashFbNote("تصویر کاپی نہیں ہو سکی۔ نئے ٹیب میں کھل گئی ہے، اس پر دایاں کلک کر کے محفوظ کریں");
+    }
+  };
+  // ایک ہی کلک میں متن اور تصویر دونوں کاپی
+  const copyFbBoth = async () => {
+    if (!fbPost) return;
+    try {
+      if (!fbPost.img) throw new Error("no image");
+      const res = await fetch(fbPost.img);
+      const blob = await res.blob();
+      const type = blob.type || "image/png";
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([fbPost.text], { type: "text/plain" }),
+          [type]: blob,
+        }),
+      ]);
+      setFbCopied(true);
+      setTimeout(() => setFbCopied(false), 2500);
+      flashFbNote("✓ متن اور تصویر دونوں کاپی ہو گئے۔ فیس بک کے پوسٹ باکس میں Ctrl+V دبائیں۔ اگر صرف ایک چیز آئے تو نیچے 'صرف متن' یا 'صرف تصویر' سے دوسری بھی لگا لیں۔");
+    } catch {
+      await copyFbText();
+      flashFbNote("متن کاپی ہو گیا۔ تصویر کے لیے نیچے 'صرف تصویر' دبائیں۔");
+    }
+  };
+  // موبائل پر: فون کے شیئر مینو سے تصویر اور متن ایک ساتھ
+  const shareFbNative = async () => {
+    if (!fbPost?.img) return;
+    try {
+      const res = await fetch(fbPost.img);
+      const blob = await res.blob();
+      const file = new File([blob], "maktaba-post.png", { type: blob.type || "image/png" });
+      const data: ShareData = { text: fbPost.text, files: [file] };
+      if (navigator.canShare && navigator.canShare(data)) {
+        await navigator.share(data);
+      } else {
+        flashFbNote("اس براؤزر میں شیئر کی سہولت نہیں، اوپر والا کاپی بٹن استعمال کریں۔");
+      }
+    } catch {
+      /* صارف نے شیئر منسوخ کر دیا */
+    }
+  };
+  const copyFbLink = async () => {
+    if (!fbPost) return;
+    try {
+      await navigator.clipboard.writeText(fbPost.link);
+      flashFbNote("✓ لنک کاپی ہو گیا، اسے پوسٹ کے کمنٹ میں paste کریں");
+    } catch {
+      window.prompt("لنک کاپی کریں:", fbPost.link);
+    }
   };
   const copyFbText = async () => {
     if (!fbPost) return;
@@ -1777,6 +1857,7 @@ ${itemsList}
     { href: "/orders", label: t.orders, icon: ShoppingCart },
     { href: "/customers", label: t.customers, icon: Users },
     { href: "/invoices", label: t.invoices, icon: Receipt },
+    { href: "/debts", label: "قرض", icon: Banknote },
     { href: "/suppliers", label: t.suppliers, icon: Truck },
     { href: "/returns", label: t.returns, icon: RotateCcw },
     { href: "/reviews", label: t.reviews, icon: Star },
@@ -2665,9 +2746,9 @@ ${itemsList}
                   ) : (
                     <div className="w-12 h-16 rounded-lg bg-slate-200 shrink-0 flex items-center justify-center text-lg">📚</div>
                   )}
-                  <p className="text-[11px] text-slate-500 leading-relaxed">{fbPost.book ? "لنک paste کرنے پر فیس بک خود کتاب کی تصویر، نام اور قیمت کا کارڈ بنا دے گی۔ نیچے متن بدل بھی سکتے ہیں۔" : "مشترکہ پوسٹ میں تمام کتب کی فہرست اور دکان کا لنک ہے۔ نیچے دی گئی تیار تصویر محفوظ کر کے فیس بک پوسٹ کے ساتھ لگا دیں۔ نیچے متن بدل بھی سکتے ہیں۔"}</p>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">ایک کلک میں متن اور تصویر کاپی کریں، پھر فیس بک کے پوسٹ باکس میں Ctrl+V کریں۔ لنک کمنٹ میں ڈالنا ہو تو "صرف لنک" دبائیں۔</p>
                 </div>
-                {fbPost.img && !fbPost.book && (
+                {fbPost.img && (
                   <div className="mb-3 rounded-2xl border border-slate-100 bg-slate-50 p-2.5">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={fbPost.img} alt="مشترکہ تصویر" className="w-full rounded-xl border border-slate-100" />
@@ -2675,13 +2756,22 @@ ${itemsList}
                       href={fbPost.img}
                       target="_blank"
                       rel="noopener noreferrer"
-                      download="maktaba-books.png"
+                      download="maktaba-post.png"
                       className="mt-2 block py-2 rounded-xl text-center text-xs font-bold bg-white text-slate-700 border border-slate-200 hover:bg-slate-100 transition"
                     >
-                      🖼 تصویر کھولیں اور محفوظ کریں (پوسٹ کے ساتھ لگانے کے لیے)
+                      🖼 تصویر کھولیں اور محفوظ کریں
                     </a>
                   </div>
                 )}
+                <label className="mb-2 flex items-start gap-2 text-[11px] text-slate-600 cursor-pointer leading-relaxed">
+                  <input
+                    type="checkbox"
+                    checked={fbPost.text.includes(fbPost.link)}
+                    onChange={(e) => toggleFbLink(e.target.checked)}
+                    className="w-3.5 h-3.5 mt-0.5 rounded text-blue-600"
+                  />
+                  <span>پوسٹ کی تحریر میں لنک بھی شامل کریں (فیس بک مہینے میں صرف دو لنک والی پوسٹیں دیتی ہے، اس لیے عام طور پر بند رکھیں)</span>
+                </label>
                 <textarea
                   value={fbPost.text}
                   onChange={(e) => setFbPost({ ...fbPost, text: e.target.value })}
@@ -2690,21 +2780,49 @@ ${itemsList}
                 />
                 <div className="mt-3 grid grid-cols-1 gap-2">
                   <button
-                    onClick={copyFbText}
+                    onClick={copyFbBoth}
                     className={`w-full py-3 rounded-2xl text-sm font-extrabold text-white shadow-md transition active:scale-[0.98] ${fbCopied ? "bg-emerald-500 shadow-emerald-500/30" : "shadow-blue-600/25"}`}
                     style={fbCopied ? undefined : { background: "linear-gradient(135deg,#1877F2,#0a5bd3)" }}
                   >
-                    {fbCopied ? "✓ کاپی ہو گیا، اب فیس بک میں paste کریں" : "📋 پوسٹ کاپی کریں"}
+                    {fbCopied ? "✓ کاپی ہو گیا، اب فیس بک میں Ctrl+V کریں" : "📋 متن + تصویر ایک ساتھ کاپی کریں"}
                   </button>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={copyFbText}
+                      className="py-2.5 rounded-2xl text-center text-xs font-bold bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100 transition"
+                    >
+                      📝 صرف متن
+                    </button>
+                    <button
+                      onClick={copyFbImage}
+                      className="py-2.5 rounded-2xl text-center text-xs font-bold bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100 transition"
+                    >
+                      🖼 صرف تصویر
+                    </button>
+                    <button
+                      onClick={copyFbLink}
+                      className="py-2.5 rounded-2xl text-center text-xs font-bold bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100 transition"
+                    >
+                      🔗 صرف لنک
+                    </button>
+                  </div>
+                  {typeof navigator !== "undefined" && "share" in navigator && (
+                    <button
+                      onClick={shareFbNative}
+                      className="py-2.5 rounded-2xl text-center text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition"
+                    >
+                      📲 موبائل کے شیئر مینو سے بھیجیں (تصویر + متن)
+                    </button>
+                  )}
+                  {fbNote && <p className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 leading-relaxed">{fbNote}</p>}
                   <div className="grid grid-cols-2 gap-2">
                     <a
-                      href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(fbPost.link)}`}
+                      href={FACEBOOK_URL || "https://www.facebook.com"}
                       target="_blank"
                       rel="noopener noreferrer"
-                      onClick={copyFbText}
                       className="py-2.5 rounded-2xl text-center text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 transition"
                     >
-                      فیس بک کھولیں
+                      فیس بک پیج کھولیں
                     </a>
                     <a
                       href={`https://wa.me/?text=${encodeURIComponent(fbPost.text)}`}
