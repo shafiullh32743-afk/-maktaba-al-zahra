@@ -50,7 +50,7 @@ export async function middleware(request: NextRequest) {
   const isNotifyApi = path === "/api/notify-order";
   const isTrack = path === "/track" || path === "/api/track-order";
   const isFbFeed = path === "/api/facebook-feed";
-  const isOgImage = path === "/api/og"; // فیس بک شیئر تصویر (عوامی) // فیس بک شاپ کی فہرست (عوامی)
+  const isOgImage = path === "/api/og" || path === "/api/og-multi"; // فیس بک شیئر تصویر (عوامی) // فیس بک شاپ کی فہرست (عوامی)
 
   const isPublicPage =
     isHomePage || isLoginPage || isSitemap || isBookDetailPage || isShopPage || isAboutOrContact || isCartPage || isNotifyApi || isTrack || isFbFeed || isOgImage;

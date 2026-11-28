@@ -1240,7 +1240,7 @@ function BooksPageInner() {
 
   // سیل لگانا / ختم کرنا
   // فیس بک / واٹس ایپ کے لیے تیار اردو پوسٹ (ڈائیلاگ میں دیکھیں، بدلیں، کاپی کریں)
-  const [fbPost, setFbPost] = useState<{ book: Book | null; count?: number; text: string; link: string } | null>(null);
+  const [fbPost, setFbPost] = useState<{ book: Book | null; count?: number; text: string; link: string; img?: string } | null>(null);
   const [fbCopied, setFbCopied] = useState(false);
   const openFbPost = (b: Book) => {
     const slug = (b as { slug?: string | null }).slug;
@@ -1315,7 +1315,10 @@ function BooksPageInner() {
     lines.push("🤲 دوستوں اور اہلِ خانہ تک پہنچانے کے لیے شیئر ضرور کریں");
     lines.push(`#مکتبہ_الزھراء #اسلامی_کتب${oneAuthor ? " #" + oneAuthor.replace(/[\s\-،,]+/g, "_") : ""}`);
     setFbCopied(false);
-    setFbPost({ book: list.length === 1 ? list[0] : null, count: list.length, text: lines.join("\n"), link });
+    const pcts2 = onSale.map((b) => salePercent(b));
+    const pctText = pcts2.length === 0 ? "" : Math.min(...pcts2) === Math.max(...pcts2) ? String(Math.max(...pcts2)) : `${Math.min(...pcts2)}-${Math.max(...pcts2)}`;
+    const img = `/api/og-multi?ids=${list.slice(0, 4).map((b) => b.id).join(",")}&n=${list.length}${pctText ? `&p=${pctText}` : ""}`;
+    setFbPost({ book: list.length === 1 ? list[0] : null, count: list.length, text: lines.join("\n"), link, img });
   };
   const copyFbText = async () => {
     if (!fbPost) return;
@@ -2662,8 +2665,23 @@ ${itemsList}
                   ) : (
                     <div className="w-12 h-16 rounded-lg bg-slate-200 shrink-0 flex items-center justify-center text-lg">📚</div>
                   )}
-                  <p className="text-[11px] text-slate-500 leading-relaxed">{fbPost.book ? "لنک paste کرنے پر فیس بک خود کتاب کی تصویر، نام اور قیمت کا کارڈ بنا دے گی۔ نیچے متن بدل بھی سکتے ہیں۔" : "مشترکہ پوسٹ میں تمام کتب کی فہرست اور دکان کا لنک ہے۔ فیس بک پر ساتھ کوئی خوبصورت تصویر بھی لگا دیں۔ نیچے متن بدل بھی سکتے ہیں۔"}</p>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">{fbPost.book ? "لنک paste کرنے پر فیس بک خود کتاب کی تصویر، نام اور قیمت کا کارڈ بنا دے گی۔ نیچے متن بدل بھی سکتے ہیں۔" : "مشترکہ پوسٹ میں تمام کتب کی فہرست اور دکان کا لنک ہے۔ نیچے دی گئی تیار تصویر محفوظ کر کے فیس بک پوسٹ کے ساتھ لگا دیں۔ نیچے متن بدل بھی سکتے ہیں۔"}</p>
                 </div>
+                {fbPost.img && !fbPost.book && (
+                  <div className="mb-3 rounded-2xl border border-slate-100 bg-slate-50 p-2.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={fbPost.img} alt="مشترکہ تصویر" className="w-full rounded-xl border border-slate-100" />
+                    <a
+                      href={fbPost.img}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download="maktaba-books.png"
+                      className="mt-2 block py-2 rounded-xl text-center text-xs font-bold bg-white text-slate-700 border border-slate-200 hover:bg-slate-100 transition"
+                    >
+                      🖼 تصویر کھولیں اور محفوظ کریں (پوسٹ کے ساتھ لگانے کے لیے)
+                    </a>
+                  </div>
+                )}
                 <textarea
                   value={fbPost.text}
                   onChange={(e) => setFbPost({ ...fbPost, text: e.target.value })}
