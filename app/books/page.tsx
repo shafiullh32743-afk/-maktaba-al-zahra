@@ -1352,26 +1352,26 @@ function BooksPageInner() {
       flashFbNote("تصویر کاپی نہیں ہو سکی۔ نئے ٹیب میں کھل گئی ہے، اس پر دایاں کلک کر کے محفوظ کریں");
     }
   };
-  // ایک ہی کلک میں متن اور تصویر دونوں کاپی
+  // ایک ہی کلک میں: متن کاپی + تصویر فون/کمپیوٹر میں محفوظ (فیس بک میں اکٹھا paste ممکن نہیں ہوتا)
   const copyFbBoth = async () => {
     if (!fbPost) return;
+    await copyFbText();
+    if (!fbPost.img) return;
     try {
-      if (!fbPost.img) throw new Error("no image");
       const res = await fetch(fbPost.img);
       const blob = await res.blob();
-      const type = blob.type || "image/png";
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          "text/plain": new Blob([fbPost.text], { type: "text/plain" }),
-          [type]: blob,
-        }),
-      ]);
-      setFbCopied(true);
-      setTimeout(() => setFbCopied(false), 2500);
-      flashFbNote("✓ متن اور تصویر دونوں کاپی ہو گئے۔ فیس بک کے پوسٹ باکس میں Ctrl+V دبائیں۔ اگر صرف ایک چیز آئے تو نیچے 'صرف متن' یا 'صرف تصویر' سے دوسری بھی لگا لیں۔");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "maktaba-post.png";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      flashFbNote("✓ متن کاپی ہو گیا اور تصویر محفوظ ہو گئی (Downloads میں maktaba-post.png)۔ فیس بک میں متن Ctrl+V سے ڈالیں، پھر 'تصویر/ویڈیو' دبا کر یہی تصویر چن لیں۔");
     } catch {
-      await copyFbText();
-      flashFbNote("متن کاپی ہو گیا۔ تصویر کے لیے نیچے 'صرف تصویر' دبائیں۔");
+      window.open(fbPost.img, "_blank");
+      flashFbNote("متن کاپی ہو گیا۔ تصویر نئے ٹیب میں کھل گئی ہے، اس پر دایاں کلک کر کے محفوظ کریں۔");
     }
   };
   // موبائل پر: فون کے شیئر مینو سے تصویر اور متن ایک ساتھ
@@ -2746,7 +2746,7 @@ ${itemsList}
                   ) : (
                     <div className="w-12 h-16 rounded-lg bg-slate-200 shrink-0 flex items-center justify-center text-lg">📚</div>
                   )}
-                  <p className="text-[11px] text-slate-500 leading-relaxed">ایک کلک میں متن اور تصویر کاپی کریں، پھر فیس بک کے پوسٹ باکس میں Ctrl+V کریں۔ لنک کمنٹ میں ڈالنا ہو تو "صرف لنک" دبائیں۔</p>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">نیلا بٹن دبائیں: متن کاپی ہوگا اور تصویر محفوظ ہو جائے گی۔ فیس بک میں متن Ctrl+V سے ڈالیں اور "تصویر/ویڈیو" سے محفوظ تصویر چن لیں۔ لنک کمنٹ میں ڈالنا ہو تو "صرف لنک" دبائیں۔</p>
                 </div>
                 {fbPost.img && (
                   <div className="mb-3 rounded-2xl border border-slate-100 bg-slate-50 p-2.5">
@@ -2784,7 +2784,7 @@ ${itemsList}
                     className={`w-full py-3 rounded-2xl text-sm font-extrabold text-white shadow-md transition active:scale-[0.98] ${fbCopied ? "bg-emerald-500 shadow-emerald-500/30" : "shadow-blue-600/25"}`}
                     style={fbCopied ? undefined : { background: "linear-gradient(135deg,#1877F2,#0a5bd3)" }}
                   >
-                    {fbCopied ? "✓ کاپی ہو گیا، اب فیس بک میں Ctrl+V کریں" : "📋 متن + تصویر ایک ساتھ کاپی کریں"}
+                    {fbCopied ? "✓ متن کاپی ہوا اور تصویر محفوظ ہوئی" : "📋 متن کاپی + 🖼 تصویر محفوظ (ایک کلک)"}
                   </button>
                   <div className="grid grid-cols-3 gap-2">
                     <button
